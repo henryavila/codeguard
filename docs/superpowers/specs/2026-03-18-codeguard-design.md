@@ -1,0 +1,612 @@
+# CodeGuard — Design Specification
+
+**Date:** 2026-03-18
+**Author:** Henry + Claude (Superpowers Brainstorming)
+**Status:** Pending review
+
+---
+
+## 1. What Is CodeGuard
+
+CodeGuard is an AI-native code governance system. It installs via `npx`, configures via AI conversation, and enforces quality through three complementary layers: deterministic tools (Larastan, Pint, PHPMD), architectural rules (Pest), and AI-powered semantic analysis.
+
+**Core thesis:** The real value is not running PHPStan — any dev can do that. The value is an AI that understands the project's architecture and identifies violations that no static tool can detect.
+
+**Value hierarchy:**
+1. **Core** — AI semantic analysis (pattern violations only AI can see)
+2. **High** — Prevention (CODEGUARD.md guides AI during code generation)
+3. **Base** — Deterministic tools + Pest arch tests (safety net)
+
+---
+
+## 2. Architecture Overview
+
+### Skills-First
+
+The AI agent inside the developer's IDE does the heavy lifting. The npm package is a delivery vehicle.
+
+```
+npm package (delivery vehicle)
+├── installer          → copies skills + patterns to 7 IDEs
+├── hook runner        → deterministic tools on git diff (no AI)
+├── skills/            → setup.md, run.md, health.md (the product)
+├── modules/
+│   ├── core/
+│   │   ├── patterns/          → universal patterns (SOLID, DDD, etc.)
+│   │   └── ai-rules/          → universal AI analysis instructions
+│   ├── php/
+│   │   ├── patterns/          → PHP-specific patterns
+│   │   └── ai-rules/          → PHP AI analysis instructions
+│   └── php-laravel/
+│       ├── module.yaml        → identity, detection
+│       ├── preset.yaml        → tool defaults
+│       ├── patterns/          → Laravel patterns (YAML)
+│       ├── ai-rules/          → Laravel AI analysis instructions (markdown)
+│       ├── arch-tests/        → Pest test templates (PHP)
+│       └── adapters/          → tool adapters (TypeScript)
+└── package.json
+```
+
+### Three-Layer Enforcement
+
+| Layer | Tool | Catches | Precision | Runs in |
+|---|---|---|---|---|
+| Deterministic tools | Larastan, Pint, PHPMD | Types, formatting, smells | 100% | Hook (pre-commit) |
+| Architectural rules | Pest arch testing | Structure, deps, naming | 100% | Hook (pre-commit) |
+| Semantic analysis | CodeGuard AI | Pattern drift, missing DTOs, logic in wrong layer | Probabilistic | `/codeguard-run` skill |
+
+---
+
+## 3. Commands
+
+| Command | Type | What it does | When |
+|---|---|---|---|
+| `npx codeguard install` | CLI (terminal) | Installs skills to selected IDEs (7 supported) | Once |
+| `/codeguard-setup` | Skill (AI) | First time: detect stack → detect patterns (catalog + AI + custom) → dev validates → install tools → generate codeguard.yaml + CODEGUARD.md + Pest arch tests → install hooks. Update mode: re-map → detect drift → suggest adjustments | First time or reconfig |
+| `/codeguard-run` | Skill (AI) | Run static tools + AI pattern analysis on scope → classify → report → offer corrections | On-demand |
+| `/codeguard-health` | Skill (AI) | Overview: metrics, scores, baseline status, compliance | Periodic |
+| *(automatic)* | Hook | Run tools + Pest on staged files → baseline match → format messages | Every commit |
+
+**Capability mapping:** The original BMAD vision had four named capabilities (Diagnosis, Prevention, Protection, Verification). These map to the current commands: `/codeguard-run` (Diagnosis + Verification merged), CODEGUARD.md (Prevention), hooks (Protection). `/codeguard-health` provides the overview that was split across the original capabilities.
+
+**Invocation per IDE:**
+
+| IDE | Syntax |
+|---|---|
+| Claude Code | `/codeguard-setup` |
+| OpenCode | `/codeguard-setup` |
+| Cursor | Mention skill name in chat |
+| Codex CLI | To be validated during implementation |
+| Gemini CLI | To be validated |
+| Copilot CLI | To be validated |
+| Windsurf | To be validated |
+
+---
+
+## 4. Module System — Extensibility
+
+### Structure
+
+```
+modules/{module-name}/
+  ├── module.yaml          # identity, detection heuristics, capabilities
+  ├── preset.yaml          # tool configs, install commands
+  ├── patterns/            # pattern catalog (YAML) — AI consumes
+  ├── ai-rules/            # analysis instructions (markdown) — AI consumes
+  ├── arch-tests/          # Pest test templates (PHP) — generated during setup
+  └── adapters/            # tool adapters (TypeScript) — hook runner consumes
+```
+
+### Three extensibility layers
+
+| Layer | Files | Language | Barrier | Who contributes |
+|---|---|---|---|---|
+| Patterns + AI rules | `patterns/*.yaml` + `ai-rules/*.md` | YAML + Markdown | Low | Anyone |
+| Arch tests | `arch-tests/*.php` | PHP | Medium | PHP devs |
+| Tool adapters | `adapters/*.ts` | TypeScript | Higher | Node.js devs |
+
+### Module hierarchy
+
+```
+modules/
+  ├── core/              # always loaded — universal patterns
+  ├── php/               # loaded for any PHP project
+  └── php-laravel/       # loaded when Laravel detected
+```
+
+When the community creates `javascript-react/`, it inherits `core/` patterns automatically.
+
+### module.yaml
+
+```yaml
+name: php-laravel
+label: Laravel
+language: php
+framework: laravel
+
+detection:
+  files:
+    - composer.json
+    - artisan
+  dependencies:
+    - laravel/framework
+  confidence: high
+
+capabilities:
+  static-analysis:
+    tool: larastan
+    default_level: 6
+  formatting:
+    tool: pint
+    preset: laravel
+  mess-detection:
+    tool: phpmd
+    rulesets: [unusedcode, codesize]
+  arch-testing:
+    tool: pest
+    presets: [php, laravel]
+```
+
+### preset.yaml
+
+```yaml
+tools:
+  larastan:
+    binary: vendor/bin/phpstan
+    config: phpstan.neon
+    level: 6
+    extensions: [larastan]
+  pint:
+    binary: vendor/bin/pint
+    config: pint.json
+    preset: laravel
+  phpmd:
+    binary: vendor/bin/phpmd
+    config: phpmd.xml
+    rulesets: [unusedcode, codesize]
+  pest:
+    binary: vendor/bin/pest
+    directory: tests/Architecture
+
+install_commands:
+  - composer require --dev larastan/larastan
+  - composer require --dev laravel/pint
+  - composer require --dev phpmd/phpmd
+  - composer require --dev pestphp/pest
+```
+
+### ToolAdapter interface
+
+Replaces the existing `ToolAdapter` in `src/core/types/modules.ts` (which has a single `analyze()` method). The new interface separates concerns for the hook runner's needs:
+
+```typescript
+export interface CommandSpec {
+  binary: string;
+  args: string[];
+  cwd?: string;
+  timeout?: number;
+}
+
+export interface ToolAdapter {
+  readonly name: string;
+  readonly binary: string;
+  buildCommand(files: string[], config: ToolConfig): CommandSpec;
+  parseOutput(raw: string): ToolResult;
+  filterToStaged(violations: AnalysisViolation[], stagedFiles: string[]): AnalysisViolation[];
+}
+```
+
+---
+
+## 5. Capabilities Model
+
+User configures **capabilities**, the module resolves to **tools**:
+
+```
+"static-analysis" + Laravel  → Larastan
+"static-analysis" + React    → ESLint
+"formatting"      + Laravel  → Pint
+"formatting"      + React    → Prettier
+"arch-testing"    + Laravel  → Pest (laravel preset)
+"arch-testing"    + React    → ESLint plugin + custom
+```
+
+### MVP capabilities (Laravel)
+
+| Capability | Tool | Enforcement | Hook? |
+|---|---|---|---|
+| `formatting` | Pint | Autofix | Yes — auto-corrects staged files |
+| `static-analysis` | Larastan | Block/Warn | Yes — full project, filter to staged |
+| `mess-detection` | PHPMD | Warn | Yes — staged files only |
+| `arch-testing` | Pest | Block | Yes — arch test suite |
+| `ai-review` | CodeGuard AI | Block/Warn | No — only via `/codeguard-run` |
+
+**Note:** `ai-review` is not listed in `codeguard.yaml` because it has no tool adapter and no hook runner involvement. It is always available via `/codeguard-run` — the AI agent performs this analysis directly using patterns + ai-rules.
+
+### Roadmap capabilities
+
+| Capability | Tool | What it does |
+|---|---|---|
+| `modernization` | Rector | Automated refactoring, version upgrades |
+| `security` | Pest security preset | No eval, md5, sha1, unsafe unserialize |
+| `mutation-testing` | Infection | Test quality measurement |
+
+---
+
+## 6. Pattern Catalog
+
+Full analysis: [2026-03-18-pattern-catalog-analysis.md](2026-03-18-pattern-catalog-analysis.md)
+
+### Three-layer structure
+
+| Layer | Scope | MVP Count |
+|---|---|---|
+| `core/` | Universal (SOLID, Clean Code, DDD, GoF, Arch Fitness) | 13 |
+| `php/` | PHP-specific | 6 |
+| `php-laravel/` | Laravel-specific | 9 |
+| **Total** | | **28** |
+
+### MVP patterns summary
+
+**Core (13):** SRP, DRY, Small Functions, Few Arguments, Consistent Error Handling, Separation of Concerns, No Long Switch/If Chain, No Constructor With Too Many Params, No God Object, No Deep Inheritance, Layer Dependency Direction, No Circular Dependencies, Bounded Contexts
+
+**PHP (6):** Strict Typing, No HTML in PHP, No Debug Functions, Type Declarations, Exception Handling, No Superglobals
+
+**Laravel (9):** Service Layer, DTOs, Form Requests, Action Classes, Value Objects, Resource Controllers, Policies, No env() outside config, No Logic in Blade
+
+**Note on Repositories pattern:** The pattern catalog classifies Repositories as "MVP (for stacks that use them)." For the Laravel module, the Repository pattern is NOT included because Laravel's Eloquent already serves this role. The Service Layer pattern handles the boundary instead. For other PHP modules (e.g., Symfony), Repositories would be MVP.
+
+### Roadmap patterns: 18 additional (see full analysis)
+
+### Pattern YAML schema
+
+```yaml
+name: Service Layer
+description: Controllers delegate business logic to Services
+category: architecture
+layer: laravel
+severity: critical
+classification: mvp
+
+detection:
+  signals:
+    - directory: app/Services
+    - controllers_import: App\Services\*
+  confidence: high
+
+verification:
+  rules:
+    - controllers must not access Eloquent models directly
+    - controllers must not contain business logic
+    - services must not return HTTP responses
+    - services must not access Request object
+
+examples:
+  correct: |
+    $result = $this->orderService->create(OrderData::from($request));
+  violation: |
+    $order = Order::create($request->all());
+
+related_patterns:
+  - dto
+  - form-requests
+```
+
+### How patterns are used
+
+- **Setup skill:** Loads all pattern YAMLs from module layers → presents to dev for validation
+- **Run skill:** AI analyzes code against active patterns' verification rules
+- **Pest arch tests:** Structural rules from patterns become arch() expectations (generated during setup)
+- **CODEGUARD.md:** Active patterns become AI context for code generation
+- **codeguard.yaml:** The `patterns.catalog` list contains framework-specific patterns selected during setup. Core and language-layer patterns (from `modules/core/` and `modules/php/`) are loaded automatically based on the module hierarchy and are NOT listed individually in `codeguard.yaml`.
+- If a pattern name appears at multiple layers, the most specific layer takes precedence (php-laravel > php > core).
+- Discovered and custom pattern YAMLs stored in `.codeguard/patterns/` (project-local, not in module)
+
+---
+
+## 7. Configuration
+
+### codeguard.yaml
+
+```yaml
+version: "1.0"
+
+project:
+  language: php
+  framework: laravel
+  module: php-laravel
+
+capabilities:
+  static-analysis:
+    enabled: true
+    level: 6
+    enforcement: block
+  formatting:
+    enabled: true
+    enforcement: autofix   # autofix = silently correct, never block
+  mess-detection:
+    enabled: true
+    enforcement: warn
+  arch-testing:
+    enabled: true
+    enforcement: block
+    presets: [php, laravel]
+
+patterns:
+  catalog:
+    - service-layer
+    - dto
+    - form-requests
+    - action-classes
+    - value-objects
+    - resource-controllers
+    - policies
+    - no-env-outside-config
+    - no-logic-in-blade
+  discovered:
+    - result-objects
+  custom:
+    - our-internal-rule
+
+thresholds:
+  max_method_lines: 20
+  max_indentation_levels: 2
+
+hooks:
+  pre-commit:
+    enabled: true
+    scope: staged-files
+
+baseline:
+  path: .codeguard/baseline.json
+  generated: 2026-03-18
+```
+
+### Change flow
+
+- **Small change** (e.g., Larastan level 6→9): edit YAML directly → hook uses it immediately
+- **Big change** (add patterns, change stack): re-run `/codeguard-setup` → AI re-analyzes everything
+
+### CODEGUARD.md
+
+Generated by AI during setup. Project-specific, not template-based.
+- Read automatically by AI IDEs as context for code generation
+- Contains: architecture patterns, naming conventions, file organization, tool config summary
+- Enriched over time by `/codeguard-setup` re-runs
+
+### Baseline
+
+```json
+{
+  "version": "1.0",
+  "generated": "2026-03-18T10:30:00Z",
+  "generatedBy": "codeguard-run",
+  "module": "php-laravel",
+  "entries": [
+    {
+      "tool": "larastan",
+      "rule": "method.notFound",
+      "file": "app/Services/OrderService.php",
+      "message_normalized": "Call to undefined method * on *",
+      "hash": "a1b2c3d4"
+    }
+  ]
+}
+```
+
+- Generated by `/codeguard-run` (AI skill)
+- Consumed by hook runner (Node.js)
+- Matching: normalized message + file path (strips line numbers, survives refactors)
+
+---
+
+## 8. Hook Runner
+
+### Architecture
+
+Self-contained bundle at `.codeguard/hook-runner.js`, committed to repo.
+The bundle is generated by `/codeguard-setup` — it compiles the hook runner core + the relevant module's adapters into a single JS file using tsdown. When the module changes (e.g., community adds a new adapter), re-running setup regenerates the bundle.
+
+```
+.git/hooks/pre-commit (shell shim, 3-4 lines)
+  └── .codeguard/hook-runner.js (Node.js bundle, includes adapters)
+        ├── reads codeguard.yaml
+        ├── gets staged files (git diff --cached)
+        │
+        ├── PHASE 1: Autofix (sequential, before analysis)
+        │   └── Pint (staged files → fix → git add fixed files)
+        │
+        ├── PHASE 2: Analysis (parallel via Promise.allSettled)
+        │   ├── Larastan (full project → filter to staged)
+        │   ├── PHPMD (staged files)
+        │   └── Pest arch tests (tests/Architecture/)
+        │
+        ├── normalizes violations
+        ├── applies baseline matching
+        ├── formats tool-level messages
+        └── exit code decision
+```
+
+### Execution order
+
+**Pint runs FIRST, alone.** It modifies and re-stages files. Only after Pint completes do the analysis tools run. This prevents race conditions — Larastan, PHPMD, and Pest all analyze the already-formatted code.
+
+### Exit code logic
+
+```
+For each violation after baseline matching:
+  if enforcement == 'block' AND not baselined → BLOCKING
+  if enforcement == 'warn'  → WARNING (printed, not blocking)
+  if enforcement == 'autofix' → already fixed by Pint, not a violation
+
+Exit code:
+  Any BLOCKING violations exist → exit 1 (commit blocked)
+  Only WARNINGs → exit 0 (commit proceeds, warnings printed)
+  All clean → exit 0 (commit proceeds)
+  All tools failed to run → exit 1 (never silently succeed)
+```
+
+### Key decisions
+
+- **Self-contained bundle** — works without npm install, committed to repo
+- **Adapters bundled in** — setup compiles adapters into the bundle via tsdown
+- **ToolAdapter interface** — no hardcode, even for MVP
+- **Tool-level messages only** — no pattern knowledge in hook
+- **Partial results** — one tool failing doesn't suppress others (Promise.allSettled)
+- **Tool not installed** — adapter detects missing binary, reports clear error with install command, continues with remaining tools
+- **Larastan runs full project** — filters output to staged files (PHPStan needs full context)
+- **Pint autofixes** — corrects and re-stages before commit proceeds
+
+---
+
+## 9. IDE Support
+
+7 IDEs using BMAD's proven deployment patterns:
+
+| IDE | Mechanism |
+|---|---|
+| Claude Code | `.claude/skills/` (copy) |
+| Cursor | `.cursor/skills/` (copy) |
+| Codex CLI | Symlink approach |
+| OpenCode | `.opencode/skills/` (plugin hook) |
+| Gemini CLI | `.gemini/skills/` (copy) |
+| GitHub Copilot CLI | `.copilot/skills/` (copy) |
+| Windsurf | `.windsurf/skills/` (copy) |
+
+Each skill file includes invocation table per IDE in its documentation.
+
+### File placement summary
+
+| File | Location | Committed to git? |
+|---|---|---|
+| Skills | `.claude/skills/`, `.cursor/skills/`, etc. per IDE | Typically yes (project-local) |
+| codeguard.yaml | Project root | Yes |
+| CODEGUARD.md | Project root | Yes |
+| Hook runner | `.codeguard/hook-runner.js` | Yes |
+| Baseline | `.codeguard/baseline.json` | Yes |
+| Custom/discovered patterns | `.codeguard/patterns/` | Yes |
+| Pest arch tests | `tests/Architecture/CodeGuardArchTest.php` | Yes |
+| Shell shim | `.git/hooks/pre-commit` | No (git hooks not committed) |
+
+---
+
+## 10. What Exists (Story 1-1)
+
+- Core types: `config.ts`, `violations.ts`, `modules.ts`, `output.ts`
+- Build: tsdown, eslint, vitest — all passing
+- Package.json with dependencies
+- `bin/codeguard.js` CLI entry point
+
+**Decision:** Keep as-is. Build on top of this foundation.
+
+### Types to update (Story 1-1 → new design)
+
+| Type | Current | Needs to become |
+|---|---|---|
+| `ToolAdapter` | Single `analyze()` method | `buildCommand()` + `parseOutput()` + `filterToStaged()` + new `CommandSpec` type |
+| `CodeGuardModule.getTemplate()` | Returns Handlebars template path | Remove — CODEGUARD.md is AI-generated, no templates |
+| `CodeGuardConfig` | Flat `preset: string`, `patterns: string[]` | Structured `project`, `capabilities`, `patterns` (catalog/discovered/custom), `thresholds` |
+| `FormatterContext.scope` | `'hook' \| 'scan' \| 'review'` | `'hook' \| 'run' \| 'health'` |
+| `BaselineConfig.autoGenerate` | Implicit auto-generation | Remove — baseline generated explicitly by `/codeguard-run` |
+| `ToolConfig.enforcement` | `'block' \| 'warn'` | `'block' \| 'warn' \| 'autofix'` |
+| `AnalysisViolation.standard` | Required `string` | Optional `string?` — only populated by AI, not by hook runner |
+| `AnalysisViolation.reference` | Required `string` | Optional `string?` — only populated by AI, not by hook runner |
+| `PatternDefinition` | Minimal existing type | Full rewrite to match YAML schema (name, category, layer, severity, detection, verification, examples) |
+| *(new)* | — | `Capability` type for capabilities model |
+
+---
+
+## 11. What BMAD Artifacts to Keep/Fix/Drop
+
+| Action | Items |
+|---|---|
+| **Keep** | Brainstorming truths, UX spec (value hierarchy, journeys, emotional design), personas, three-part message format, correction loop |
+| **Fix** | Architecture (add patterns/ai-rules/arch-tests to extensibility), capabilities model (restore + add arch-testing), Larastan not PHPStan for Laravel |
+| **Drop** | Over-specified NFRs for MVP, Handlebars for CODEGUARD.md, prescriptive story implementations, 6 epics structure |
+
+---
+
+## 12. Skill Flow Outlines
+
+Skill file contents are defined during implementation. High-level flows:
+
+### /codeguard-setup
+
+```
+1. Read module hierarchy (core → php → php-laravel)
+2. Detect stack (module.yaml detection heuristics)
+3. Load pattern YAMLs from all applicable layers
+4. Phase 1 — Recognition: present catalog patterns detected with evidence
+5. Phase 2 — Discovery: AI scans code for patterns beyond catalog
+6. Phase 3 — Control: dev adds/removes/adjusts patterns
+7. Configure capabilities (static-analysis level, enforcement modes)
+8. Install tools (composer require commands from preset.yaml)
+9. Generate codeguard.yaml
+10. Generate CODEGUARD.md (AI writes project-specific content)
+11. Generate tests/Architecture/CodeGuardArchTest.php (Pest arch tests from active patterns)
+12. Bundle hook runner (.codeguard/hook-runner.js)
+13. Install git hook (.git/hooks/pre-commit shell shim)
+14. Show setup summary
+```
+
+Update mode (existing config): Steps 1-3, then compare with existing config, show drift, dev validates changes, regenerate affected files.
+
+### /codeguard-run
+
+```
+1. Read codeguard.yaml + CODEGUARD.md
+2. Load ai-rules/*.md from all applicable module layers (core → php → php-laravel)
+   These files instruct the AI HOW to analyze: heuristics, false positive prevention,
+   severity classification, Laravel-specific detection strategies
+3. Determine scope (full project, directory, file, or --changes)
+4. Run static analysis tools on scope (AI calls shell)
+5. Parse tool output
+6. Load active patterns from all layers
+7. AI analyzes code against pattern verification rules, guided by ai-rules
+8. Classify findings by severity (critical/warning/suggestion)
+9. Generate report (grouped by pattern, ordered by severity)
+10. Offer corrections ("fix this", "fix all X violations")
+11. Optionally generate/update baseline
+```
+
+### /codeguard-health
+
+```
+1. Read codeguard.yaml + baseline
+2. Assess: baseline age, pattern coverage, tool versions
+3. Run quick tool check (tools installed? correct versions?)
+4. Compare codeguard.yaml with CODEGUARD.md (drift detection)
+5. Show overview: metrics, scores, status, recommendations
+```
+
+---
+
+## 13. Thresholds Ownership
+
+`thresholds` in codeguard.yaml are consumed by multiple layers:
+
+| Threshold | Pest (deterministic) | AI (semantic) |
+|---|---|---|
+| `max_method_lines: 20` | `arch()->expect('App')->toHaveLineCountLessThan(20)` | AI flags methods over 20 lines with richer context ("this method does X, Y, Z — consider extracting") |
+| `max_indentation_levels: 2` | Not natively supported by Pest | AI detects deep nesting and suggests flattening |
+
+Pest handles what it can measure. AI handles what needs understanding.
+
+---
+
+## 14. Known Gaps (deferred to implementation)
+
+| Gap | Impact | When to resolve |
+|---|---|---|
+| Versioning/migration strategy for codeguard.yaml schema | Low for MVP | Before v2.0 |
+| Error handling catalog (composer fail, PHP version mismatch, etc.) | Medium | During setup skill implementation |
+| Exact Pest output parsing format (JUnit XML vs text) | Low | During adapter implementation |
+| IDE invocation syntax for Codex CLI, Gemini CLI, Copilot CLI, Windsurf | Low | During implementation with IDE access |
+
+---
+
+## 15. Related Documents
+
+- [Pattern Catalog Analysis](2026-03-18-pattern-catalog-analysis.md) — 46 patterns (28 MVP + 18 Roadmap), YAML schema
+- [Laravel Tools Research](2026-03-18-laravel-tools-research.md) — Pint, Larastan, Pest, PHPMD, Rector
+- BMAD artifacts: `_bmad-output/` — brainstorming, product brief, UX spec, PRD, architecture, epics
