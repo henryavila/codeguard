@@ -260,7 +260,7 @@ Full analysis: [2026-03-18-pattern-catalog-analysis.md](2026-03-18-pattern-catal
 
 **Note on Repositories pattern:** The pattern catalog classifies Repositories as "MVP (for stacks that use them)." For the Laravel module, the Repository pattern is NOT included because Laravel's Eloquent already serves this role. The Service Layer pattern handles the boundary instead. For other PHP modules (e.g., Symfony), Repositories would be MVP.
 
-### Roadmap patterns: 18 additional (see full analysis)
+### Roadmap patterns: 20 additional (see full analysis)
 
 ### Pattern YAML schema
 

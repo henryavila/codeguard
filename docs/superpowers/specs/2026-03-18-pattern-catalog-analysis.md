@@ -187,8 +187,10 @@ classification: mvp           # mvp | roadmap
 
 detection:
   signals:
-    - directory: app/Services
-    - controllers_import: App\Services\*
+    - type: directory
+      value: app/Services
+    - type: import
+      value: "App\\Services\\*"
   confidence: high             # high | medium | low
 
 verification:

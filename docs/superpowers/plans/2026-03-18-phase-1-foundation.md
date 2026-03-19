@@ -1261,7 +1261,6 @@ Review if the config loader and pattern loader should be separate entry points o
 "files": [
   "dist/",
   "bin/",
-  "templates/",
   "skills/",
   "modules/"
 ]
