@@ -20,7 +20,7 @@
 | **2** | CLI Installer | `npx codeguard install` with 7 IDE support + placeholder skills | Phase 1 | Pending |
 | **3** | Pattern Catalog Content | 28 YAML pattern files + ai-rules for core/php/laravel | Phase 1 | Pending |
 | **4** | Tool Adapters + Hook Runner | Larastan/Pint/PHPMD/Pest adapters + pre-commit pipeline + bundling | Phase 1 | Pending |
-| **5** | Skills | codeguard-setup.md, codeguard-run.md, codeguard-health.md | Phase 3 + 4 | Pending |
+| **5** | Skills | codeguard-setup.md, codeguard-run.md, codeguard-health.md | Phase 2 + 3 + 4 | Pending |
 
 ### Changes from original plan
 
@@ -28,9 +28,11 @@
 
 2. **Phase 5 (Skills) renumbered to 5.** Was Phase 6. Now depends on Phase 3 (patterns must exist for skills to reference) AND Phase 4 (hook runner must exist for setup skill to install).
 
-3. **Adapter location resolved.** Adapters live in `src/adapters/php-laravel/` (TypeScript, compiled by tsdown). Module YAML/markdown stays in `modules/` (static data, shipped as-is). This was discovered during Phase 1 — tsdown only compiles `src/`.
+3. **Adapter location resolved.** Adapters live in `src/adapters/php-laravel/` (TypeScript, compiled by tsdown). Module YAML/markdown stays in `modules/` (static data, shipped as-is). This was discovered during Phase 1 — tsdown only compiles `src/`. **NOTE:** Design spec Sections 2 and 4 still show adapters inside `modules/` — the master plan supersedes for adapter location.
 
-4. **Hook runner bundling resolved.** Hook runner is compiled during `npm run build` as a tsdown entry point. Ships as `dist/hook-runner.js` in the npm package. During setup, the AI copies it to `.codeguard/hook-runner.js`. No runtime compilation needed.
+4. **Hook runner bundling resolved.** Hook runner is compiled during `npm run build` as a tsdown entry point. Ships as `dist/hooks/runner.js` in the npm package. During setup, the AI copies it to `.codeguard/hook-runner.js`. No runtime compilation needed. **IMPORTANT:** tsdown must use `deps.alwaysBundle` for the hook runner entry to produce a self-contained bundle with zero external imports.
+
+5. **`arch-tests/` directory dropped from module structure.** The setup skill generates Pest arch tests from scratch based on active patterns' verification rules — no templates needed. The `arch-tests/` directory shown in the design spec Section 4 is unnecessary.
 
 5. **Installer uses placeholder skills.** Phase 2 creates placeholder skill files (minimal markdown with "coming soon" message). Phase 5 replaces them with real skills. This allows Phase 2 to be independent.
 
@@ -168,9 +170,11 @@ tests/
 **Key decisions:**
 - 26 new patterns (2 already exist: single-responsibility, service-layer)
 - Each follows the exact YAML schema validated in Phase 1
+- **IMPORTANT:** Detection signals MUST use structured `{type, value}` format (e.g., `{type: 'directory', value: 'app/Services'}`), NOT the design spec's shorthand format (`directory: app/Services`). The structured format is what the Phase 1 loader validates.
 - ai-rules are markdown files with analysis heuristics, false positive prevention, severity classification
 - Split work by layer: core (12 remaining), php (6), laravel (8 remaining)
-- Also create `modules/php/` structure (patterns/ + ai-rules/) — doesn't exist yet
+- Create `modules/php/` structure (patterns/ + ai-rules/) — doesn't exist yet
+- **NOTE:** `modules/php/` intentionally has no `module.yaml`. Like `modules/core/`, PHP-layer patterns are loaded by the hierarchy logic in the setup skill (Phase 5), not by `discoverModules`. Only framework-specific modules (php-laravel, etc.) have `module.yaml`.
 
 **Files to create:**
 ```
@@ -267,7 +271,28 @@ tests/
 
 **Build changes:**
 - tsdown entry: `'hooks/runner': 'src/hooks/runner.ts'` (already exists, needs real content)
-- Consider separate bundle config for hook runner with `deps.alwaysBundle` if needed
+- **MUST** configure `deps.alwaysBundle` for hook runner entry to produce self-contained bundle (zero external imports — the bundle will be copied to `.codeguard/hook-runner.js` in projects without node_modules)
+- May need separate tsdown config for hook runner vs library entry (library keeps deps external, hook bundles everything)
+
+**Baseline JSON schema (contract between Phase 4 and Phase 5):**
+Phase 4's `baseline.ts` must parse this exact format. Phase 5's run skill must generate it.
+```json
+{
+  "version": "1.0",
+  "generated": "2026-03-18T10:30:00Z",
+  "generatedBy": "codeguard-run",
+  "module": "php-laravel",
+  "entries": [
+    {
+      "tool": "larastan",
+      "rule": "method.notFound",
+      "file": "app/Services/OrderService.php",
+      "message_normalized": "Call to undefined method * on *",
+      "hash": "a1b2c3d4"
+    }
+  ]
+}
+```
 
 **Testing strategy:**
 - Unit tests with fixture JSON/text outputs (no real PHP tools needed)
@@ -296,9 +321,23 @@ skills/
 ```
 
 **Dependencies on other phases:**
-- Phase 3 (patterns exist, so skill can reference them)
-- Phase 4 (hook runner exists, so setup skill can install it)
 - Phase 2 (installer exists, so skills are deployed to IDEs)
+- Phase 3 (patterns exist, so skills can reference them)
+- Phase 4 (hook runner exists, so setup skill can install it)
+
+**Setup skill MUST instruct the AI to create these artifacts:**
+1. `.codeguard/` directory in project root
+2. `.codeguard/hook-runner.js` — copy from CodeGuard npm package (`dist/hooks/runner.js`)
+3. `.git/hooks/pre-commit` — shell shim (3-4 lines) that invokes `.codeguard/hook-runner.js`
+4. `codeguard.yaml` — based on validated config from setup conversation
+5. `CODEGUARD.md` — AI-generated, project-specific
+6. `tests/Architecture/CodeGuardArchTest.php` — Pest arch tests from active patterns
+7. IDE context file reference (e.g., append to CLAUDE.md) — `<!-- codeguard:start -->` markers
+
+**Run skill MUST support:**
+1. Running static analysis tools (calling shell commands)
+2. AI pattern analysis against active patterns
+3. Generating/updating `.codeguard/baseline.json` (format specified in Phase 4 section)
 
 **This is the most important phase** — skills are what the user actually interacts with. They need to be tested manually by running them in Claude Code on a real Laravel project.
 
