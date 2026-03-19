@@ -22,7 +22,8 @@
     "dist/",
     "bin/",
     "templates/",
-    "skills/"
+    "skills/",
+    "modules/"
   ],
   "scripts": {
     "build": "tsdown",
