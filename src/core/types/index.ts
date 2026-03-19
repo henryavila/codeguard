@@ -38,3 +38,5 @@ export type {
   FormatterContext,
   OutputFormatter,
 } from './output.js';
+
+export type { Result } from './result.js';

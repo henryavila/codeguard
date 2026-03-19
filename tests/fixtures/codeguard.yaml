@@ -1,0 +1,28 @@
+version: "1.0"
+project:
+  language: php
+  framework: laravel
+  module: php-laravel
+capabilities:
+  static-analysis:
+    enabled: true
+    level: 6
+    enforcement: block
+  formatting:
+    enabled: true
+    enforcement: autofix
+patterns:
+  catalog:
+    - service-layer
+    - dto
+  discovered: []
+  custom: []
+thresholds:
+  max_method_lines: 20
+  max_indentation_levels: 2
+hooks:
+  pre-commit:
+    enabled: true
+    scope: staged-files
+baseline:
+  path: .codeguard/baseline.json

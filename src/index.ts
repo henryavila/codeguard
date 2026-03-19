@@ -29,4 +29,5 @@ export type {
   ToolAdapter,
   FormatterContext,
   OutputFormatter,
+  Result,
 } from './core/types/index.js';
