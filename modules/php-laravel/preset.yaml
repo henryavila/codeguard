@@ -1,0 +1,23 @@
+tools:
+  larastan:
+    binary: vendor/bin/phpstan
+    config: phpstan.neon
+    level: 6
+    extensions: [larastan]
+  pint:
+    binary: vendor/bin/pint
+    config: pint.json
+    preset: laravel
+  phpmd:
+    binary: vendor/bin/phpmd
+    config: phpmd.xml
+    rulesets: [unusedcode, codesize]
+  pest:
+    binary: vendor/bin/pest
+    directory: tests/Architecture
+
+install_commands:
+  - composer require --dev larastan/larastan
+  - composer require --dev laravel/pint
+  - composer require --dev phpmd/phpmd
+  - composer require --dev pestphp/pest

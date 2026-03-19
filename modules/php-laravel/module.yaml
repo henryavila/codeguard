@@ -1,0 +1,26 @@
+name: php-laravel
+label: Laravel
+language: php
+framework: laravel
+
+detection:
+  files:
+    - composer.json
+    - artisan
+  dependencies:
+    - laravel/framework
+  confidence: high
+
+capabilities:
+  static-analysis:
+    tool: larastan
+    default_level: 6
+  formatting:
+    tool: pint
+    preset: laravel
+  mess-detection:
+    tool: phpmd
+    rulesets: [unusedcode, codesize]
+  arch-testing:
+    tool: pest
+    presets: [php, laravel]
