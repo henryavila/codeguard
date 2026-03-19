@@ -1,0 +1,27 @@
+name: single-responsibility
+description: A class or function should have one, and only one, reason to change
+category: solid
+layer: core
+severity: warning
+classification: mvp
+
+detection:
+  signals:
+    - type: file
+      value: "**/*.php"
+  confidence: medium
+
+verification:
+  rules:
+    - classes should not have more than one clearly distinct responsibility
+    - methods should not mix I/O with business logic
+
+examples:
+  correct: |
+    class OrderService {
+      public function create(OrderData $data): Order { /* order logic only */ }
+    }
+  violation: |
+    class OrderService {
+      public function create(array $data): Order { /* creates order AND sends email AND logs */ }
+    }

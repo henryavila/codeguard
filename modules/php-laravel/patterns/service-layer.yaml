@@ -1,0 +1,39 @@
+name: service-layer
+description: Controllers delegate business logic to Services
+category: architecture
+layer: laravel
+severity: critical
+classification: mvp
+
+detection:
+  signals:
+    - type: directory
+      value: app/Services
+    - type: import
+      value: "App\\Services\\*"
+  confidence: high
+
+verification:
+  rules:
+    - controllers must not access Eloquent models directly
+    - controllers must not contain business logic
+    - services must not return HTTP responses
+    - services must not access Request object
+
+examples:
+  correct: |
+    public function store(StoreOrderRequest $request): JsonResponse
+    {
+        $result = $this->orderService->create(OrderData::from($request));
+        return response()->json($result);
+    }
+  violation: |
+    public function store(Request $request): JsonResponse
+    {
+        $order = Order::create($request->all());
+        return response()->json($order);
+    }
+
+related_patterns:
+  - dto
+  - form-requests
