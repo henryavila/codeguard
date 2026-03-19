@@ -1,33 +1,58 @@
+export type Enforcement = 'block' | 'warn' | 'autofix';
+
 export interface ToolConfig {
   enabled: boolean;
-  binary: string;         // e.g. 'vendor/bin/phpstan'
-  level?: number;         // tool-specific (e.g. PHPStan level)
+  binary: string;
+  level?: number;
   rules?: Record<string, unknown>;
-  enforcement: 'block' | 'warn';
+  enforcement: Enforcement;
+  preset?: string;
+  rulesets?: string[];
+  config?: string;
+  extensions?: string[];
+  directory?: string;
 }
 
-export interface PresetConfig {
-  name: string;           // e.g. 'laravel'
-  stack: string;          // e.g. 'php-laravel'
-  tools: Record<string, ToolConfig>;
-  patterns: string[];     // pattern names to include
+export interface CapabilityConfig {
+  enabled: boolean;
+  enforcement: Enforcement;
+  level?: number;
+  presets?: string[];
+}
+
+export interface PatternsConfig {
+  catalog: string[];
+  discovered: string[];
+  custom: string[];
+}
+
+export interface ThresholdsConfig {
+  max_method_lines?: number;
+  max_indentation_levels?: number;
 }
 
 export interface HookConfig {
-  preCommit: boolean;
-  enforcement: 'block' | 'warn';
+  enabled: boolean;
+  scope: 'staged-files';
 }
 
 export interface BaselineConfig {
-  path: string;           // default: '.codeguard-baseline.json'
-  autoGenerate: boolean;
+  path: string;
+  generated?: string;
 }
 
-// Top-level config — nested by domain, mirrors codeguard.yaml
+export interface ProjectConfig {
+  language: string;
+  framework: string;
+  module: string;
+}
+
 export interface CodeGuardConfig {
-  preset: string;
-  tools: Record<string, ToolConfig>;
-  patterns: string[];
-  hooks: HookConfig;
+  version: string;
+  project: ProjectConfig;
+  capabilities: Record<string, CapabilityConfig>;
+  patterns: PatternsConfig;
+  thresholds?: ThresholdsConfig;
+  hooks: Record<string, HookConfig>;
   baseline: BaselineConfig;
 }

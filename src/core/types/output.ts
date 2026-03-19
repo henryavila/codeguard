@@ -3,12 +3,11 @@ import type { AnalysisViolation, ToolError } from './violations.js';
 export interface FormatterContext {
   violations: AnalysisViolation[];
   errors: ToolError[];
-  baselineCount: number;  // how many violations were baselined
+  baselineCount: number;
   totalFiles: number;
-  scope: 'hook' | 'scan' | 'review';
+  scope: 'hook' | 'run' | 'health';
 }
 
-// Strategy pattern — Terminal and Markdown implementations
 export interface OutputFormatter {
   formatFindings(context: FormatterContext): string;
   formatError(error: ToolError): string;

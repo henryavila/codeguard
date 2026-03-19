@@ -1,34 +1,94 @@
-import type { CodeGuardConfig, PresetConfig, ToolConfig } from './config.js';
-import type { ToolResult } from './violations.js';
+import type { ToolConfig } from './config.js';
+import type { AnalysisViolation, ToolResult } from './violations.js';
 
-export interface DetectionResult {
-  detected: boolean;
-  stack: string;          // e.g. 'php-laravel', 'php-generic'
-  confidence: number;     // 0-1
-  signals: string[];      // what was detected (e.g. 'composer.json', 'artisan')
+export interface CommandSpec {
+  binary: string;
+  args: string[];
+  cwd?: string;
+  timeout?: number;
+}
+
+export interface DetectionSignal {
+  type: 'directory' | 'file' | 'dependency' | 'import';
+  value: string;
+}
+
+export interface PatternDetection {
+  signals: DetectionSignal[];
+  confidence: 'high' | 'medium' | 'low';
+}
+
+export interface PatternVerification {
+  rules: string[];
+}
+
+export interface PatternExamples {
+  correct: string;
+  violation: string;
 }
 
 export interface PatternDefinition {
   name: string;
   description: string;
-  stackScope: string;
-  detectionHeuristics: string[];
-  verificationRules: string[];
-  examples: { correct: string; violation: string };
+  category: 'architecture' | 'clean-code' | 'solid' | 'ddd' | 'php' | 'framework';
+  layer: 'core' | 'php' | 'laravel';
+  severity: 'critical' | 'warning' | 'suggestion';
+  classification: 'mvp' | 'roadmap';
+  detection: PatternDetection;
+  verification: PatternVerification;
+  examples: PatternExamples;
+  related_patterns?: string[];
 }
 
-// Thin module interface — core pipeline handles normalization/baseline/formatting
-export interface CodeGuardModule {
+export interface ModuleCapability {
+  tool: string;
+  default_level?: number;
+  preset?: string;
+  rulesets?: string[];
+  presets?: string[];
+}
+
+export interface ModuleDetection {
+  files: string[];
+  dependencies?: string[];
+  confidence: 'high' | 'medium' | 'low';
+}
+
+export interface ModuleDefinition {
   name: string;
-  detect(projectRoot: string): Promise<DetectionResult>;
-  analyze(config: CodeGuardConfig, files: string[]): Promise<ToolResult[]>;
-  getPreset(): PresetConfig;
-  getTemplate(): string;  // Handlebars template path
-  getPatterns(): Promise<PatternDefinition[]>;
+  label: string;
+  language: string;
+  framework: string;
+  detection: ModuleDetection;
+  capabilities: Record<string, ModuleCapability>;
 }
 
-// Tool adapter — one per quality tool, lives inside module
+export interface PresetTool {
+  binary: string;
+  config?: string;
+  level?: number;
+  preset?: string;
+  rulesets?: string[];
+  extensions?: string[];
+  directory?: string;
+}
+
+export interface PresetDefinition {
+  tools: Record<string, PresetTool>;
+  install_commands: string[];
+}
+
+export interface DetectionResult {
+  detected: boolean;
+  module: string;
+  confidence: 'high' | 'medium' | 'low';
+  signals: string[];
+}
+
 export interface ToolAdapter {
-  name: string;           // e.g. 'phpstan'
-  analyze(files: string[], config: ToolConfig): Promise<ToolResult>;
+  readonly name: string;
+  readonly binary: string;
+  buildCommand(files: string[], config: ToolConfig): CommandSpec;
+  parseOutput(raw: string): ToolResult;
+  filterToStaged(violations: AnalysisViolation[], stagedFiles: string[]): AnalysisViolation[];
 }

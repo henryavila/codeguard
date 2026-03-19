@@ -1,4 +1,3 @@
-// Barrel re-export — named exports only
 export type {
   Severity,
   AnalysisViolation,
@@ -8,17 +7,30 @@ export type {
 } from './violations.js';
 
 export type {
+  Enforcement,
   ToolConfig,
-  PresetConfig,
+  CapabilityConfig,
+  PatternsConfig,
+  ThresholdsConfig,
   HookConfig,
   BaselineConfig,
+  ProjectConfig,
   CodeGuardConfig,
 } from './config.js';
 
 export type {
-  DetectionResult,
+  CommandSpec,
+  DetectionSignal,
+  PatternDetection,
+  PatternVerification,
+  PatternExamples,
   PatternDefinition,
-  CodeGuardModule,
+  ModuleCapability,
+  ModuleDetection,
+  ModuleDefinition,
+  PresetTool,
+  PresetDefinition,
+  DetectionResult,
   ToolAdapter,
 } from './modules.js';
 
