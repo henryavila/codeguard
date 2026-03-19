@@ -163,11 +163,11 @@ ArchUnit allows writing rules as tests. For CodeGuard, the AI fills the same rol
 
 **Note on Repositories pattern:** Classified as "MVP (for stacks that use them)" in the DDD section above. Excluded from the Laravel module because Eloquent serves the Repository role. Included as MVP for stacks that use explicit Repositories (e.g., Symfony).
 
-### Roadmap — 18 patterns
+### Roadmap — 20 patterns
 
 | Layer | Patterns | Count |
 |---|---|---|
-| **Core** | OCP, LSP, ISP, DIP, Meaningful Naming, Factory Pattern, Observer/Events, Adapter/Interface, Entities vs Value Objects, Aggregates, Domain Events, Anti-Corruption Layer, Ubiquitous Language | 13 |
+| **Core** | OCP, LSP, ISP, DIP, Meaningful Naming, No Side Effects, Factory Pattern, Observer/Events, Adapter/Interface, Entities vs Value Objects, Aggregates, Domain Events, Anti-Corruption Layer, Ubiquitous Language, Classes Must Inherit/Implement | 15 |
 | **PHP** | No Mixed Without Justification, No Raw SQL | 2 |
 | **Laravel** | Queue Jobs, Events, Middleware | 3 |
 

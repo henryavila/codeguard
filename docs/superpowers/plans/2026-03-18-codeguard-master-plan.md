@@ -28,7 +28,7 @@
 
 2. **Phase 5 (Skills) renumbered to 5.** Was Phase 6. Now depends on Phase 3 (patterns) + Phase 4 (hook runner). Phase 2 (installer) is a soft dependency — skills can be written without the installer, but the installer deploys them to IDEs.
 
-3. **Adapter location resolved.** Adapters live in `src/adapters/php-laravel/` (TypeScript, compiled by tsdown). Module YAML/markdown stays in `modules/` (static data, shipped as-is). This was discovered during Phase 1 — tsdown only compiles `src/`. **NOTE:** Design spec Sections 2 and 4 still show adapters inside `modules/` — the master plan supersedes for adapter location.
+3. **Adapter location resolved.** Adapters live in `src/adapters/php-laravel/` (TypeScript, compiled by tsdown). Module YAML/markdown stays in `modules/` (static data, shipped as-is). This was discovered during Phase 1 — tsdown only compiles `src/`. Design spec Sections 2 and 4 have been updated to reflect this change.
 
 4. **Hook runner bundling resolved.** Hook runner is compiled during `npm run build` as a tsdown entry point. Ships as `dist/hooks/runner.js` in the npm package. During setup, the AI copies it to `.codeguard/hook-runner.js`. No runtime compilation needed. **IMPORTANT:** tsdown must use `deps.alwaysBundle` for the hook runner entry to produce a self-contained bundle with zero external imports.
 
@@ -36,7 +36,7 @@
 
 6. **How setup skill locates hook runner from npm package.** The setup skill instructs the AI to run: `node -e "console.log(require.resolve('codeguard/dist/hooks/runner.js'))"` to find the pre-compiled hook runner in the installed npm package, then copy it to `.codeguard/hook-runner.js`. Alternative: if CodeGuard is invoked via `npx`, the skill can reference `$(npm root -g)/codeguard/dist/hooks/runner.js` or use `import.meta.resolve`.
 
-5. **Installer uses placeholder skills.** Phase 2 creates placeholder skill files (minimal markdown with "coming soon" message). Phase 5 replaces them with real skills. This allows Phase 2 to be independent.
+7. **Installer uses placeholder skills.** Phase 2 creates placeholder skill files (minimal markdown with "coming soon" message). Phase 5 replaces them with real skills. This allows Phase 2 to be independent.
 
 ### Dependency graph (revised)
 
@@ -72,7 +72,7 @@ src/
       modules.ts        ← ToolAdapter, CommandSpec, PatternDefinition, ModuleDefinition, PresetDefinition
       output.ts         ← FormatterContext (scope: hook|run|health), OutputFormatter
       result.ts         ← Generic Result<T> type
-      index.ts          ← Barrel (30 types)
+      index.ts          ← Barrel (29 types + Result)
     config/
       loader.ts         ← loadConfig(filePath) → Result<CodeGuardConfig>
       schema.ts         ← ajv JSON Schema (plain object, not JSONSchemaType)
