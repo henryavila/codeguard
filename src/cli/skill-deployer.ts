@@ -1,5 +1,6 @@
-import { mkdir, copyFile, readdir, symlink, stat, unlink } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { mkdir, copyFile, readdir, symlink, lstat, unlink } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { IDE_REGISTRY, type IdeTarget } from './ide-registry.js';
 import type { Result } from '../core/types/result.js';
@@ -14,9 +15,9 @@ const SKILL_FILES = ['codeguard-setup.md', 'codeguard-run.md', 'codeguard-health
 
 function getSkillsSourceDir(): string {
   // Skills ship inside the npm package at skills/
-  // import.meta.dirname gives us the directory of the current file (dist/cli/)
-  // We need to go up to the package root, then into skills/
-  return join(import.meta.dirname, '..', '..', 'skills');
+  // Uses fileURLToPath for compatibility with Node.js >=20.0 (import.meta.dirname requires >=20.11)
+  const currentDir = dirname(fileURLToPath(import.meta.url));
+  return join(currentDir, '..', '..', 'skills');
 }
 
 async function deployByCopy(
@@ -46,7 +47,7 @@ async function deployBySymlink(
       const target = join(targetDir, file);
       // Remove existing symlink/file before creating new one
       try {
-        await stat(target);
+        await lstat(target);
         await unlink(target);
       } catch {
         // Target doesn't exist, that's fine
@@ -92,11 +93,11 @@ export async function deploySkillsToMultipleIdes(
     ides.map((ide) => deploySkillsToIde(ide, projectRoot)),
   );
 
-  return results.map((result) => {
+  return results.map((result, i) => {
     if (result.status === 'fulfilled') return result.value;
     return {
-      ide: { id: 'unknown', label: 'Unknown', skillsDir: '', mechanism: 'copy' as const },
-      success: false,
+      ide: ides[i],
+      success: false as const,
       error: result.reason instanceof Error ? result.reason.message : String(result.reason),
     };
   });

@@ -59,6 +59,7 @@ export async function runInstall(projectRoot: string, version: string): Promise<
   console.log('');
   if (failCount > 0 && successCount > 0) {
     console.log(chalk.yellow(`  Completed with errors. Installed for ${successCount} of ${results.length} IDEs.`));
+    process.exitCode = 1;
   } else if (failCount > 0 && successCount === 0) {
     console.log(chalk.red('  Installation failed for all selected IDEs.'));
     process.exitCode = 1;
