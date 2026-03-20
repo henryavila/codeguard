@@ -1,7 +1,7 @@
 import { mkdir, copyFile, readdir, symlink, stat, unlink } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
-import type { IdeTarget } from './ide-registry.js';
+import { IDE_REGISTRY, type IdeTarget } from './ide-registry.js';
 import type { Result } from '../core/types/result.js';
 
 export interface DeployResult {
@@ -103,7 +103,6 @@ export async function deploySkillsToMultipleIdes(
 }
 
 export async function getInstalledIdes(projectRoot: string): Promise<string[]> {
-  const { IDE_REGISTRY } = await import('./ide-registry.js');
   const installed: string[] = [];
 
   for (const ide of IDE_REGISTRY) {

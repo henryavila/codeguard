@@ -5,6 +5,7 @@ import { defineConfig } from 'tsdown';
 export default defineConfig({
   entry: {
     index: 'src/index.ts',
+    'cli/index': 'src/cli/index.ts',
     'hooks/runner': 'src/hooks/runner.ts',
   },
   format: 'esm',
