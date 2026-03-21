@@ -10,7 +10,7 @@ detection:
     - type: directory
       value: app/Policies
     - type: import
-      value: "Illuminate\\Auth\\Access\\Gate"
+      value: "Illuminate\\Support\\Facades\\Gate"
   confidence: high
 
 verification:

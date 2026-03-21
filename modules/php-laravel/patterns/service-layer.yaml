@@ -1,6 +1,6 @@
 name: service-layer
 description: Controllers delegate business logic to Services
-category: architecture
+category: framework
 layer: laravel
 severity: critical
 classification: mvp
@@ -28,10 +28,30 @@ examples:
         return response()->json($result);
     }
   violation: |
+    // Controller accessing Eloquent directly (bypasses service layer)
     public function store(Request $request): JsonResponse
     {
         $order = Order::create($request->all());
         return response()->json($order);
+    }
+
+    // Service returning an HTTP response (leaks HTTP concern into business layer)
+    class OrderService
+    {
+        public function create(OrderData $data): JsonResponse
+        {
+            $order = Order::create($data->toArray());
+            return response()->json($order, 201);
+        }
+    }
+
+    // Service accessing the Request object (couples service to HTTP layer)
+    class OrderService
+    {
+        public function create(Request $request): Order
+        {
+            return Order::create($request->validated());
+        }
     }
 
 related_patterns:

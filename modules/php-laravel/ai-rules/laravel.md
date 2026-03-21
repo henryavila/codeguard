@@ -54,11 +54,32 @@ Services MUST NOT:
 
 ### Detection heuristics
 
+When checking service-layer pattern:
+
 When checking "controllers must not access Eloquent models directly":
-- Look for Model::method() calls in Controller files
-- Look for DB:: facade calls in Controller files
-- Look for Query Builder calls in Controller files
+- Look for Model::method() calls in Controller files (e.g., `Order::create()`, `User::where()`, `Product::find()`)
+- Look for `DB::` facade calls in Controller files (e.g., `DB::table()`, `DB::select()`, `DB::raw()`)
+- Look for Query Builder chains in Controller files (e.g., `->where()->get()`, `->orderBy()->paginate()`)
 - EXCEPTION: Route model binding in method signature IS OK (`public function show(Order $order)`)
+
+When checking "controllers must not contain business logic":
+- Look for complex conditionals in controllers (nested if/else, switch with domain rules)
+- Look for loops with domain logic in controllers (foreach that transforms, filters, or calculates)
+- Look for calculations or formulas in controllers (price computation, discount logic, status transitions)
+- A controller should only: validate, authorize, call service, return response
+
+When checking "services must not return HTTP responses":
+- Look for `response()` helper calls in Service files
+- Look for `redirect()` calls in Service files
+- Look for `abort()` calls in Service files
+- Look for return types like `JsonResponse`, `RedirectResponse`, `Response` on service methods
+- Services should return domain objects, DTOs, arrays, or primitives
+
+When checking "services must not access Request object":
+- Look for `Request $request` parameters in Service method signatures
+- Look for `request()` helper calls inside Service files
+- Look for any `Illuminate\Http\Request` import in Service files
+- Services should receive typed DTOs, value objects, or primitive parameters
 
 When checking "DTOs required between layers":
 - Look for raw arrays being passed from Controller to Service

@@ -9,8 +9,7 @@ detection:
   signals:
     - type: file
       value: "**/*.php"
-    - type: import
-      value: "env("
+    # env() is a global function, not an import — detection is purely file-based
   confidence: high
 
 verification:
