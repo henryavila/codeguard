@@ -1,0 +1,44 @@
+name: exception-handling
+description: Exception handling should be explicit and meaningful
+category: php
+layer: php
+severity: warning
+classification: mvp
+
+detection:
+  signals:
+    - type: file
+      value: "**/*.php"
+  confidence: high
+
+verification:
+  rules:
+    - no empty catch blocks — every caught exception must be handled, logged, or re-thrown
+    - no catching generic Exception without re-throwing or specific handling
+    - error messages and log entries must include enough context to diagnose the problem
+    - catch blocks that log and re-throw are valid — they are NOT empty catches
+    - catch blocks in event listeners that prevent event propagation failure are acceptable
+
+examples:
+  correct: |
+    try {
+        $order = $this->orderService->place($data);
+    } catch (OrderNotFoundException $e) {
+        Log::error('Order not found', ['id' => $id, 'trace' => $e->getTraceAsString()]);
+        throw $e;
+    } catch (PaymentFailedException $e) {
+        Log::warning('Payment failed for order', ['order_id' => $id, 'reason' => $e->getMessage()]);
+        return response()->json(['error' => 'Payment could not be processed'], 422);
+    }
+  violation: |
+    try {
+        $order = $this->orderService->place($data);
+    } catch (Exception $e) {
+        // empty — silently swallowed, no logging, no re-throw, no context
+    }
+
+    try {
+        $this->sendNotification($user);
+    } catch (\Throwable $e) {
+        return null; // swallowed without logging or context
+    }

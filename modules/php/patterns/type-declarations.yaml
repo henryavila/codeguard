@@ -1,0 +1,42 @@
+name: type-declarations
+description: Functions and methods should have explicit type declarations
+category: php
+layer: php
+severity: warning
+classification: mvp
+
+detection:
+  signals:
+    - type: file
+      value: "**/*.php"
+  confidence: high
+
+verification:
+  rules:
+    - function and method parameters should have explicit type declarations
+    - return types should be declared on all functions and methods
+    - avoid using mixed type without clear justification
+    - framework-generated stubs (migrations, seeders) may omit return types — acceptable
+    - PHP 7.x legacy code may lack types — in migration scenarios, classify as suggestion
+
+examples:
+  correct: |
+    public function create(OrderData $data): Order
+    {
+        return Order::query()->create($data->toArray());
+    }
+
+    public function findByStatus(OrderStatus $status, int $limit = 10): Collection
+    {
+        return Order::where('status', $status->value)->limit($limit)->get();
+    }
+  violation: |
+    public function create($data)
+    {
+        return Order::create($data);
+    }
+
+    public function findByStatus($status, $limit)
+    {
+        return Order::where('status', $status)->limit($limit)->get();
+    }

@@ -1,0 +1,37 @@
+name: no-html-in-php
+description: HTML should not appear in PHP strings — use templates/views instead
+category: php
+layer: php
+severity: critical
+classification: mvp
+
+detection:
+  signals:
+    - type: file
+      value: "**/*.php"
+  confidence: high
+
+verification:
+  rules:
+    - no HTML tags in PHP string assignments, concatenations, or heredocs
+    - Blade template files (.blade.php) are excluded — they are designed for HTML
+    - view rendering via view()->render() or similar template engine calls is acceptable
+    - dedicated HTML builder classes (e.g., HtmlString, Htmlable) are acceptable
+
+examples:
+  correct: |
+    // Using a template engine
+    $html = view('emails.welcome', ['user' => $user])->render();
+
+    // Using a dedicated mail class
+    Mail::to($user)->send(new WelcomeMail($user));
+  violation: |
+    // HTML embedded directly in PHP strings
+    $msg = "<p>Hello " . $user->name . "</p>";
+
+    // HTML concatenated in loops
+    $html = "<table>";
+    foreach ($items as $item) {
+        $html .= "<tr><td>{$item->name}</td><td>{$item->price}</td></tr>";
+    }
+    $html .= "</table>";

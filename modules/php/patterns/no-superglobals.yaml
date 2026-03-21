@@ -1,0 +1,40 @@
+name: no-superglobals
+description: Direct superglobal access is unsafe — use framework request abstractions
+category: php
+layer: php
+severity: critical
+classification: mvp
+
+detection:
+  signals:
+    - type: file
+      value: "**/*.php"
+  confidence: high
+
+verification:
+  rules:
+    - no direct access to $_GET, $_POST, $_REQUEST, $_SESSION, $_COOKIE, $_SERVER in application code
+    - use framework Request objects ($request->input(), $request->query(), $request->cookie()) instead
+    - $_SERVER access in bootstrap files (index.php, artisan) is acceptable
+    - $_ENV access in config files is acceptable, though env() helper is preferred in Laravel
+
+examples:
+  correct: |
+    public function store(StoreOrderRequest $request): JsonResponse
+    {
+        $name = $request->input('name');
+        $page = $request->query('page', 1);
+        $token = $request->cookie('session_token');
+
+        return response()->json(['name' => $name]);
+    }
+  violation: |
+    public function store(): JsonResponse
+    {
+        $name = $_POST['name'];
+        $page = $_GET['page'] ?? 1;
+        $token = $_COOKIE['session_token'];
+        $host = $_SERVER['HTTP_HOST'];
+
+        return response()->json(['name' => $name]);
+    }

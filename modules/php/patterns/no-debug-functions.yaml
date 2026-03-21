@@ -1,0 +1,37 @@
+name: no-debug-functions
+description: Debug functions must not be committed to production code
+category: php
+layer: php
+severity: critical
+classification: mvp
+
+detection:
+  signals:
+    - type: file
+      value: "**/*.php"
+  confidence: high
+
+verification:
+  rules:
+    - no dd(), dump(), ddd(), ray(), var_dump(), print_r() calls in non-test files
+    - no sleep() calls in request-handling code — sleep() in queue workers or retry logic is acceptable
+    - test files (files in tests/ directory or extending TestCase) are excluded
+    - use proper logging (Log::debug(), Log::info()) instead of debug output functions
+
+examples:
+  correct: |
+    use Illuminate\Support\Facades\Log;
+
+    public function processOrder(Order $order): void
+    {
+        Log::debug('Processing order', ['id' => $order->id, 'total' => $order->total]);
+        $this->gateway->charge($order);
+    }
+  violation: |
+    public function processOrder(Order $order): void
+    {
+        dd($order);            // dumps and dies
+        dump($order->items);   // dumps to output
+        var_dump($order);      // raw PHP debug output
+        ray($order->total);    // third-party debug tool
+    }

@@ -1,0 +1,44 @@
+name: strict-typing
+description: All PHP files should declare strict_types=1
+category: php
+layer: php
+severity: warning
+classification: mvp
+
+detection:
+  signals:
+    - type: file
+      value: "**/*.php"
+  confidence: high
+
+verification:
+  rules:
+    - every PHP file should have `declare(strict_types=1)` as the first statement after the opening tag
+    - the declaration must appear before any other code, namespace, or use statements
+    - config files that return arrays may intentionally omit strict_types — flag as suggestion, not warning
+
+examples:
+  correct: |
+    <?php declare(strict_types=1);
+
+    namespace App\Services;
+
+    class OrderService
+    {
+        public function calculate(float $amount): int
+        {
+            return (int) round($amount * 100);
+        }
+    }
+  violation: |
+    <?php
+
+    namespace App\Services;
+
+    class OrderService
+    {
+        public function calculate($amount)
+        {
+            return round($amount * 100);
+        }
+    }
