@@ -16,7 +16,8 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
-    }
+    },
+    "./hook-runner": "./dist/hooks/runner.js"
   },
   "files": [
     "dist/",
