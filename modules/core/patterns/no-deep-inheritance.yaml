@@ -1,0 +1,38 @@
+name: no-deep-inheritance
+description: Prefer composition over deep inheritance hierarchies
+category: clean-code
+layer: core
+severity: warning
+classification: mvp
+
+detection:
+  signals:
+    - type: file
+      value: "**/*.{php,ts,js,py,java,go,rb}"
+  confidence: high
+
+verification:
+  rules:
+    - inheritance depth greater than 3 levels signals a design issue
+    - favor composition and interfaces over deep class hierarchies
+    - each level of inheritance should add meaningful behavioral specialization, not just data
+
+examples:
+  correct: |
+    interface Notifiable {
+      public function notify(Message $message): void;
+    }
+    class EmailNotifier implements Notifiable {
+      public function __construct(private Mailer $mailer) {}
+      public function notify(Message $message): void { /* ... */ }
+    }
+    class User {
+      public function __construct(private Notifiable $notifier) {}
+    }
+  violation: |
+    class BaseEntity { /* ... */ }
+    class Person extends BaseEntity { /* ... */ }
+    class Employee extends Person { /* ... */ }
+    class Manager extends Employee { /* ... */ }
+    class SeniorManager extends Manager { /* ... */ }
+    // 5 levels deep — fragile hierarchy, changes at any level ripple down

@@ -1,0 +1,47 @@
+name: no-constructor-many-params
+description: Constructors should not have too many parameters — signals a missing abstraction
+category: clean-code
+layer: core
+severity: suggestion
+classification: mvp
+
+detection:
+  signals:
+    - type: file
+      value: "**/*.{php,ts,js,py,java,go,rb}"
+  confidence: high
+
+verification:
+  rules:
+    - constructors with more than 4 non-DI parameters suggest a missing abstraction (Builder, DTO, or Value Object)
+    - dependency injection parameters (services, repositories) are acceptable and should not be flagged
+    - if a constructor accepts many data parameters, group them into a configuration or value object
+
+examples:
+  correct: |
+    class ShippingLabel {
+      public function __construct(
+        private Address $from,
+        private Address $to,
+        private PackageDimensions $dimensions
+      ) {}
+    }
+  violation: |
+    class ShippingLabel {
+      public function __construct(
+        private string $fromName,
+        private string $fromStreet,
+        private string $fromCity,
+        private string $fromZip,
+        private string $fromCountry,
+        private string $toName,
+        private string $toStreet,
+        private string $toCity,
+        private string $toZip,
+        private string $toCountry,
+        private float $weight,
+        private float $width,
+        private float $height,
+        private float $depth
+      ) {}
+    }

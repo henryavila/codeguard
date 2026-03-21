@@ -22,8 +22,9 @@ describe('Pattern Loader', () => {
     const result = await loadPatterns(join(modulesDir, 'core/patterns'));
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.length).toBeGreaterThan(0);
-      expect(result.data[0].name).toBe('single-responsibility');
+      expect(result.data.length).toBe(13);
+      expect(result.data[0].name).toBe('bounded-contexts');
+      expect(result.data.some((p) => p.name === 'single-responsibility')).toBe(true);
     }
   });
 

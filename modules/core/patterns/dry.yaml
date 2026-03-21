@@ -1,0 +1,52 @@
+name: dry
+description: Don't Repeat Yourself — duplicate logic (not structure) is a violation
+category: clean-code
+layer: core
+severity: warning
+classification: mvp
+
+detection:
+  signals:
+    - type: file
+      value: "**/*.{php,ts,js,py,java,go,rb}"
+  confidence: medium
+
+verification:
+  rules:
+    - no duplicate business logic across classes — same behavior implemented in two or more places must be extracted
+    - extract shared logic into services, utilities, or base classes
+    - structural similarity alone (e.g. similar CRUD methods) is NOT duplication — only flag identical business behavior
+
+examples:
+  correct: |
+    class OrderService {
+      public function calculateTotal(Order $order): Money {
+        return $this->pricingService->calculate($order->items());
+      }
+    }
+    class InvoiceService {
+      public function calculateTotal(Invoice $invoice): Money {
+        return $this->pricingService->calculate($invoice->lineItems());
+      }
+    }
+  violation: |
+    class OrderService {
+      public function calculateTotal(Order $order): Money {
+        $total = 0;
+        foreach ($order->items() as $item) {
+          $total += $item->price * $item->quantity;
+          if ($item->taxable) $total += $item->price * 0.21;
+        }
+        return new Money($total);
+      }
+    }
+    class InvoiceService {
+      public function calculateTotal(Invoice $invoice): Money {
+        $total = 0;
+        foreach ($invoice->lineItems() as $item) {
+          $total += $item->price * $item->quantity;
+          if ($item->taxable) $total += $item->price * 0.21;
+        }
+        return new Money($total);
+      }
+    }

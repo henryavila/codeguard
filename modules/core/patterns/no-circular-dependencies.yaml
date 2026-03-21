@@ -1,0 +1,49 @@
+name: no-circular-dependencies
+description: No circular dependencies between modules or packages
+category: architecture
+layer: core
+severity: critical
+classification: mvp
+
+detection:
+  signals:
+    - type: import
+      value: "**/*"
+  confidence: high
+
+verification:
+  rules:
+    - module A should not depend on module B if module B already depends on module A
+    - circular dependencies make the system impossible to reason about or test in isolation
+    - break cycles by introducing interfaces, events, or a shared module
+
+examples:
+  correct: |
+    // OrderModule depends on shared EventBus, not on ShippingModule directly
+    class OrderService {
+      public function place(Order $order): void {
+        $this->repository->save($order);
+        $this->eventBus->dispatch(new OrderPlaced($order->id));
+      }
+    }
+    // ShippingModule listens to event — no reverse dependency
+    class ShippingListener {
+      public function onOrderPlaced(OrderPlaced $event): void {
+        $this->shippingService->createShipment($event->orderId);
+      }
+    }
+  violation: |
+    // OrderModule imports from ShippingModule
+    use App\Shipping\ShippingService;
+    class OrderService {
+      public function place(Order $order): void {
+        $this->shippingService->createShipment($order);
+      }
+    }
+    // ShippingModule imports from OrderModule — circular!
+    use App\Orders\OrderService;
+    class ShippingService {
+      public function onShipmentDelivered(Shipment $s): void {
+        $this->orderService->markDelivered($s->orderId);
+      }
+    }

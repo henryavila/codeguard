@@ -1,0 +1,61 @@
+name: small-functions
+description: Functions should be short and focused on a single task
+category: clean-code
+layer: core
+severity: warning
+classification: mvp
+
+detection:
+  signals:
+    - type: file
+      value: "**/*.{php,ts,js,py,java,go,rb}"
+  confidence: medium
+
+verification:
+  rules:
+    - methods should not exceed the configured line threshold (default ~20 lines of logic)
+    - each method should do one thing and do it well
+    - if a method requires comments to separate sections, it should be split into smaller methods
+
+examples:
+  correct: |
+    class OrderService {
+      public function place(OrderData $data): Order {
+        $order = $this->createOrder($data);
+        $this->applyDiscounts($order);
+        $this->notifyCustomer($order);
+        return $order;
+      }
+    }
+  violation: |
+    class OrderService {
+      public function place(array $data): Order {
+        // validate input
+        if (!isset($data['customer_id'])) throw new Exception('Missing customer');
+        if (!isset($data['items'])) throw new Exception('Missing items');
+        $customer = Customer::find($data['customer_id']);
+        if (!$customer) throw new Exception('Customer not found');
+        // create order
+        $order = new Order();
+        $order->customer_id = $customer->id;
+        foreach ($data['items'] as $item) {
+          $line = new OrderLine();
+          $line->product_id = $item['product_id'];
+          $line->quantity = $item['quantity'];
+          $line->price = Product::find($item['product_id'])->price;
+          $order->lines[] = $line;
+        }
+        // apply discounts
+        $total = 0;
+        foreach ($order->lines as $line) {
+          $total += $line->price * $line->quantity;
+        }
+        if ($total > 100) $order->discount = $total * 0.1;
+        // send notification
+        Mail::send('order.placed', ['order' => $order], function($m) use ($customer) {
+          $m->to($customer->email);
+        });
+        $order->save();
+        return $order;
+      }
+    }

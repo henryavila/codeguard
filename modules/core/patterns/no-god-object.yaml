@@ -1,0 +1,50 @@
+name: no-god-object
+description: Classes should not do everything — split by responsibility
+category: solid
+layer: core
+severity: critical
+classification: mvp
+
+detection:
+  signals:
+    - type: file
+      value: "**/*.{php,ts,js,py,java,go,rb}"
+  confidence: medium
+
+verification:
+  rules:
+    - a class with too many methods or properties is doing too much and should be split by responsibility
+    - only flag user-defined classes — framework base classes (Controller, Model) naturally have many methods
+    - if a class name contains "Manager", "Handler", "Processor", or "Utils" and has many methods, it likely needs decomposition
+
+examples:
+  correct: |
+    class OrderService {
+      public function place(OrderData $data): Order { /* ... */ }
+      public function cancel(Order $order): void { /* ... */ }
+    }
+    class OrderNotificationService {
+      public function sendConfirmation(Order $order): void { /* ... */ }
+      public function sendCancellation(Order $order): void { /* ... */ }
+    }
+    class OrderReportService {
+      public function dailySummary(): Report { /* ... */ }
+      public function exportCsv(DateRange $range): string { /* ... */ }
+    }
+  violation: |
+    class OrderManager {
+      public function place(OrderData $data): Order { /* ... */ }
+      public function cancel(Order $order): void { /* ... */ }
+      public function refund(Order $order): void { /* ... */ }
+      public function sendConfirmation(Order $order): void { /* ... */ }
+      public function sendCancellation(Order $order): void { /* ... */ }
+      public function generateInvoice(Order $order): Invoice { /* ... */ }
+      public function exportCsv(DateRange $range): string { /* ... */ }
+      public function dailySummary(): Report { /* ... */ }
+      public function syncToErp(Order $order): void { /* ... */ }
+      public function validateAddress(Address $addr): bool { /* ... */ }
+    }
+
+related_patterns:
+  - single-responsibility
+  - separation-of-concerns

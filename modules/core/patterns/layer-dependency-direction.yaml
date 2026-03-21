@@ -1,0 +1,40 @@
+name: layer-dependency-direction
+description: Dependencies must flow in one direction — upper layers depend on lower, never reverse
+category: architecture
+layer: core
+severity: critical
+classification: mvp
+
+detection:
+  signals:
+    - type: import
+      value: "**/*"
+  confidence: high
+
+verification:
+  rules:
+    - upper layers depend on lower layers (Controller -> Service -> Repository), never the reverse
+    - repositories must not import controllers or services
+    - services must not import controllers or HTTP-layer classes
+    - domain/model layer must not depend on infrastructure
+
+examples:
+  correct: |
+    // Service depends on Repository (lower layer) — correct direction
+    class OrderService {
+      public function __construct(private OrderRepository $repository) {}
+      public function findOrder(int $id): Order {
+        return $this->repository->find($id);
+      }
+    }
+  violation: |
+    // Repository depends on Controller (upper layer) — wrong direction
+    class OrderRepository {
+      public function __construct(private OrderController $controller) {}
+      public function getRequestData(): array {
+        return $this->controller->getRequest()->all();
+      }
+    }
+
+related_patterns:
+  - separation-of-concerns

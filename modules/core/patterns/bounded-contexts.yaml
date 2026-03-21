@@ -1,0 +1,48 @@
+name: bounded-contexts
+description: Modules should not reach into other modules' internals
+category: ddd
+layer: core
+severity: critical
+classification: mvp
+
+detection:
+  signals:
+    - type: import
+      value: "**/*"
+  confidence: medium
+
+verification:
+  rules:
+    - module A should not directly access models, repositories, or services of module B
+    - modules must communicate through defined public interfaces, DTOs, or events
+    - shared kernel types (IDs, value objects) crossing module boundaries is acceptable
+
+examples:
+  correct: |
+    // OrderModule uses a public interface to communicate with InventoryModule
+    interface InventoryChecker {
+      public function isAvailable(string $productId, int $quantity): bool;
+    }
+    class OrderService {
+      public function __construct(private InventoryChecker $inventory) {}
+      public function place(OrderData $data): Order {
+        if (!$this->inventory->isAvailable($data->productId, $data->quantity)) {
+          throw new InsufficientStockException();
+        }
+        return Order::create($data);
+      }
+    }
+  violation: |
+    // OrderModule reaches directly into InventoryModule internals
+    use App\Inventory\Models\StockLevel;
+    use App\Inventory\Repositories\WarehouseRepository;
+    class OrderService {
+      public function place(OrderData $data): Order {
+        $stock = StockLevel::where('product_id', $data->productId)->first();
+        $warehouse = (new WarehouseRepository())->findNearest($data->address);
+        // directly accessing another module's models and repositories
+      }
+    }
+
+related_patterns:
+  - layer-dependency-direction

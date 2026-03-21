@@ -1,0 +1,37 @@
+name: consistent-error-handling
+description: Error handling should be consistent and provide meaningful context
+category: clean-code
+layer: core
+severity: warning
+classification: mvp
+
+detection:
+  signals:
+    - type: file
+      value: "**/*.{php,ts,js,py,java,go,rb}"
+  confidence: high
+
+verification:
+  rules:
+    - no empty catch blocks — every caught exception must be handled or explicitly re-thrown
+    - no generic Exception catches without a documented reason — catch specific exception types
+    - error messages must include enough context to diagnose the problem (what failed, with what input)
+
+examples:
+  correct: |
+    try {
+      $order = $this->orderService->place($data);
+    } catch (InsufficientStockException $e) {
+      $this->logger->warning('Order failed: insufficient stock', [
+        'product_id' => $e->getProductId(),
+        'requested' => $e->getRequested(),
+        'available' => $e->getAvailable(),
+      ]);
+      throw new OrderFailedException("Cannot place order: {$e->getMessage()}", previous: $e);
+    }
+  violation: |
+    try {
+      $order = $this->orderService->place($data);
+    } catch (Exception $e) {
+      // silently swallowed — no logging, no re-throw, no context
+    }

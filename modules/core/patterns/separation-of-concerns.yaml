@@ -1,0 +1,53 @@
+name: separation-of-concerns
+description: Each module or class should handle one concern only
+category: architecture
+layer: core
+severity: critical
+classification: mvp
+
+detection:
+  signals:
+    - type: file
+      value: "**/*.{php,ts,js,py,java,go,rb}"
+  confidence: medium
+
+verification:
+  rules:
+    - UI/presentation logic must be separate from business logic
+    - data access logic must be separate from business rules
+    - a single class should not mix HTTP handling, business logic, and persistence
+
+examples:
+  correct: |
+    // Controller handles HTTP only
+    class OrderController {
+      public function store(Request $request): Response {
+        $result = $this->orderService->place(OrderData::from($request));
+        return response()->json($result);
+      }
+    }
+    // Service handles business logic only
+    class OrderService {
+      public function place(OrderData $data): Order {
+        $order = Order::create($data);
+        $this->inventory->reserve($order);
+        return $order;
+      }
+    }
+  violation: |
+    class OrderController {
+      public function store(Request $request): Response {
+        // mixes HTTP, business logic, and persistence
+        $data = $request->validate(['items' => 'required']);
+        $total = 0;
+        foreach ($data['items'] as $item) {
+          $total += Product::find($item['id'])->price * $item['qty'];
+        }
+        $order = DB::table('orders')->insert(['total' => $total]);
+        Mail::send('order.confirmation', ['order' => $order]);
+        return response()->json($order);
+      }
+    }
+
+related_patterns:
+  - single-responsibility

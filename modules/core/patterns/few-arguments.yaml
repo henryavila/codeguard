@@ -1,0 +1,39 @@
+name: few-arguments
+description: Functions should have few parameters to remain understandable
+category: clean-code
+layer: core
+severity: suggestion
+classification: mvp
+
+detection:
+  signals:
+    - type: file
+      value: "**/*.{php,ts,js,py,java,go,rb}"
+  confidence: medium
+
+verification:
+  rules:
+    - functions should avoid more than 3 parameters
+    - group related parameters into objects or DTOs when they travel together
+    - constructor dependency injection parameters are acceptable and should not be flagged
+
+examples:
+  correct: |
+    class ReportGenerator {
+      public function generate(ReportConfig $config): Report {
+        // config encapsulates startDate, endDate, format, filters
+      }
+    }
+  violation: |
+    class ReportGenerator {
+      public function generate(
+        string $startDate,
+        string $endDate,
+        string $format,
+        array $filters,
+        bool $includeCharts,
+        string $outputPath
+      ): Report {
+        // too many parameters — group into a config object
+      }
+    }

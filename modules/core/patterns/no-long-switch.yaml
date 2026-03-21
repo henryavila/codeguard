@@ -1,0 +1,40 @@
+name: no-long-switch
+description: Avoid long switch/if-else chains that dispatch on type
+category: clean-code
+layer: core
+severity: warning
+classification: mvp
+
+detection:
+  signals:
+    - type: file
+      value: "**/*.{php,ts,js,py,java,go,rb}"
+  confidence: high
+
+verification:
+  rules:
+    - switch or if-else chains with more than 5 cases dispatching on type should use Strategy pattern or polymorphism
+    - adding a new type should not require modifying existing switch/if-else blocks
+
+examples:
+  correct: |
+    interface DiscountStrategy {
+      public function calculate(Order $order): Money;
+    }
+    class PercentageDiscount implements DiscountStrategy { /* ... */ }
+    class FixedAmountDiscount implements DiscountStrategy { /* ... */ }
+    class BuyOneGetOneDiscount implements DiscountStrategy { /* ... */ }
+
+    // Usage: $discount->calculate($order);
+  violation: |
+    function applyDiscount(Order $order, string $type): Money {
+      switch ($type) {
+        case 'percentage': return $order->total() * 0.1;
+        case 'fixed': return new Money(500);
+        case 'bogo': return $order->cheapestItem()->price();
+        case 'loyalty': return $order->total() * $customer->loyaltyRate();
+        case 'seasonal': return $order->total() * 0.15;
+        case 'bundle': return $order->bundleDiscount();
+        default: return new Money(0);
+      }
+    }
