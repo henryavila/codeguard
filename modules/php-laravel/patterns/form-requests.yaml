@@ -1,0 +1,68 @@
+name: form-requests
+description: Validation logic belongs in Form Request classes, not controllers or services
+category: framework
+layer: laravel
+severity: warning
+classification: mvp
+
+detection:
+  signals:
+    - type: directory
+      value: app/Http/Requests
+    - type: import
+      value: "Illuminate\\Foundation\\Http\\FormRequest"
+  confidence: high
+
+verification:
+  rules:
+    - controllers should not call $request->validate() inline
+    - controllers should not contain validation rule arrays
+    - validation rules belong in dedicated FormRequest classes
+    - controller method parameters should type-hint specific FormRequest classes, not the generic Request
+    - services must not perform HTTP request validation
+
+examples:
+  correct: |
+    // Dedicated FormRequest class
+    class StoreOrderRequest extends FormRequest
+    {
+        public function authorize(): bool
+        {
+            return $this->user()->can('create', Order::class);
+        }
+
+        public function rules(): array
+        {
+            return [
+                'customer_id' => ['required', 'exists:customers,id'],
+                'items' => ['required', 'array', 'min:1'],
+                'items.*.product_id' => ['required', 'exists:products,id'],
+                'items.*.quantity' => ['required', 'integer', 'min:1'],
+            ];
+        }
+    }
+
+    // Controller type-hints the FormRequest
+    public function store(StoreOrderRequest $request): JsonResponse
+    {
+        $order = $this->orderService->create(OrderData::from($request));
+        return response()->json(OrderResource::make($order), 201);
+    }
+  violation: |
+    // Inline validation in controller
+    public function store(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'customer_id' => 'required|exists:customers,id',
+            'items' => 'required|array|min:1',
+            'items.*.product_id' => 'required|exists:products,id',
+            'items.*.quantity' => 'required|integer|min:1',
+        ]);
+
+        $order = $this->orderService->create($validated);
+        return response()->json($order, 201);
+    }
+
+related_patterns:
+  - dto
+  - service-layer

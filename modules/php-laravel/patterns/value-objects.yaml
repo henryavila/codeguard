@@ -1,0 +1,108 @@
+name: value-objects
+description: Domain concepts (money, email, CPF) should be Value Objects, not primitive strings/ints
+category: framework
+layer: laravel
+severity: suggestion
+classification: mvp
+
+detection:
+  signals:
+    - type: directory
+      value: app/ValueObjects
+    - type: file
+      value: "app/ValueObjects/**/*.php"
+  confidence: medium
+
+verification:
+  rules:
+    - domain concepts repeated as primitives across multiple classes should be value objects
+    - value objects are immutable (use readonly class or readonly properties)
+    - value objects perform self-validation in the constructor
+    - comparing two value objects by their properties yields equality (no identity)
+
+examples:
+  correct: |
+    // Immutable Value Object with validation
+    readonly class Email
+    {
+        public function __construct(
+            public string $value,
+        ) {
+            if (!filter_var($value, FILTER_VALIDATE_EMAIL)) {
+                throw new InvalidArgumentException("Invalid email: {$value}");
+            }
+        }
+
+        public function equals(self $other): bool
+        {
+            return $this->value === $other->value;
+        }
+
+        public function __toString(): string
+        {
+            return $this->value;
+        }
+    }
+
+    // Money Value Object
+    readonly class Money
+    {
+        public function __construct(
+            public int $cents,
+            public string $currency = 'BRL',
+        ) {
+            if ($cents < 0) {
+                throw new InvalidArgumentException('Amount cannot be negative');
+            }
+        }
+
+        public function add(self $other): self
+        {
+            if ($this->currency !== $other->currency) {
+                throw new CurrencyMismatchException();
+            }
+            return new self($this->cents + $other->cents, $this->currency);
+        }
+    }
+
+    // Usage in domain model
+    class Customer
+    {
+        public function __construct(
+            private Email $email,
+            private Money $balance,
+        ) {}
+    }
+  violation: |
+    // Primitive obsession — email as string everywhere
+    class CustomerService
+    {
+        public function register(string $name, string $email): Customer
+        {
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                throw new InvalidArgumentException('Invalid email');
+            }
+            return Customer::create(['name' => $name, 'email' => $email]);
+        }
+    }
+
+    class NotificationService
+    {
+        public function send(string $email, string $message): void
+        {
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                throw new InvalidArgumentException('Invalid email');
+            }
+            // same validation duplicated in another place
+            Mail::raw($message, fn ($m) => $m->to($email));
+        }
+    }
+
+    // Money as float — inviting precision bugs
+    class OrderService
+    {
+        public function calculateTotal(float $price, int $quantity): float
+        {
+            return $price * $quantity;
+        }
+    }

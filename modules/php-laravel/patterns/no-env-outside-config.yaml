@@ -1,0 +1,86 @@
+name: no-env-outside-config
+description: env() should only be called inside config/ files
+category: framework
+layer: laravel
+severity: critical
+classification: mvp
+
+detection:
+  signals:
+    - type: file
+      value: "**/*.php"
+    - type: import
+      value: "env("
+  confidence: high
+
+verification:
+  rules:
+    - no env() calls outside of the config/ directory
+    - use config() helper everywhere else to read configuration values
+    - env() in config/ files is the correct and expected usage
+    - after config:cache, env() returns null outside config/ — this is a runtime bug, not just a style issue
+
+examples:
+  correct: |
+    // In config/services.php — env() is correct here
+    return [
+        'stripe' => [
+            'key' => env('STRIPE_KEY'),
+            'secret' => env('STRIPE_SECRET'),
+        ],
+    ];
+
+    // In application code — use config() helper
+    class PaymentService
+    {
+        public function getApiKey(): string
+        {
+            return config('services.stripe.key');
+        }
+    }
+
+    // In a service provider — use config()
+    class AppServiceProvider extends ServiceProvider
+    {
+        public function register(): void
+        {
+            $this->app->singleton(StripeClient::class, fn () =>
+                new StripeClient(config('services.stripe.secret'))
+            );
+        }
+    }
+  violation: |
+    // env() in a service — breaks after config:cache
+    class PaymentService
+    {
+        public function charge(Money $amount): PaymentResult
+        {
+            $apiKey = env('STRIPE_SECRET');
+            $client = new StripeClient($apiKey);
+            return $client->charge($amount->cents);
+        }
+    }
+
+    // env() in a controller — breaks after config:cache
+    class SettingsController extends Controller
+    {
+        public function index(): JsonResponse
+        {
+            return response()->json([
+                'app_name' => env('APP_NAME'),
+                'debug' => env('APP_DEBUG'),
+            ]);
+        }
+    }
+
+    // env() in a middleware — breaks after config:cache
+    class CheckMaintenanceMode
+    {
+        public function handle(Request $request, Closure $next)
+        {
+            if (env('APP_MAINTENANCE') === 'true') {
+                abort(503);
+            }
+            return $next($request);
+        }
+    }

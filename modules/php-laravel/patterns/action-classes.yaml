@@ -1,0 +1,91 @@
+name: action-classes
+description: Complex use cases should be encapsulated in single-purpose Action classes
+category: framework
+layer: laravel
+severity: suggestion
+classification: mvp
+
+detection:
+  signals:
+    - type: directory
+      value: app/Actions
+    - type: file
+      value: "app/Actions/**/*.php"
+  confidence: medium
+
+verification:
+  rules:
+    - action class has a single public __invoke or execute method
+    - action class encapsulates one use case or operation
+    - service methods exceeding ~50 lines that orchestrate multiple operations are candidates for extraction into action classes
+    - action classes may call other actions for composition
+
+examples:
+  correct: |
+    // Single-purpose Action with __invoke
+    class CreateOrderAction
+    {
+        public function __construct(
+            private readonly OrderRepository $orders,
+            private readonly ApplyDiscountAction $applyDiscount,
+            private readonly NotifyCustomerAction $notifyCustomer,
+        ) {}
+
+        public function __invoke(OrderData $data): Order
+        {
+            $order = $this->orders->create($data);
+            ($this->applyDiscount)($order);
+            ($this->notifyCustomer)($order);
+
+            return $order;
+        }
+    }
+
+    // Controller uses the action
+    public function store(StoreOrderRequest $request, CreateOrderAction $action): JsonResponse
+    {
+        $order = $action(OrderData::from($request));
+        return response()->json(OrderResource::make($order), 201);
+    }
+  violation: |
+    // Service method doing too much — should be an Action
+    class OrderService
+    {
+        public function createOrder(array $data): Order
+        {
+            // validate business rules
+            $customer = Customer::findOrFail($data['customer_id']);
+            if ($customer->isBlocked()) {
+                throw new CustomerBlockedException();
+            }
+            // check inventory
+            foreach ($data['items'] as $item) {
+                $product = Product::findOrFail($item['product_id']);
+                if ($product->stock < $item['quantity']) {
+                    throw new InsufficientStockException($product);
+                }
+            }
+            // create order
+            $order = Order::create(['customer_id' => $customer->id, 'status' => 'pending']);
+            foreach ($data['items'] as $item) {
+                $order->lines()->create($item);
+            }
+            // apply discounts
+            $coupon = Coupon::where('code', $data['coupon_code'])->first();
+            if ($coupon && $coupon->isValid()) {
+                $order->discount = $coupon->calculateDiscount($order->subtotal);
+                $order->save();
+            }
+            // update inventory
+            foreach ($order->lines as $line) {
+                $line->product->decrement('stock', $line->quantity);
+            }
+            // send notifications
+            Mail::to($customer)->send(new OrderConfirmation($order));
+            event(new OrderCreated($order));
+            return $order;
+        }
+    }
+
+related_patterns:
+  - service-layer

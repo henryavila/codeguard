@@ -1,0 +1,88 @@
+name: policies
+description: Authorization logic should be in Policy classes, not scattered in controllers/services
+category: framework
+layer: laravel
+severity: warning
+classification: mvp
+
+detection:
+  signals:
+    - type: directory
+      value: app/Policies
+    - type: import
+      value: "Illuminate\\Auth\\Access\\Gate"
+  confidence: high
+
+verification:
+  rules:
+    - no manual authorization checks (comparing user IDs) in controllers or services
+    - no inline Gate::allows() or Gate::denies() calls in controllers
+    - use Policy methods via $this->authorize(), Gate::authorize(), or can() middleware
+    - authorization logic belongs in Policy classes registered in AuthServiceProvider
+
+examples:
+  correct: |
+    // Policy class
+    class OrderPolicy
+    {
+        public function view(User $user, Order $order): bool
+        {
+            return $user->id === $order->user_id
+                || $user->hasRole('admin');
+        }
+
+        public function update(User $user, Order $order): bool
+        {
+            return $user->id === $order->user_id
+                && $order->status === 'pending';
+        }
+
+        public function delete(User $user, Order $order): bool
+        {
+            return $user->id === $order->user_id
+                && $order->status === 'pending';
+        }
+    }
+
+    // Controller uses $this->authorize()
+    class OrderController extends Controller
+    {
+        public function update(UpdateOrderRequest $request, Order $order): JsonResponse
+        {
+            $this->authorize('update', $order);
+            $order = $this->orderService->update($order, OrderData::from($request));
+            return response()->json(OrderResource::make($order));
+        }
+    }
+
+    // Route-level authorization via middleware
+    Route::put('/orders/{order}', [OrderController::class, 'update'])
+        ->can('update', 'order');
+  violation: |
+    // Manual authorization check in controller
+    class OrderController extends Controller
+    {
+        public function update(Request $request, Order $order): JsonResponse
+        {
+            if ($request->user()->id !== $order->user_id) {
+                abort(403, 'Unauthorized');
+            }
+
+            $order->update($request->all());
+            return response()->json($order);
+        }
+
+        public function destroy(Order $order): JsonResponse
+        {
+            if (auth()->id() !== $order->user_id && !auth()->user()->is_admin) {
+                abort(403);
+            }
+
+            $order->delete();
+            return response()->json(null, 204);
+        }
+    }
+
+related_patterns:
+  - service-layer
+  - form-requests

@@ -1,0 +1,72 @@
+name: no-logic-in-blade
+description: Blade templates should not contain business logic
+category: framework
+layer: laravel
+severity: warning
+classification: mvp
+
+detection:
+  signals:
+    - type: file
+      value: "resources/views/**/*.blade.php"
+  confidence: high
+
+verification:
+  rules:
+    - no @php blocks with calculations, data transformations, or business rules
+    - no complex conditionals encoding business rules in templates
+    - display logic (@if for showing/hiding UI elements) is acceptable
+    - simple loops (@foreach to render collections) are acceptable
+    - Blade components with logic in their component class (not the template) are acceptable
+
+examples:
+  correct: |
+    {{-- Simple display condition using model method --}}
+    @if($order->isPaid())
+        <span class="badge badge-success">Paid</span>
+    @else
+        <span class="badge badge-warning">Pending</span>
+    @endif
+
+    {{-- Iterating a collection for display --}}
+    @foreach($order->items as $item)
+        <tr>
+            <td>{{ $item->product->name }}</td>
+            <td>{{ $item->quantity }}</td>
+            <td>{{ $item->formattedPrice() }}</td>
+        </tr>
+    @endforeach
+
+    {{-- Using a computed value from controller/view model --}}
+    <h2>Total: {{ $orderTotal }}</h2>
+
+    {{-- Blade component — logic lives in the component class --}}
+    <x-order-summary :order="$order" />
+  violation: |
+    {{-- Business logic in @php block — should be in service or view model --}}
+    @php
+        $subtotal = 0;
+        foreach ($items as $item) {
+            $lineTotal = $item->price * $item->quantity;
+            if ($item->discount_percent > 0) {
+                $lineTotal -= $lineTotal * ($item->discount_percent / 100);
+            }
+            $subtotal += $lineTotal;
+        }
+        $tax = $subtotal * 0.15;
+        $total = $subtotal + $tax;
+        if ($customer->tier === 'gold') {
+            $total *= 0.9;
+        }
+    @endphp
+
+    {{-- Complex business rule in template --}}
+    @if($user->subscription && $user->subscription->plan === 'premium'
+        && $user->subscription->expires_at > now()
+        && !$user->hasFlag('suspended')
+        && $user->orders()->count() >= 5)
+        <button>Access VIP Area</button>
+    @endif
+
+related_patterns:
+  - service-layer

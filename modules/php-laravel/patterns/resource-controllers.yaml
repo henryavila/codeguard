@@ -1,0 +1,98 @@
+name: resource-controllers
+description: Controllers should follow REST conventions with standard method names
+category: framework
+layer: laravel
+severity: warning
+classification: mvp
+
+detection:
+  signals:
+    - type: directory
+      value: app/Http/Controllers
+    - type: file
+      value: "app/Http/Controllers/**/*.php"
+  confidence: high
+
+verification:
+  rules:
+    - controller public methods should be limited to index, show, create, store, edit, update, destroy
+    - custom public methods signal the controller is doing too much and should be split
+    - single-action controllers (with only __invoke) are acceptable
+    - private/protected helper methods within a controller are acceptable
+
+examples:
+  correct: |
+    // Standard resource controller
+    class OrderController extends Controller
+    {
+        public function index(): JsonResponse
+        {
+            $orders = $this->orderService->listForUser(auth()->user());
+            return response()->json(OrderResource::collection($orders));
+        }
+
+        public function store(StoreOrderRequest $request): JsonResponse
+        {
+            $order = $this->orderService->create(OrderData::from($request));
+            return response()->json(OrderResource::make($order), 201);
+        }
+
+        public function show(Order $order): JsonResponse
+        {
+            return response()->json(OrderResource::make($order));
+        }
+
+        public function update(UpdateOrderRequest $request, Order $order): JsonResponse
+        {
+            $order = $this->orderService->update($order, OrderData::from($request));
+            return response()->json(OrderResource::make($order));
+        }
+
+        public function destroy(Order $order): JsonResponse
+        {
+            $this->orderService->delete($order);
+            return response()->json(null, 204);
+        }
+    }
+
+    // Single-action controller for non-REST actions
+    class ExportOrderPdfController extends Controller
+    {
+        public function __invoke(Order $order): Response
+        {
+            $pdf = $this->exportService->toPdf($order);
+            return response()->download($pdf);
+        }
+    }
+  violation: |
+    // Controller with non-REST custom methods
+    class OrderController extends Controller
+    {
+        public function index() { /* ... */ }
+        public function store(Request $request) { /* ... */ }
+        public function show(Order $order) { /* ... */ }
+
+        // These custom methods violate REST conventions
+        public function exportPdf(Order $order)
+        {
+            // should be its own single-action controller
+        }
+
+        public function sendNotification(Order $order)
+        {
+            // should be its own single-action controller
+        }
+
+        public function calculateTotal(Order $order)
+        {
+            // business logic — should be in a service
+        }
+
+        public function duplicate(Order $order)
+        {
+            // should be its own single-action controller
+        }
+    }
+
+related_patterns:
+  - service-layer
