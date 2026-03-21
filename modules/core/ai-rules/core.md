@@ -15,6 +15,14 @@ These patterns apply to ANY codebase regardless of language or framework.
 - Few arguments: Constructor dependency injection parameters are acceptable (they represent composition, not data)
 - No god object: Framework base classes (Controller, Model) naturally have many methods — only flag user-defined classes
 - Bounded contexts: Shared kernel types (IDs, value objects) crossing module boundaries is acceptable
+- Single responsibility: Framework lifecycle methods (setUp, tearDown, boot) are not multiple responsibilities — they are part of a single framework contract
+- Separation of concerns: Thin orchestration in controllers (calling a service method + returning a response) is not a violation — controllers are meant to coordinate
+- Layer dependency direction: Events and listeners crossing layers is acceptable — events are contracts, not dependencies
+- No circular dependencies: Shared value objects or DTOs used by multiple modules are not circular dependencies — they belong to a shared kernel
+- No deep inheritance: Framework-mandated inheritance (extending Controller, Model, TestCase) does not count toward inheritance depth
+- No constructor many params: DI container-injected dependencies are acceptable; only flag manual construction with many arguments
+- No long switch: Configuration-driven switches (e.g., factory methods mapping type to class) are acceptable patterns — they are bounded by design
+- Consistent error handling: Logging-only catch blocks (log + rethrow) are valid error handling; only flag truly empty catches that silently swallow exceptions
 
 ### Severity Classification
 - **Critical**: Core architecture broken — the violation undermines the system's structural integrity

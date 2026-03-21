@@ -13,7 +13,7 @@ detection:
 
 verification:
   rules:
-    - a class with too many methods or properties is doing too much and should be split by responsibility
+    - a class with more than 10 public methods or more than 15 properties likely has too many responsibilities and should be split
     - only flag user-defined classes — framework base classes (Controller, Model) naturally have many methods
     - if a class name contains "Manager", "Handler", "Processor", or "Utils" and has many methods, it likely needs decomposition
 

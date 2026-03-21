@@ -8,7 +8,7 @@ classification: mvp
 detection:
   signals:
     - type: file
-      value: "**/*.php"
+      value: "**/*.{php,ts,js,py,java,go,rb}"
   confidence: medium
 
 verification:
@@ -19,9 +19,37 @@ verification:
 examples:
   correct: |
     class OrderService {
-      public function create(OrderData $data): Order { /* order logic only */ }
+      private OrderRepository $repo;
+      private EventDispatcher $events;
+
+      public function place(OrderData $data): Order {
+        $order = new Order($data->items, $data->shipping);
+        $order->applyPricing($this->pricingRules);
+        $this->repo->save($order);
+        $this->events->dispatch(new OrderPlaced($order));
+        return $order;
+      }
+    }
+
+    class OrderNotifier {
+      public function onOrderPlaced(OrderPlaced $event): void {
+        $this->mailer->send(new OrderConfirmationEmail($event->order));
+      }
     }
   violation: |
     class OrderService {
-      public function create(array $data): Order { /* creates order AND sends email AND logs */ }
+      public function place(array $data): Order {
+        $order = new Order($data['items'], $data['shipping']);
+        $order->applyPricing($this->pricingRules);
+        $this->db->insert('orders', $order->toArray());
+
+        // Sending email — not this class's responsibility
+        $html = $this->twig->render('emails/confirmation.html', ['order' => $order]);
+        mail($order->customerEmail(), 'Order Confirmed', $html);
+
+        // Writing audit log — not this class's responsibility
+        file_put_contents('/var/log/orders.log', json_encode($order) . "\n", FILE_APPEND);
+
+        return $order;
+      }
     }

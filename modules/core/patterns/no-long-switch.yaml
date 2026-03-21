@@ -32,7 +32,7 @@ examples:
         case 'percentage': return $order->total() * 0.1;
         case 'fixed': return new Money(500);
         case 'bogo': return $order->cheapestItem()->price();
-        case 'loyalty': return $order->total() * $customer->loyaltyRate();
+        case 'loyalty': return $order->total() * $order->loyaltyRate();
         case 'seasonal': return $order->total() * 0.15;
         case 'bundle': return $order->bundleDiscount();
         default: return new Money(0);
