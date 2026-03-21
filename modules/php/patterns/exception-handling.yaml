@@ -14,7 +14,7 @@ detection:
 verification:
   rules:
     - no empty catch blocks — every caught exception must be handled, logged, or re-thrown
-    - no catching generic Exception without re-throwing or specific handling
+    - no catching generic Exception or Throwable unless you log it with context, re-throw it, or both
     - error messages and log entries must include enough context to diagnose the problem
     - catch blocks that log and re-throw are valid — they are NOT empty catches
     - catch blocks in event listeners that prevent event propagation failure are acceptable

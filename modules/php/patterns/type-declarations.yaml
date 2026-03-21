@@ -17,7 +17,7 @@ verification:
     - return types should be declared on all functions and methods
     - avoid using mixed type without clear justification
     - framework-generated stubs (migrations, seeders) may omit return types — acceptable
-    - PHP 7.x legacy code may lack types — in migration scenarios, classify as suggestion
+    - PHP 7.x legacy code may lack types — in migration scenarios, flag with lower priority for legacy codebases
 
 examples:
   correct: |

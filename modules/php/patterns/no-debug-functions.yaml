@@ -31,6 +31,7 @@ examples:
     public function processOrder(Order $order): void
     {
         dd($order);            // dumps and dies
+        ddd($order);           // dumps, dies, and debugs
         dump($order->items);   // dumps to output
         var_dump($order);      // raw PHP debug output
         ray($order->total);    // third-party debug tool
