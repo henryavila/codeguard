@@ -17,8 +17,8 @@
 | Phase | Name | What it produces | Depends on | Status |
 |---|---|---|---|---|
 | **1** | Foundation — Types & Module System | Updated types, module loader, pattern loader, config loader | Story 1-1 | **DONE** |
-| **2** | CLI Installer | `npx codeguard install` with 7 IDE support + placeholder skills | Phase 1 | Pending |
-| **3** | Pattern Catalog Content | 28 YAML pattern files + ai-rules for core/php/laravel | Phase 1 | Pending |
+| **2** | CLI Installer | `npx codeguard install` with 7 IDE support + placeholder skills | Phase 1 | **DONE** |
+| **3** | Pattern Catalog Content | 28 YAML pattern files + ai-rules for core/php/laravel | Phase 1 | **DONE** |
 | **4** | Tool Adapters + Hook Runner | Larastan/Pint/PHPMD/Pest adapters + pre-commit pipeline + bundling | Phase 1 | Pending |
 | **5** | Skills | codeguard-setup.md, codeguard-run.md, codeguard-health.md | Phase 2 + 3 + 4 | Pending |
 
@@ -107,7 +107,8 @@ tests/
     modules/registry.test.ts ← 4 tests
 ```
 
-22 tests, all passing. Build clean. Lint clean.
+39 tests, all passing. Build clean. Lint clean.
+NOTE: Codebase section shows Phase 1 state. Phase 2 added src/cli/ + skills/. Phase 3 added 28 patterns + 3 ai-rules across modules/core/, modules/php/, modules/php-laravel/. See git log for current state.
 
 ### Technical patterns established
 
@@ -123,7 +124,7 @@ tests/
 
 ### Dependencies (current)
 
-Runtime: ajv, chalk, commander, deepmerge, yaml
+Runtime: @inquirer/prompts, ajv, chalk, commander, deepmerge, yaml
 Dev: typescript, tsdown, vitest, tsx, eslint, prettier, @types/node
 Removed: handlebars, cosmiconfig
 
@@ -155,8 +156,8 @@ tests/
   unit/cli/
     ide-registry.test.ts
     skill-deployer.test.ts
-  e2e/
-    install-flow.test.ts
+    install.test.ts
+    cli-entry.test.ts
 ```
 
 **Build changes:**
@@ -238,6 +239,7 @@ modules/
 - Baseline matcher: loads `.codeguard/baseline.json`, filters known violations
 - Output formatter: tool-level messages (no pattern knowledge)
 - Exit code logic: block violations → exit 1, only warnings → exit 0
+- **Adapter resolution:** Hook runner imports all adapters at compile time (they are bundled). At runtime, reads `codeguard.yaml` capabilities, matches each enabled capability to its adapter via a lookup table in the runner (e.g., `'static-analysis' → larastanAdapter`, `'formatting' → pintAdapter`). Does NOT read module.yaml at runtime — the mapping is baked into the bundle for the Laravel module.
 
 **Files to create:**
 ```
@@ -249,11 +251,11 @@ src/adapters/
     pest.ts
     index.ts             ← barrel export
 src/hooks/
-  runner.ts              ← main pipeline (replace placeholder)
+  runner.ts              ← main pipeline entry point (replace placeholder, tsdown builds this)
   staged-files.ts        ← get staged files via git diff
   baseline.ts            ← load and match baseline
   formatter.ts           ← format tool-level messages
-  index.ts
+  NOTE: NO index.ts barrel here — runner.ts IS the tsdown entry point
 tests/
   unit/adapters/
     larastan.test.ts     ← test with JSON output fixtures
@@ -273,8 +275,21 @@ tests/
 
 **Build changes:**
 - tsdown entry: `'hooks/runner': 'src/hooks/runner.ts'` (already exists, needs real content)
-- **MUST** configure `deps.alwaysBundle` for hook runner entry to produce self-contained bundle (zero external imports — the bundle will be copied to `.codeguard/hook-runner.js` in projects without node_modules)
-- May need separate tsdown config for hook runner vs library entry (library keeps deps external, hook bundles everything)
+- **MUST** split tsdown into two configs: one for library+CLI (deps external), one for hook runner (deps bundled)
+- Hook runner tsdown config needs `noExternal: [/.*/]` or equivalent to inline all deps (yaml, ajv, chalk) into a single self-contained .js file
+- Example separate config for hook runner:
+```typescript
+// tsdown.hook.config.ts
+export default defineConfig({
+  entry: { 'hooks/runner': 'src/hooks/runner.ts' },
+  format: 'esm',
+  outDir: 'dist',
+  noExternal: [/.*/],  // bundle everything
+  dts: false,           // no types needed for hook runner
+});
+```
+- Update `package.json` scripts: `"build": "tsdown && tsdown --config tsdown.hook.config.ts"` or use a single config with per-entry overrides if tsdown supports it
+- **VERIFY** after build: `dist/hooks/runner.js` must NOT contain bare `import` statements for `yaml`, `ajv`, `chalk` etc.
 
 **Baseline JSON schema (contract between Phase 4 and Phase 5):**
 Phase 4's `baseline.ts` must parse this exact format. Phase 5's run skill must generate it.
@@ -296,9 +311,16 @@ Phase 4's `baseline.ts` must parse this exact format. Phase 5's run skill must g
 }
 ```
 
+**Adapter-specific notes:**
+- **Larastan:** Runs full project (`vendor/bin/phpstan analyse --error-format=json`), parseOutput reads PHPStan JSON format, filterToStaged keeps only violations in staged files
+- **Pint:** Has TWO modes: (a) autofix mode (`vendor/bin/pint {files}` → fix + `git add`), used in Phase 1 of hook execution; (b) check mode (`vendor/bin/pint --test {files}`), NOT used in hook (autofix only). The adapter's `buildCommand` builds the autofix command. The runner handles the `git add` re-staging after Pint runs. parseOutput reads Pint text output listing changed files.
+- **PHPMD:** Runs on staged files only (`vendor/bin/phpmd {files} json {rulesets}`), parseOutput reads PHPMD JSON format
+- **Pest:** Runs `vendor/bin/pest tests/Architecture/`. Output is NOT JSON — it's test output text. parseOutput must parse FAIL lines to extract violations (each failed arch test = one violation). Use `--colors=never` for parseable output.
+
 **Testing strategy:**
 - Unit tests with fixture JSON/text outputs (no real PHP tools needed)
 - Each adapter tested: buildCommand produces correct args, parseOutput normalizes correctly, filterToStaged filters correctly
+- **Pest adapter needs special attention:** test fixtures must include both passing and failing arch test output text
 - Hook pipeline tested: staged files → phase 1 (pint) → phase 2 (parallel) → baseline → format → exit code
 
 ---
