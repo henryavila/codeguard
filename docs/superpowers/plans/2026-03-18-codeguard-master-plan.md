@@ -237,9 +237,21 @@ modules/
 - During setup (Phase 5), AI copies `dist/hooks/runner.js` to `.codeguard/hook-runner.js`
 - Two-phase execution: Pint first (autofix), then Larastan + PHPMD + Pest in parallel
 - Baseline matcher: loads `.codeguard/baseline.json`, filters known violations
-- Output formatter: tool-level messages (no pattern knowledge)
+- Output formatter: tool-level messages (no pattern knowledge). Format per design spec UX-DR (chalk colors, ✓/✗ symbols):
+```
+codeguard · pre-commit
+
+  ✗ app/Services/OrderService.php:45
+    Larastan: Call to undefined method calculateTotal()
+
+  ⚠ app/Http/Controllers/OrderController.php:23
+    PHPMD: CyclomaticComplexity - method has complexity of 15
+
+  2 findings · 1 blocking · commit blocked
+```
 - Exit code logic: block violations → exit 1, only warnings → exit 0
 - **Adapter resolution:** Hook runner imports all adapters at compile time (they are bundled). At runtime, reads `codeguard.yaml` capabilities, matches each enabled capability to its adapter via a lookup table in the runner (e.g., `'static-analysis' → larastanAdapter`, `'formatting' → pintAdapter`). Does NOT read module.yaml at runtime — the mapping is baked into the bundle for the Laravel module.
+- **Config resolution:** The hook runner must merge `CapabilityConfig` (from codeguard.yaml) + `PresetTool` defaults (hardcoded in the runner for Laravel module) into a `ToolConfig` before passing to each adapter's `buildCommand`. This merge logic lives in the runner (e.g., `resolveToolConfig(capability: CapabilityConfig, preset: PresetTool): ToolConfig`). The preset defaults are embedded as constants in the runner bundle — no preset.yaml read at runtime.
 
 **Files to create:**
 ```
@@ -264,6 +276,7 @@ tests/
     pest.test.ts
   unit/hooks/
     runner.test.ts
+    staged-files.test.ts   ← test git diff parsing with mock execFile
     baseline.test.ts
     formatter.test.ts
   fixtures/
@@ -290,6 +303,27 @@ export default defineConfig({
 ```
 - Update `package.json` scripts: `"build": "tsdown && tsdown --config tsdown.hook.config.ts"` or use a single config with per-entry overrides if tsdown supports it
 - **VERIFY** after build: `dist/hooks/runner.js` must NOT contain bare `import` statements for `yaml`, `ajv`, `chalk` etc.
+- **NOTE on Node.js built-ins:** `noExternal: [/.*/]` bundles npm deps but Node.js built-ins (`node:child_process`, `node:fs/promises`, `node:path`) remain as external imports (tsdown/rolldown handles this automatically). Verify `node:` imports are preserved in the built output.
+
+**Baseline types (to be created in Phase 4):**
+Phase 4 must create a `BaselineEntry` and `BaselineFile` type in `src/hooks/baseline.ts`:
+```typescript
+interface BaselineEntry {
+  tool: string;
+  rule: string;
+  file: string;
+  message_normalized: string;
+  hash: string;
+}
+
+interface BaselineFile {
+  version: string;
+  generated: string;
+  generatedBy: string;
+  module: string;
+  entries: BaselineEntry[];
+}
+```
 
 **Baseline JSON schema (contract between Phase 4 and Phase 5):**
 Phase 4's `baseline.ts` must parse this exact format. Phase 5's run skill must generate it.
@@ -313,7 +347,7 @@ Phase 4's `baseline.ts` must parse this exact format. Phase 5's run skill must g
 
 **Adapter-specific notes:**
 - **Larastan:** Runs full project (`vendor/bin/phpstan analyse --error-format=json`), parseOutput reads PHPStan JSON format, filterToStaged keeps only violations in staged files
-- **Pint:** Has TWO modes: (a) autofix mode (`vendor/bin/pint {files}` → fix + `git add`), used in Phase 1 of hook execution; (b) check mode (`vendor/bin/pint --test {files}`), NOT used in hook (autofix only). The adapter's `buildCommand` builds the autofix command. The runner handles the `git add` re-staging after Pint runs. parseOutput reads Pint text output listing changed files.
+- **Pint:** Autofix-only in hook. The runner calls Pint DIRECTLY in Phase 1 (not via the standard ToolAdapter flow) because autofix is a special case: it modifies files + needs `git add`, and doesn't produce violations. The runner builds the command (`vendor/bin/pint {staged .php files}`), executes it, parses stdout to find which files were changed, and runs `git add` on those files. The Pint `ToolAdapter` is still created for consistency and potential future `--test` mode, but the Phase 1 autofix path bypasses `parseOutput` and `filterToStaged` since there are no violations to report.
 - **PHPMD:** Runs on staged files only (`vendor/bin/phpmd {files} json {rulesets}`), parseOutput reads PHPMD JSON format
 - **Pest:** Runs `vendor/bin/pest tests/Architecture/`. Output is NOT JSON — it's test output text. parseOutput must parse FAIL lines to extract violations (each failed arch test = one violation). Use `--colors=never` for parseable output.
 
@@ -367,18 +401,12 @@ skills/
 
 ---
 
-## Execution order recommendation
+## Execution order
 
 ```
-Now:     Phase 2 (Installer) — straightforward CLI work
-Then:    Phase 3 (Patterns) — content creation, can be fast
-Then:    Phase 4 (Adapters + Hook Runner) — most complex, needs fixture data
-Finally: Phase 5 (Skills) — needs everything else done first
-```
-
-Or if parallel conversations are possible:
-```
-Session A: Phase 2 (Installer)     ─┐
-Session B: Phase 3 (Patterns)      ─┤── Phase 5 (Skills)
-Session C: Phase 4 (Adapters+Hook) ─┘
+Phase 1: Foundation (DONE)
+Phase 2: CLI Installer (DONE)
+Phase 3: Pattern Catalog (DONE)
+Phase 4: Adapters + Hook Runner ← NEXT
+Phase 5: Skills ← after Phase 4
 ```
