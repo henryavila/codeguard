@@ -30,7 +30,7 @@
 
 3. **Adapter location resolved.** Adapters live in `src/adapters/php-laravel/` (TypeScript, compiled by tsdown). Module YAML/markdown stays in `modules/` (static data, shipped as-is). This was discovered during Phase 1 — tsdown only compiles `src/`. Design spec Sections 2 and 4 have been updated to reflect this change.
 
-4. **Hook runner bundling resolved.** Hook runner is compiled during `npm run build` as a tsdown entry point. Ships as `dist/hooks/runner.js` in the npm package. During setup, the AI copies it to `.codeguard/hook-runner.js`. No runtime compilation needed. **IMPORTANT:** tsdown must use ``noExternal: [/.*/]`` for the hook runner entry to produce a self-contained bundle with zero external imports.
+4. **Hook runner bundling resolved.** Hook runner is compiled during `npm run build` as a tsdown entry point. Ships as `dist/hooks/runner.js` in the npm package. During setup, the AI copies it to `.codeguard/hook-runner.js`. No runtime compilation needed. **IMPORTANT:** tsdown must use ``deps: { alwaysBundle: [/.*/] }`` for the hook runner entry to produce a self-contained bundle with zero external imports.
 
 5. **`arch-tests/` directory dropped from module structure.** The setup skill generates Pest arch tests from scratch based on active patterns' verification rules — no templates needed. The `arch-tests/` directory shown in the design spec Section 4 is unnecessary.
 
@@ -249,6 +249,7 @@ codeguard · pre-commit
 
   2 findings · 1 blocking · commit blocked
 ```
+Severity-to-symbol mapping: `critical` (enforcement=block) → `✗` (red), `warning` (enforcement=warn) → `⚠` (yellow), `suggestion` → `→` (blue). Summary line: `{total} findings · {blocking} blocking · commit {blocked|passed}`. If `baselineCount > 0`, append `({baselineCount} baselined, suppressed)`.
 - Exit code logic: block violations → exit 1, only warnings → exit 0
 - **Adapter resolution:** Hook runner imports all adapters at compile time (they are bundled). At runtime, reads `codeguard.yaml` capabilities, matches each enabled capability to its adapter via a lookup table in the runner (e.g., `'static-analysis' → larastanAdapter`, `'formatting' → pintAdapter`). Does NOT read module.yaml at runtime — the mapping is baked into the bundle for the Laravel module.
 - **Config resolution:** The hook runner merges `CapabilityConfig` (from codeguard.yaml) + `PresetTool` defaults (hardcoded constants in runner) into a `ToolConfig`:
@@ -256,7 +257,7 @@ codeguard · pre-commit
   - `binary`, `config`, `extensions`, `directory`, `rulesets`, `preset` → from PresetTool (defaults)
   - `level` → CapabilityConfig.level overrides PresetTool.level when present
   - `rules` → not used in MVP (undefined)
-  - `CapabilityConfig.presets[]` (e.g., Pest `[php, laravel]`) does NOT map to `ToolConfig.preset` — it is passed directly to the Pest adapter via `ToolConfig.rulesets` or through a Pest-specific field. Each adapter knows how to interpret its ToolConfig.
+  - `CapabilityConfig.presets[]` (e.g., Pest `[php, laravel]`) is a **setup-time-only field** — used by the setup skill when generating `CodeGuardArchTest.php` (determines which `arch()->preset()->php()` calls to include). The hook runner IGNORES this field. `resolveToolConfig` does not map it anywhere.
   - Merge function: `resolveToolConfig(capability: CapabilityConfig, preset: PresetTool): ToolConfig` — must have dedicated tests
 
 **Files to create:**
@@ -294,26 +295,35 @@ tests/
 
 **Build changes:**
 - tsdown entry: `'hooks/runner': 'src/hooks/runner.ts'` (already exists, needs real content)
-- **MUST** split tsdown into two configs: one for library+CLI (deps external), one for hook runner (deps bundled)
-- Hook runner tsdown config needs `noExternal: [/.*/]` or equivalent to inline all deps (yaml, ajv, chalk) into a single self-contained .js file
-- Example separate config for hook runner:
+- **MUST** use a single `tsdown.config.ts` returning an array of configs (tsdown supports `defineConfig(UserConfig[])`):
 ```typescript
-// tsdown.hook.config.ts
-export default defineConfig({
-  entry: { 'hooks/runner': 'src/hooks/runner.ts' },
-  format: 'esm',
-  outDir: 'dist',
-  noExternal: [/.*/],   // bundle all npm deps into single file
-  dts: false,            // no types needed for hook runner
-  fixedExtension: false, // produce .js not .mjs (match main config)
-});
+export default defineConfig([
+  // Library + CLI (deps external)
+  {
+    entry: { index: 'src/index.ts', 'cli/index': 'src/cli/index.ts' },
+    format: 'esm',
+    dts: true,
+    clean: true,
+    outDir: 'dist',
+    fixedExtension: false,
+  },
+  // Hook runner (self-contained bundle, all deps inlined)
+  {
+    entry: { 'hooks/runner': 'src/hooks/runner.ts' },
+    format: 'esm',
+    outDir: 'dist',
+    deps: { alwaysBundle: [/.*/] },
+    dts: false,
+    fixedExtension: false,
+  },
+]);
 ```
-- Update `package.json` scripts: `"build": "tsdown && tsdown --config tsdown.hook.config.ts"` or use a single config with per-entry overrides if tsdown supports it
+- No separate config file needed — single `tsdown.config.ts`, single `npm run build` command
 - **VERIFY** after build: `dist/hooks/runner.js` must NOT contain bare `import` statements for `yaml`, `ajv`, `chalk` etc.
-- **NOTE on Node.js built-ins:** `noExternal: [/.*/]` bundles npm deps but Node.js built-ins (`node:child_process`, `node:fs/promises`, `node:path`) remain as external imports (tsdown/rolldown handles this automatically). Verify `node:` imports are preserved in the built output.
+- **NOTE on Node.js built-ins:** `deps: { alwaysBundle: [/.*/] }` bundles npm deps but Node.js built-ins (`node:child_process`, `node:fs/promises`, `node:path`) remain as external imports (tsdown/rolldown handles this automatically). Verify `node:` imports are preserved in the built output.
 
 **Baseline types (to be created in Phase 4):**
-Phase 4 must create a `BaselineEntry` and `BaselineFile` type in `src/hooks/baseline.ts`:
+Phase 4 must create `BaselineEntry` and `BaselineFile` types in `src/core/types/baseline.ts` (NOT in src/hooks/ — they need to be reusable via the barrel export). Re-export from `src/core/types/index.ts` and `src/index.ts`. The hook runner's `src/hooks/baseline.ts` imports these types from the core barrel.
 ```typescript
 interface BaselineEntry {
   tool: string;
@@ -354,9 +364,10 @@ Phase 4's `baseline.ts` must parse this exact format. Phase 5's run skill must g
 
 **Adapter-specific notes:**
 - **Larastan:** Runs full project (`vendor/bin/phpstan analyse --error-format=json`), parseOutput reads PHPStan JSON format, filterToStaged keeps only violations in staged files
+- **Pint (MVP limitation: partial staging):** If a user partially stages a file (`git add -p`), Pint's autofix + `git add` will stage the ENTIRE file including unstaged changes. This is a known limitation shared by most autofix-in-hook implementations. lint-staged solves this with stash/restore, but implementing that is deferred post-MVP.
 - **Pint:** Autofix-only in hook. The runner calls Pint DIRECTLY in Stage 1 (not via the standard ToolAdapter flow) because autofix is a special case: it modifies files + needs `git add`, and doesn't produce violations. The runner builds the command (`vendor/bin/pint {staged .php files}`), executes it, parses stdout to find which files were changed, and runs `git add` on those files. The Pint `ToolAdapter` is created for consistency: `buildCommand` produces autofix args, `parseOutput` returns `{ success: true, violations: [] }` (autofix has no findings), `filterToStaged` is passthrough. `pint.test.ts` tests `buildCommand` only. Future `--test` mode would populate `parseOutput`.
 - **PHPMD:** Runs on staged files only (`vendor/bin/phpmd {files} json {rulesets}`), parseOutput reads PHPMD JSON format
-- **Pest:** Runs `vendor/bin/pest tests/Architecture/`. Output is NOT JSON — it's test output text. parseOutput must parse FAIL lines to extract violations (each failed arch test = one violation). Use `--colors=never` for parseable output.
+- **Pest:** Runs `vendor/bin/pest tests/Architecture/ --colors=never`. **Known interface mismatch:** `buildCommand(files)` ignores the `files` parameter — Pest runs the entire arch test directory, not individual files. `filterToStaged` returns all violations unfiltered (arch test failures are project-wide, not file-scoped). Output is text, not JSON — parseOutput parses FAIL lines to extract violations (each failed arch test = one AnalysisViolation). This is a documented MVP limitation of the ToolAdapter interface.
 
 **Testing strategy:**
 - Unit tests with fixture JSON/text outputs (no real PHP tools needed)
