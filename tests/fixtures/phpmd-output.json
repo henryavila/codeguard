@@ -1,0 +1,28 @@
+{
+  "version": "@project.version@",
+  "package": "phpmd",
+  "timestamp": "2026-03-18T10:30:00+00:00",
+  "files": [
+    {
+      "file": "app/Http/Controllers/OrderController.php",
+      "violations": [
+        {
+          "beginLine": 23,
+          "endLine": 45,
+          "rule": "CyclomaticComplexity",
+          "ruleSet": "codesize",
+          "priority": 3,
+          "description": "The method processOrder() has a Cyclomatic Complexity of 15. The configured maximum is 10."
+        },
+        {
+          "beginLine": 50,
+          "endLine": 55,
+          "rule": "UnusedLocalVariable",
+          "ruleSet": "unusedcode",
+          "priority": 3,
+          "description": "Avoid unused local variables such as '$temp'."
+        }
+      ]
+    }
+  ]
+}
