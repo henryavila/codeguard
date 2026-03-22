@@ -60,21 +60,46 @@ describe('hookFormatter.formatSummary', () => {
     expect(result).toContain('All checks passed');
   });
 
-  it('shows "commit blocked" when there are blocking (critical) violations', () => {
+  it('shows "commit blocked" when toolEnforcement is undefined (defaults to block)', () => {
     const ctx = makeContext({
-      violations: [makeViolation({ severity: 'critical' })],
+      violations: [makeViolation({ tool: 'larastan', severity: 'critical' })],
     });
     const result = stripAnsi(hookFormatter.formatSummary(ctx));
     expect(result).toContain('commit blocked');
   });
 
-  it('shows "commit passed" when there are only warnings', () => {
+  it('shows "commit blocked" when enforcement is explicitly block', () => {
     const ctx = makeContext({
-      violations: [makeViolation({ severity: 'warning' })],
+      violations: [makeViolation({ tool: 'larastan', severity: 'warning' })],
+      toolEnforcement: { larastan: 'block' },
+    });
+    const result = stripAnsi(hookFormatter.formatSummary(ctx));
+    expect(result).toContain('commit blocked');
+  });
+
+  it('shows "commit passed" when enforcement is warn (even with critical severity)', () => {
+    const ctx = makeContext({
+      violations: [makeViolation({ tool: 'larastan', severity: 'critical' })],
+      toolEnforcement: { larastan: 'warn' },
     });
     const result = stripAnsi(hookFormatter.formatSummary(ctx));
     expect(result).toContain('commit passed');
     expect(result).not.toContain('commit blocked');
+  });
+
+  it('counts blocking based on enforcement, not severity', () => {
+    const ctx = makeContext({
+      violations: [
+        makeViolation({ tool: 'larastan', severity: 'critical' }),
+        makeViolation({ tool: 'phpmd', severity: 'warning' }),
+      ],
+      toolEnforcement: { larastan: 'warn', phpmd: 'block' },
+    });
+    const result = stripAnsi(hookFormatter.formatSummary(ctx));
+    // 2 findings total, but only phpmd is blocking (1 blocking)
+    expect(result).toContain('2 findings');
+    expect(result).toContain('1 blocking');
+    expect(result).toContain('commit blocked');
   });
 
   it('includes baselined message when baselineCount > 0', () => {
@@ -121,6 +146,28 @@ describe('hookFormatter.formatFindings', () => {
 
     expect(result).toContain('phpmd');
     expect(result).toContain('Binary not found');
+  });
+
+  it('shows warning symbol when toolEnforcement is warn, even for critical severity', () => {
+    const v = makeViolation({ tool: 'larastan', severity: 'critical' });
+    const ctx = makeContext({
+      violations: [v],
+      toolEnforcement: { larastan: 'warn' },
+    });
+    const result = stripAnsi(hookFormatter.formatFindings(ctx));
+
+    // Should show warning symbol, not block symbol
+    expect(result).toContain('\u26a0'); // ⚠
+    expect(result).not.toMatch(/✗.*app\/Models/);
+  });
+
+  it('shows block symbol when toolEnforcement is undefined (backward compatible)', () => {
+    const v = makeViolation({ tool: 'larastan', severity: 'critical' });
+    const ctx = makeContext({ violations: [v] });
+    const result = stripAnsi(hookFormatter.formatFindings(ctx));
+
+    // No toolEnforcement => defaults to block => red ✗
+    expect(result).toContain('\u2717'); // ✗
   });
 });
 

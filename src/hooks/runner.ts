@@ -83,7 +83,11 @@ function execTool(
       args,
       { encoding: 'utf-8', timeout, maxBuffer: 10 * 1024 * 1024 },
       (error, stdout, stderr) => {
-        const exitCode = error && 'code' in error ? (error.code as number) : 0;
+        let exitCode = 0;
+        if (error) {
+          const code = 'code' in error ? error.code : undefined;
+          exitCode = typeof code === 'number' ? code : 1;
+        }
         resolve({ stdout: stdout ?? '', stderr: stderr ?? '', exitCode });
       },
     );
@@ -93,6 +97,7 @@ function execTool(
 interface StageResult {
   violations: AnalysisViolation[];
   errors: ToolError[];
+  toolEnforcement: Record<string, Enforcement>;
 }
 
 async function runAutofixStage(
@@ -129,11 +134,17 @@ async function runAutofixStage(
   }
 }
 
+interface ToolRunResult {
+  violations: AnalysisViolation[];
+  errors: ToolError[];
+}
+
 async function runAnalysisTool(
   adapter: ToolAdapter,
   toolConfig: ToolConfig,
   stagedFiles: string[],
-): Promise<StageResult> {
+  installCommand?: string,
+): Promise<ToolRunResult> {
   const cmd = adapter.buildCommand(stagedFiles, toolConfig);
 
   try {
@@ -145,7 +156,9 @@ async function runAnalysisTool(
           {
             tool: adapter.name,
             reason: `Binary not found: ${cmd.binary}`,
-            fix: `Install with: composer require --dev the appropriate package`,
+            fix: installCommand
+              ? `Install with: ${installCommand}`
+              : `Check ${adapter.name} installation`,
           },
         ],
       };
@@ -175,7 +188,14 @@ async function runAnalysisTool(
   }
 }
 
-async function runAnalysisStage(
+function findInstallCommand(
+  installCommands: string[],
+  toolName: string,
+): string | undefined {
+  return installCommands.find((cmd) => cmd.includes(toolName));
+}
+
+export async function runAnalysisStage(
   config: CodeGuardConfig,
   stagedPhpFiles: string[],
 ): Promise<StageResult> {
@@ -190,10 +210,11 @@ async function runAnalysisStage(
           fix: 'Check project.module in codeguard.yaml',
         },
       ],
+      toolEnforcement: {},
     };
   }
 
-  const tasks: Promise<StageResult>[] = [];
+  const tasks: { promise: Promise<ToolRunResult>; toolName: string; enforcement: Enforcement }[] = [];
 
   for (const [capName, capConfig] of Object.entries(config.capabilities)) {
     if (!capConfig.enabled) continue;
@@ -208,35 +229,52 @@ async function runAnalysisStage(
     const presetTool = moduleEntry.preset.tools[moduleCap.tool];
     if (!presetTool) continue;
 
-    const toolConfig = resolveToolConfig(capConfig, presetTool);
-    toolConfig.enforcement = validateEnforcement(
+    const enforcement = validateEnforcement(
       adapter,
-      toolConfig.enforcement,
+      capConfig.enforcement,
+      moduleCap.tool,
+    );
+    const toolConfig = resolveToolConfig(
+      { ...capConfig, enforcement },
+      presetTool,
+    );
+
+    const installCommand = findInstallCommand(
+      moduleEntry.preset.install_commands,
       moduleCap.tool,
     );
 
-    tasks.push(runAnalysisTool(adapter, toolConfig, stagedPhpFiles));
+    tasks.push({
+      promise: runAnalysisTool(adapter, toolConfig, stagedPhpFiles, installCommand),
+      toolName: moduleCap.tool,
+      enforcement,
+    });
   }
 
-  const results = await Promise.allSettled(tasks);
+  const results = await Promise.allSettled(tasks.map((t) => t.promise));
 
   const allViolations: AnalysisViolation[] = [];
   const allErrors: ToolError[] = [];
+  const toolEnforcement: Record<string, Enforcement> = {};
 
-  for (const result of results) {
+  for (let i = 0; i < results.length; i++) {
+    const result = results[i];
+    const task = tasks[i];
+    toolEnforcement[task.toolName] = task.enforcement;
+
     if (result.status === 'fulfilled') {
       allViolations.push(...result.value.violations);
       allErrors.push(...result.value.errors);
     } else {
       allErrors.push({
-        tool: 'codeguard',
+        tool: task.toolName,
         reason: String(result.reason),
         fix: 'Check tool configuration',
       });
     }
   }
 
-  return { violations: allViolations, errors: allErrors };
+  return { violations: allViolations, errors: allErrors, toolEnforcement };
 }
 
 async function main(): Promise<void> {
@@ -267,7 +305,7 @@ async function main(): Promise<void> {
   const refreshedFiles = await getStagedFiles(['.php']);
 
   // Stage 2: Analysis (parallel)
-  const { violations, errors } = await runAnalysisStage(config, refreshedFiles);
+  const { violations, errors, toolEnforcement } = await runAnalysisStage(config, refreshedFiles);
 
   // Apply baseline
   const baselinePath = config.baseline?.path ?? '.codeguard/baseline.json';
@@ -288,6 +326,7 @@ async function main(): Promise<void> {
     baselineCount: baselinedCount,
     totalFiles: refreshedFiles.length,
     scope: 'hook' as const,
+    toolEnforcement,
   };
 
   if (active.length > 0 || errors.length > 0) {
@@ -296,8 +335,10 @@ async function main(): Promise<void> {
 
   console.log(hookFormatter.formatSummary(context));
 
-  // Exit code decision
-  const hasBlockingViolations = active.some((v) => v.severity === 'critical');
+  // Exit code decision: uses enforcement config, not hardcoded severity
+  const hasBlockingViolations = active.some(
+    (v) => (toolEnforcement[v.tool] ?? 'block') === 'block',
+  );
   const allToolsFailed =
     errors.length > 0 && active.length === 0 && violations.length === 0;
 

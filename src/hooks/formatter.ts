@@ -1,19 +1,27 @@
 import chalk from 'chalk';
 
 import type {
+  Enforcement,
   OutputFormatter,
   FormatterContext,
   AnalysisViolation,
   ToolError,
 } from '../core/types/index.js';
 
-function severitySymbol(v: AnalysisViolation, enforcement: string): string {
-  if (enforcement === 'block' || v.severity === 'critical') {
-    return chalk.red('✗');
-  }
-  if (v.severity === 'warning') {
-    return chalk.yellow('⚠');
-  }
+function enforcementForViolation(
+  v: AnalysisViolation,
+  toolEnforcement?: Record<string, Enforcement>,
+): Enforcement {
+  return toolEnforcement?.[v.tool] ?? 'block';
+}
+
+function violationSymbol(
+  v: AnalysisViolation,
+  toolEnforcement?: Record<string, Enforcement>,
+): string {
+  const enforcement = enforcementForViolation(v, toolEnforcement);
+  if (enforcement === 'block') return chalk.red('✗');
+  if (enforcement === 'warn') return chalk.yellow('⚠');
   return chalk.blue('→');
 }
 
@@ -24,7 +32,7 @@ export const hookFormatter: OutputFormatter = {
     lines.push('');
 
     for (const v of context.violations) {
-      const symbol = severitySymbol(v, 'block');
+      const symbol = violationSymbol(v, context.toolEnforcement);
       lines.push(`  ${symbol} ${v.file}:${v.line}`);
       lines.push(`    ${capitalize(v.tool)}: ${v.message}`);
       lines.push('');
@@ -45,7 +53,7 @@ export const hookFormatter: OutputFormatter = {
   formatSummary(context: FormatterContext): string {
     const total = context.violations.length + context.errors.length;
     const blocking = context.violations.filter(
-      (v) => v.severity === 'critical',
+      (v) => enforcementForViolation(v, context.toolEnforcement) === 'block',
     ).length;
 
     let summary: string;
