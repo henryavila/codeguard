@@ -3,7 +3,7 @@ name: codeguard-run
 description: Run static analysis and AI pattern analysis against project standards
 ---
 
-# CodeGuard Run
+# /codeguard-run
 
 You are executing the `/codeguard-run` skill. This runs static analysis tools and AI semantic analysis against the project's configured patterns and standards. Follow every step precisely.
 

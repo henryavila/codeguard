@@ -43,6 +43,9 @@ export async function runInstall(projectRoot: string, version: string): Promise<
 
   // Results
   console.log('');
+  const successCount = results.filter((r) => r.success).length;
+  const failCount = results.filter((r) => !r.success).length;
+
   for (const result of results) {
     if (result.success) {
       console.log(chalk.green(`  \u2713 Skills copied to ${result.ide.skillsDir}/`));
@@ -52,18 +55,19 @@ export async function runInstall(projectRoot: string, version: string): Promise<
     }
   }
 
-  // Deploy project assets (hook-runner + modules) to .codeguard/
-  const assetsResult = await deployProjectAssets(projectRoot);
-  if (assetsResult.success) {
-    console.log(chalk.green('  \u2713 Project assets copied to .codeguard/'));
-  } else {
-    console.log(chalk.red('  \u2717 Failed to copy project assets to .codeguard/'));
-    console.log(chalk.dim(`    Reason: ${assetsResult.error}`));
+  // Deploy project assets (hook-runner + modules) to .codeguard/ — only if at least one IDE succeeded
+  let assetsResult: { success: boolean; error?: string } = { success: true };
+  if (successCount > 0) {
+    assetsResult = await deployProjectAssets(projectRoot);
+    if (assetsResult.success) {
+      console.log(chalk.green('  \u2713 Project assets copied to .codeguard/'));
+    } else {
+      console.log(chalk.red('  \u2717 Failed to copy project assets to .codeguard/'));
+      console.log(chalk.dim(`    Reason: ${assetsResult.error}`));
+    }
   }
 
   // Summary
-  const successCount = results.filter((r) => r.success).length;
-  const failCount = results.filter((r) => !r.success).length;
   const assetsFailed = !assetsResult.success;
 
   console.log('');

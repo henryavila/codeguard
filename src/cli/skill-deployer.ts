@@ -1,4 +1,4 @@
-import { cp, mkdir, readdir, stat, symlink, lstat, rm } from 'node:fs/promises';
+import { access, cp, mkdir, readdir, stat, symlink, lstat, rm } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -78,6 +78,32 @@ export async function deploySkillsToIde(
   projectRoot: string,
 ): Promise<DeployResult> {
   const skillsSourceDir = getSkillsSourceDir();
+
+  // Preflight: verify source skills directory exists
+  try {
+    await access(skillsSourceDir);
+  } catch {
+    return {
+      ide,
+      success: false,
+      error: `Skills source directory not found: ${skillsSourceDir}`,
+    };
+  }
+
+  // Preflight: verify each skill subdirectory exists
+  for (const skillDir of SKILL_DIRS) {
+    const skillSourcePath = join(skillsSourceDir, skillDir);
+    try {
+      await access(skillSourcePath);
+    } catch {
+      return {
+        ide,
+        success: false,
+        error: `Skill source not found: ${skillSourcePath}`,
+      };
+    }
+  }
+
   const targetDir = join(projectRoot, ide.skillsDir);
 
   let result: Result<void>;
@@ -153,8 +179,16 @@ export async function deployProjectAssets(
     const codeguardDir = join(projectRoot, '.codeguard');
     await mkdir(codeguardDir, { recursive: true });
 
-    // Copy hook-runner
+    // Copy hook-runner (verify it exists first)
     const hookRunnerSrc = join(packageRoot, 'dist', 'hooks', 'runner.js');
+    try {
+      await access(hookRunnerSrc);
+    } catch {
+      return {
+        success: false,
+        error: "Hook runner not found. Run 'npm run build' first.",
+      };
+    }
     const hookRunnerDest = join(codeguardDir, 'hook-runner.js');
     await cp(hookRunnerSrc, hookRunnerDest, { force: true });
 
