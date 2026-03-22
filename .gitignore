@@ -18,5 +18,8 @@ codeguard-memory.md
 codeguard-memory.md:Zone.Identifier
 nexus.yaml
 
+# Worktrees
+.worktrees/
+
 # OS files
 *.Zone.Identifier
