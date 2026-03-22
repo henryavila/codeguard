@@ -178,9 +178,9 @@ ArchUnit allows writing rules as tests. For CodeGuard, the AI fills the same rol
 Each pattern in the catalog follows this structure:
 
 ```yaml
-name: Service Layer
+name: service-layer
 description: Controllers delegate business logic to Services
-category: architecture        # architecture | clean-code | solid | ddd | php | framework
+category: framework           # architecture | clean-code | solid | ddd | php | framework
 layer: laravel                # core | php | laravel
 severity: critical            # critical | warning | suggestion
 classification: mvp           # mvp | roadmap
@@ -222,11 +222,9 @@ related_patterns:
   - dto
   - form-requests
   - action-classes
-
-references:
-  - "Clean Code — Robert C. Martin"
-  - "Domain-Driven Design — Eric Evans"
 ```
+
+Note: The `references` field was removed from the schema. Pattern YAML files contain only the fields above, matching the `PatternDefinition` TypeScript type. Research references are tracked in this analysis document, not in individual pattern files.
 
 ---
 
