@@ -7,6 +7,8 @@ description: Run static analysis and AI pattern analysis against project standar
 
 You are executing the `/codeguard-run` skill. This runs static analysis tools and AI semantic analysis against the project's configured patterns and standards. Follow every step precisely.
 
+**Golden Rule: NEVER infer or fabricate tool output.** When tools fail or produce errors, report the exact output verbatim. Do not guess causes, diagnose issues, or add interpretations. Relay what the tool said, nothing more.
+
 ## IDE Invocation
 
 | IDE | Syntax |
@@ -43,7 +45,7 @@ Extract from `codeguard.yaml`:
 
 ## Step 2: Load AI Rules
 
-Load the `ai-rules/*.md` files from all applicable module layers. The module hierarchy is resolved from `project.language` and `project.module` in `codeguard.yaml`. Read these files from `.codeguard/modules/` (or fall back to `node_modules/codeguard/modules/`):
+Load the `ai-rules/*.md` files from all applicable module layers. The module hierarchy is resolved from `project.language` and `project.module` in `codeguard.yaml`. Read these files from `.codeguard/modules/` (or fall back to `node_modules/@henryavila/codeguard/modules/`):
 
 1. **`.codeguard/modules/core/ai-rules/core.md`** — universal analysis rules (always loaded)
 2. **`.codeguard/modules/{language}/ai-rules/{language}.md`** — language-specific (e.g., `.codeguard/modules/php/ai-rules/php.md`)
@@ -92,11 +94,36 @@ Store the list of files in scope for use in subsequent steps.
 
 ---
 
-## Step 5: Run Static Analysis Tools
+## Step 5: Preflight — Check Tool Availability
 
-Run each enabled capability's tool against the scope. Check `codeguard.yaml` capabilities — only run tools where `enabled: true`.
+Before running any tool, verify that all enabled tools are installed. For each enabled capability in `codeguard.yaml`, check if the binary exists:
 
-### 5a. Larastan (static-analysis)
+```bash
+test -f vendor/bin/phpstan && echo "OK" || echo "MISSING"   # static-analysis
+test -f vendor/bin/phpmd && echo "OK" || echo "MISSING"     # mess-detection
+test -f vendor/bin/pest && echo "OK" || echo "MISSING"      # arch-testing
+test -f vendor/bin/pint && echo "OK" || echo "MISSING"      # formatting
+```
+
+Use the binary paths from `preset.yaml` (loaded in Step 3).
+
+If **any** enabled tool is missing:
+
+1. List the missing tools and their install commands (from `preset.yaml` `install_commands`)
+2. Ask the user: "Install missing tools now? [Y/n]"
+3. If yes, run each install command (e.g., `composer require --dev phpmd/phpmd`)
+4. If install fails, disable the capability for this run and warn the user
+5. If user says no, disable the capability for this run and note it in the report
+
+**Do NOT skip this step.** A tool reported as "not installed" in the final report is a failure of this preflight check.
+
+---
+
+## Step 6: Run Static Analysis Tools
+
+Run each enabled capability's tool against the scope. Check `codeguard.yaml` capabilities — only run tools where `enabled: true` and that passed the preflight check in Step 5.
+
+### 6a. Larastan (static-analysis)
 
 Larastan always runs on the **full project** regardless of scope (PHPStan needs full context for type inference). Run:
 
@@ -110,7 +137,7 @@ Where:
 - `{level}` = `capabilities.static-analysis.level` from codeguard.yaml (falls back to preset default)
 - `{config}` = `tools.larastan.config` from preset.yaml (e.g., `phpstan.neon`) — only if the file exists
 
-After getting results, **filter output to scope** — only keep findings in files that are within the analysis scope determined in Step 4.
+After getting results, **filter output to scope** — only keep findings in files that are within the analysis scope determined in Step 4. PHPStan exit code 1 means there are findings (this is normal, not an error). Only treat exit codes >= 2 as tool errors.
 
 Parse the JSON output. PHPStan JSON format:
 ```json
@@ -127,7 +154,7 @@ Parse the JSON output. PHPStan JSON format:
 }
 ```
 
-### 5b. PHPMD (mess-detection)
+### 6b. PHPMD (mess-detection)
 
 PHPMD runs on **scoped files only**. Build a comma-separated file list from the scope:
 
@@ -157,7 +184,7 @@ Parse the JSON output. PHPMD JSON format:
 }
 ```
 
-### 5c. Pest Arch Tests (arch-testing)
+### 6c. Pest Arch Tests (arch-testing)
 
 Pest runs the **architecture test directory** (not scoped files):
 
@@ -174,13 +201,19 @@ Each failed arch test produces one finding.
 
 ### Tool errors
 
-If a tool binary is not found or the command fails:
-- Report the error clearly: "Larastan not found at vendor/bin/phpstan. Run `composer require --dev larastan/larastan` to install."
-- Continue with the remaining tools. Do not abort the entire analysis for one tool failure.
+If a tool binary is not found, this should have been caught by the preflight check (Step 5). If it still happens:
+- Report: "{Tool} not found at {binary_path}. Run `{install_command}` to install."
+- Continue with remaining tools.
+
+If a tool command fails (non-zero exit):
+- **Report the actual stderr/stdout output verbatim.** Include the literal error text the tool produced.
+- **NEVER diagnose or interpret the error.** Do not guess the cause (e.g., do not say "missing APP_KEY" or "environment error" unless those exact words appear in the tool's output). Your job is to relay the error, not to play detective.
+- Format: "{Tool} failed (exit code {N}). Output: {literal output}"
+- Continue with remaining tools.
 
 ---
 
-## Step 6: Parse Tool Output
+## Step 7: Parse Tool Output
 
 Normalize all tool findings into a unified structure:
 
@@ -194,7 +227,7 @@ For each finding, record:
 
 ---
 
-## Step 7: Load Active Patterns
+## Step 8: Load Active Patterns
 
 Load pattern YAML files from all layers in the module hierarchy:
 
@@ -216,7 +249,7 @@ For each pattern YAML, extract:
 
 ---
 
-## Step 8: AI Semantic Analysis
+## Step 9: AI Semantic Analysis
 
 This is the **core value** of CodeGuard. You analyze the code in scope against every active pattern's verification rules, guided by the ai-rules loaded in Step 2.
 
@@ -252,9 +285,9 @@ These are AI-only checks. No deterministic tool enforces them.
 
 ---
 
-## Step 9: Classify All Findings
+## Step 10: Classify All Findings
 
-Merge tool findings (Step 6) and AI findings (Step 8) into a single list. Classify each:
+Merge tool findings (Step 7) and AI findings (Step 9) into a single list. Classify each:
 
 | Source | Symbol | Color | Meaning |
 |---|---|---|---|
@@ -266,7 +299,7 @@ Merge tool findings (Step 6) and AI findings (Step 8) into a single list. Classi
 
 ---
 
-## Step 10: Generate Report
+## Step 11: Generate Report
 
 Present findings grouped by pattern/tool, ordered by severity (critical first, then warning, then suggestion).
 
@@ -322,7 +355,7 @@ Scope: {scope description}
 
 ---
 
-## Step 11: Offer Corrections
+## Step 12: Offer Corrections
 
 After presenting the report, offer to fix violations:
 
@@ -338,7 +371,7 @@ When fixing:
 
 ---
 
-## Step 12: Baseline Management
+## Step 13: Baseline Management
 
 The baseline tracks **deterministic tool findings only**. AI semantic findings are never baselined — they are report-only.
 
@@ -413,11 +446,22 @@ After analysis completes:
 |---|---|
 | `codeguard.yaml` not found | Stop. Tell user to run `/codeguard-setup` |
 | `CODEGUARD.md` not found | Continue without project context. Warn the user. |
-| `.codeguard/modules/` not found | Stop. Tell user to run `npx codeguard install` |
-| Tool binary not found | Report missing tool with install command. Continue with other tools. |
-| Tool crashes (non-zero exit with stderr) | Report the error. Continue with other tools. |
+| `.codeguard/modules/` not found | Stop. Tell user to run `npx @henryavila/codeguard install` |
+| Tool binary not found | Should be caught by preflight (Step 5). If not, report with install command. Continue. |
+| Tool crashes (non-zero exit with stderr) | Report **verbatim** output. Continue with other tools. |
 | No patterns loaded | Warn but continue — tool analysis still runs |
 | Baseline file corrupt/unparseable | Treat as empty baseline. Warn the user. |
+
+### CRITICAL: No inference on tool errors
+
+When any tool fails, crashes, or produces unexpected output:
+
+1. **Report the literal output** — copy the exact stdout/stderr the tool produced
+2. **NEVER infer, diagnose, or speculate about the cause** — do not say "probably because of X" or "likely caused by Y"
+3. **NEVER fabricate error details** — if the tool says "segfault", report "segfault", not "missing configuration file"
+4. **If the output is empty**, say: "{Tool} failed with exit code {N} and produced no output"
+
+The user is an experienced developer. They can read error messages. Your job is to **relay**, not **interpret**.
 
 ---
 
