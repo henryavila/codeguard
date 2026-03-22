@@ -52,7 +52,7 @@ describe('Core Types', () => {
         discovered: [],
         custom: [],
       },
-      thresholds: { max_method_lines: 20, max_indentation_levels: 2 },
+      thresholds: { max_method_lines: 30, max_indentation_levels: 4 },
       hooks: { 'pre-commit': { enabled: true, scope: 'staged-files' } },
       baseline: { path: '.codeguard/baseline.json' },
     };

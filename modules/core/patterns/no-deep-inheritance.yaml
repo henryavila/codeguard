@@ -13,7 +13,8 @@ detection:
 
 verification:
   rules:
-    - inheritance depth greater than 3 levels signals a design issue
+    - inheritance depth greater than 6 levels is a finding (PHPMD DepthOfInheritance, NDepend DIT, Microsoft CA1501 all default to 6)
+    - framework-mandated inheritance (Controller, Model, TestCase) does not count toward depth
     - favor composition and interfaces over deep class hierarchies
     - each level of inheritance should add meaningful behavioral specialization, not just data
 

@@ -13,8 +13,8 @@ detection:
 
 verification:
   rules:
-    - functions should avoid more than 3 parameters
-    - group related parameters into objects or DTOs when they travel together
+    - functions should have at most 7 parameters (SonarQube S107, Checkstyle ParameterNumber, Miller's Law 7±2); exceeding this is a finding
+    - 4+ parameters is a signal to review — consider grouping related parameters into objects or DTOs when they travel together
     - constructor dependency injection parameters are acceptable and should not be flagged
 
 examples:

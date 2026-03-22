@@ -13,7 +13,7 @@ detection:
 
 verification:
   rules:
-    - methods should not exceed the configured line threshold (default ~20 lines of logic)
+    - methods should not exceed the configured line threshold (codeguard.yaml thresholds.max_method_lines)
     - each method should do one thing and do it well
     - if a method requires comments to separate sections, it should be split into smaller methods
 

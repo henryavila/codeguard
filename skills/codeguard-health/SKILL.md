@@ -126,7 +126,7 @@ Active patterns come from three layers, loaded based on the module hierarchy. Fo
 4. **Discovered patterns**: Count entries in `patterns.discovered`. These are YAML files in `.codeguard/patterns/`.
 5. **Custom patterns**: Count entries in `patterns.custom`. These are also YAML files in `.codeguard/patterns/`.
 
-If `.codeguard/modules/` does not exist (modules not yet copied), fall back to counting pattern files from the CodeGuard npm package's `node_modules/codeguard/modules/` path if accessible, or report "Module data not installed."
+If `.codeguard/modules/` does not exist (modules not yet copied), fall back to counting pattern files from the CodeGuard npm package's `node_modules/@henryavila/codeguard/modules/` path if accessible, or report "Module data not installed."
 
 Total active patterns = core + language + catalog + discovered + custom.
 

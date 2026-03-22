@@ -22,7 +22,7 @@ describe('phpmdAdapter', () => {
       expect(cmd.args).toEqual([
         'app/Models/User.php,app/Services/OrderService.php',
         'json',
-        'unusedcode,codesize',
+        'codesize,design,unusedcode',
       ]);
       expect(cmd.timeout).toBe(60_000);
     });

@@ -13,8 +13,9 @@ detection:
 
 verification:
   rules:
-    - switch or if-else chains with more than 5 cases dispatching on type should use Strategy pattern or polymorphism
-    - adding a new type should not require modifying existing switch/if-else blocks
+    - switch or if-else chains dispatching on type that contain logic per case are candidates for Strategy pattern or polymorphism — review when cyclomatic complexity exceeds 10 (McCabe threshold, PHPMD default)
+    - configuration-driven switches that map values (e.g., enum→class, type→string) are acceptable regardless of case count — they are data, not branching logic
+    - adding a new type should not require modifying existing switch/if-else blocks (Open-Closed Principle)
 
 examples:
   correct: |

@@ -13,7 +13,8 @@ detection:
 
 verification:
   rules:
-    - a class with more than 10 public methods or more than 15 properties likely has too many responsibilities and should be split
+    - a class with more than 10 public methods should be reviewed for SRP violations (PHPMD TooManyPublicMethods default=10, PMD=10); more than 20 is a finding (SonarQube S1448, NDepend, CodeClimate)
+    - a class with more than 15 properties/fields should be reviewed (PHPMD TooManyFields default=15); more than 20 is a finding (SonarQube S1820)
     - only flag user-defined classes — framework base classes (Controller, Model) naturally have many methods
     - if a class name contains "Manager", "Handler", "Processor", or "Utils" and has many methods, it likely needs decomposition
 

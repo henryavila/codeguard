@@ -17,7 +17,7 @@ verification:
   rules:
     - action class has a single public __invoke or execute method
     - action class encapsulates one use case or operation
-    - service methods exceeding ~50 lines that orchestrate multiple operations are candidates for extraction into action classes
+    - service methods that orchestrate multiple distinct responsibilities (validation + creation + notification + side-effects) are candidates for extraction into action classes — the trigger is responsibility count, not line count (SRP)
     - action classes may call other actions for composition
 
 examples:

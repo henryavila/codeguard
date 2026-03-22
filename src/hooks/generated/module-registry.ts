@@ -26,7 +26,7 @@ export const MODULE_REGISTRY: Record<string, ModuleRegistryEntry> = {
       "capabilities": {
         "static-analysis": {
           "tool": "larastan",
-          "default_level": 6
+          "default_level": 5
         },
         "formatting": {
           "tool": "pint",
@@ -35,8 +35,9 @@ export const MODULE_REGISTRY: Record<string, ModuleRegistryEntry> = {
         "mess-detection": {
           "tool": "phpmd",
           "rulesets": [
-            "unusedcode",
-            "codesize"
+            "codesize",
+            "design",
+            "unusedcode"
           ]
         },
         "arch-testing": {
@@ -53,7 +54,7 @@ export const MODULE_REGISTRY: Record<string, ModuleRegistryEntry> = {
         "larastan": {
           "binary": "vendor/bin/phpstan",
           "config": "phpstan.neon",
-          "level": 6,
+          "level": 5,
           "extensions": [
             "larastan"
           ]
@@ -67,8 +68,9 @@ export const MODULE_REGISTRY: Record<string, ModuleRegistryEntry> = {
           "binary": "vendor/bin/phpmd",
           "config": "phpmd.xml",
           "rulesets": [
-            "unusedcode",
-            "codesize"
+            "codesize",
+            "design",
+            "unusedcode"
           ]
         },
         "pest": {

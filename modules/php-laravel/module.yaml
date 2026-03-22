@@ -14,13 +14,13 @@ detection:
 capabilities:
   static-analysis:
     tool: larastan
-    default_level: 6
+    default_level: 5 # PHPStan docs: "all projects should be at least level 5"; Spatie packages default to 5
   formatting:
     tool: pint
     preset: laravel
   mess-detection:
     tool: phpmd
-    rulesets: [unusedcode, codesize]
+    rulesets: [codesize, design, unusedcode] # codesize+design are low false-positive; cleancode excluded (StaticAccess false-positives with Laravel facades)
   arch-testing:
     tool: pest
     presets: [php, laravel]

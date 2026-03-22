@@ -13,9 +13,9 @@ detection:
 
 verification:
   rules:
-    - constructors with more than 4 non-DI parameters suggest a missing abstraction (Builder, DTO, or Value Object)
-    - dependency injection parameters (services, repositories) are acceptable and should not be flagged
-    - if a constructor accepts many data parameters, group them into a configuration or value object
+    - constructors follow the same threshold as functions — max 7 parameters (SonarQube S107 applies equally to constructors); no tool distinguishes DI from non-DI
+    - dependency injection parameters (services, repositories) are acceptable and should not be flagged — but a class needing more than 5-6 injected dependencies is a strong SRP smell
+    - if a constructor accepts many data parameters, group them into a configuration or value object (Builder, DTO)
 
 examples:
   correct: |

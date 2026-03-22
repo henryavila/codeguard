@@ -24,7 +24,7 @@ If the project already has a `codeguard.yaml`, this skill runs in **update mode*
 ## Prerequisites
 
 - The project must be a git repository (`git rev-parse --git-dir` succeeds)
-- `npx codeguard install` must have been run already, which creates:
+- `npx @henryavila/codeguard install` must have been run already, which creates:
   - `.codeguard/hook-runner.js` (copied from the npm package)
   - `.codeguard/modules/` (module data copied from the npm package)
 - PHP projects: `composer` must be available on PATH
@@ -40,17 +40,17 @@ Check whether `codeguard.yaml` exists in the project root.
 
 ### Step 2 -- Scan available modules
 
-Read all `module.yaml` files from `.codeguard/modules/`. If `.codeguard/modules/` does not exist or is incomplete, fall back to `node_modules/codeguard/modules/`:
+Read all `module.yaml` files from `.codeguard/modules/`. If `.codeguard/modules/` does not exist or is incomplete, fall back to `node_modules/@henryavila/codeguard/modules/`:
 
 ```bash
-# Primary location (installed by npx codeguard install)
+# Primary location (installed by npx @henryavila/codeguard install)
 find .codeguard/modules -name "module.yaml" -type f 2>/dev/null
 
 # Fallback (npm package source)
-find node_modules/codeguard/modules -name "module.yaml" -type f 2>/dev/null
+find node_modules/@henryavila/codeguard/modules -name "module.yaml" -type f 2>/dev/null
 ```
 
-**Important:** Intermediate layers (`core/`, `php/`) do not have `module.yaml` — they only contain `patterns/` and `ai-rules/`. Only leaf modules (e.g., `php-laravel/`) have `module.yaml`. Verify that `core/` and the language layer directory exist at whichever base path you are using. If missing from `.codeguard/modules/`, copy them from `node_modules/codeguard/modules/`.
+**Important:** Intermediate layers (`core/`, `php/`) do not have `module.yaml` — they only contain `patterns/` and `ai-rules/`. Only leaf modules (e.g., `php-laravel/`) have `module.yaml`. Verify that `core/` and the language layer directory exist at whichever base path you are using. If missing from `.codeguard/modules/`, copy them from `node_modules/@henryavila/codeguard/modules/`.
 
 For each `module.yaml`, parse the YAML and store: `name`, `label`, `language`, `framework`, `detection`, `capabilities`.
 
@@ -190,7 +190,7 @@ Read `capabilities` from the detected module's `module.yaml`. For each capabilit
 
 - **enabled**: true/false (default: true for all)
 - **enforcement**: block, warn, or autofix
-- **level** (static-analysis only): integer level (default from `module.yaml`, e.g., 6 for Larastan)
+- **level** (static-analysis only): integer level (default from `module.yaml`). PHPStan docs recommend level 5 as the minimum for all projects; Spatie packages default to 5. Level 5 checks argument types — the biggest bang for the buck. Level 8-9 is recommended for new/greenfield projects.
 
 Enforcement constraints:
 - `autofix` is only valid for `formatting` (Pint). If the developer tries to set autofix on another capability, warn them and default to `block`.
@@ -200,22 +200,22 @@ Present defaults and let the developer accept or customize:
 
 ```
 Capabilities:
-  static-analysis (Larastan): enabled, level 6, enforcement: block
+  static-analysis (Larastan): enabled, level 5, enforcement: block
   formatting (Pint): enabled, preset: laravel, enforcement: autofix
-  mess-detection (PHPMD): enabled, enforcement: warn
+  mess-detection (PHPMD): enabled, rulesets: codesize,design,unusedcode, enforcement: warn
   arch-testing (Pest): enabled, enforcement: block
 
 Accept defaults? [Y/n] or specify changes:
 ```
 
-Also configure thresholds:
+Also configure thresholds. Present each threshold with its evidence basis so the developer can make an informed choice:
 
 ```
-Thresholds:
-  max_method_lines: 20
-  max_indentation_levels: 2
+Thresholds (AI semantic analysis):
+  max_method_lines: 30     # PHPMD/PMD default=100, CodeClimate=25, Rule of 30 (Lippert/Roock). Suggested: 30
+  max_indentation_levels: 4  # ESLint max-depth=4, CodeClimate=4. Suggested: 4
 
-Accept defaults? [Y/n]
+Accept defaults? [Y/n] or specify values:
 ```
 
 ### Step 9 -- Install tools
@@ -248,7 +248,7 @@ project:
 capabilities:
   static-analysis:
     enabled: true
-    level: 6
+    level: 5
     enforcement: block
   formatting:
     enabled: true
@@ -278,8 +278,8 @@ patterns:
     # names of custom patterns in .codeguard/patterns/ added by developer
 
 thresholds:
-  max_method_lines: 20
-  max_indentation_levels: 2
+  max_method_lines: 30
+  max_indentation_levels: 4
 
 hooks:
   pre-commit:
@@ -390,7 +390,7 @@ Adapt the namespace expectations to match the project's actual directory structu
 
 ### Step 13 -- Verify hook runner
 
-Verify that `.codeguard/hook-runner.js` exists (it should have been copied by `npx codeguard install`):
+Verify that `.codeguard/hook-runner.js` exists (it should have been copied by `npx @henryavila/codeguard install`):
 
 ```bash
 test -f .codeguard/hook-runner.js && echo "Hook runner found" || echo "Hook runner missing"
@@ -399,13 +399,13 @@ test -f .codeguard/hook-runner.js && echo "Hook runner found" || echo "Hook runn
 If missing, attempt to locate it and copy:
 
 ```bash
-cp node_modules/codeguard/dist/hooks/runner.js .codeguard/hook-runner.js
+cp node_modules/@henryavila/codeguard/dist/hooks/runner.js .codeguard/hook-runner.js
 ```
 
 If that also fails, warn the developer:
 
 ```
-WARNING: Hook runner not found. Run `npx codeguard install` to set it up.
+WARNING: Hook runner not found. Run `npx @henryavila/codeguard install` to set it up.
 The pre-commit hook will not work until the hook runner is in place.
 ```
 
@@ -440,7 +440,7 @@ Patterns: 28 active (13 core + 6 php + 9 laravel)
 Discovered: 1 (result-objects)
 
 Capabilities:
-  static-analysis: Larastan level 6 [block]
+  static-analysis: Larastan level 5 [block]
   formatting: Pint (laravel preset) [autofix]
   mess-detection: PHPMD [warn]
   arch-testing: Pest [block]

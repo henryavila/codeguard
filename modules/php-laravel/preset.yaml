@@ -2,7 +2,7 @@ tools:
   larastan:
     binary: vendor/bin/phpstan
     config: phpstan.neon
-    level: 6
+    level: 5
     extensions: [larastan]
   pint:
     binary: vendor/bin/pint
@@ -11,7 +11,7 @@ tools:
   phpmd:
     binary: vendor/bin/phpmd
     config: phpmd.xml
-    rulesets: [unusedcode, codesize]
+    rulesets: [codesize, design, unusedcode]
   pest:
     binary: vendor/bin/pest
     directory: tests/Architecture

@@ -36,7 +36,7 @@ export const phpmdAdapter: ToolAdapter = {
     const rulesets =
       config.rulesets && config.rulesets.length > 0
         ? config.rulesets.join(',')
-        : 'unusedcode,codesize';
+        : 'codesize,design,unusedcode';
 
     // PHPMD accepts comma-separated file list as first arg
     const args = [files.join(','), 'json', rulesets];

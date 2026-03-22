@@ -13,7 +13,7 @@ describe('Config Loader', () => {
     if (result.success) {
       expect(result.data.version).toBe('1.0');
       expect(result.data.project.framework).toBe('laravel');
-      expect(result.data.capabilities['static-analysis'].level).toBe(6);
+      expect(result.data.capabilities['static-analysis'].level).toBe(5);
       expect(result.data.patterns.catalog).toContain('service-layer');
     }
   });
