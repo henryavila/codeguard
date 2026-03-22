@@ -1,8 +1,26 @@
 {
-  "name": "codeguard",
-  "version": "0.0.0",
+  "name": "@henryavila/codeguard",
+  "version": "0.1.0",
   "description": "AI-powered code quality guardian — enforces project standards via pre-commit hooks and on-demand analysis",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/henryavila/codeguard.git"
+  },
+  "homepage": "https://github.com/henryavila/codeguard",
+  "bugs": {
+    "url": "https://github.com/henryavila/codeguard/issues"
+  },
+  "keywords": [
+    "code-quality",
+    "static-analysis",
+    "laravel",
+    "php",
+    "pre-commit",
+    "architecture",
+    "patterns",
+    "ai"
+  ],
   "type": "module",
   "engines": {
     "node": ">=20"
@@ -18,6 +36,10 @@
       "types": "./dist/index.d.ts"
     },
     "./hook-runner": "./dist/hooks/runner.js"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "files": [
     "dist/",
