@@ -40,11 +40,17 @@ Check whether `codeguard.yaml` exists in the project root.
 
 ### Step 2 -- Scan available modules
 
-Read all `module.yaml` files from `.codeguard/modules/`:
+Read all `module.yaml` files from `.codeguard/modules/`. If `.codeguard/modules/` does not exist or is incomplete, fall back to `node_modules/codeguard/modules/`:
 
 ```bash
-find .codeguard/modules -name "module.yaml" -type f
+# Primary location (installed by npx codeguard install)
+find .codeguard/modules -name "module.yaml" -type f 2>/dev/null
+
+# Fallback (npm package source)
+find node_modules/codeguard/modules -name "module.yaml" -type f 2>/dev/null
 ```
+
+**Important:** Intermediate layers (`core/`, `php/`) do not have `module.yaml` — they only contain `patterns/` and `ai-rules/`. Only leaf modules (e.g., `php-laravel/`) have `module.yaml`. Verify that `core/` and the language layer directory exist at whichever base path you are using. If missing from `.codeguard/modules/`, copy them from `node_modules/codeguard/modules/`.
 
 For each `module.yaml`, parse the YAML and store: `name`, `label`, `language`, `framework`, `detection`, `capabilities`.
 
@@ -278,6 +284,7 @@ thresholds:
 hooks:
   pre-commit:
     enabled: true
+    scope: staged-files
 
 baseline:
   path: .codeguard/baseline.json
@@ -338,8 +345,7 @@ Only generate Pest rules for deterministic rules. Examples of pattern-to-Pest tr
   `arch()->expect('App\Services')->toNotDependOn('Illuminate\Http')`
 - "services must not access Request object" -->
   `arch()->expect('App\Services')->toNotDependOn('Illuminate\Http\Request')`
-- "no env() calls outside of config/" -->
-  `arch()->expect('App')->toNotUse('env')` (if Pest supports this, otherwise AI-only)
+- "no env() calls outside of config/" --> AI-only (env() is a global function, not a namespace/class — Pest `toNotUse` cannot detect it)
 
 Rules like "controllers must not contain business logic" or "methods should be short and focused" are AI-only -- skip them.
 

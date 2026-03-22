@@ -43,16 +43,11 @@ Extract from `codeguard.yaml`:
 
 ## Step 2: Load AI Rules
 
-Load the `ai-rules/*.md` files from all applicable module layers. The module hierarchy is resolved from `project.language` and `project.module`:
+Load the `ai-rules/*.md` files from all applicable module layers. The module hierarchy is resolved from `project.language` and `project.module` in `codeguard.yaml`. Read these files from `.codeguard/modules/` (or fall back to `node_modules/codeguard/modules/`):
 
-1. **`modules/core/ai-rules/core.md`** — universal analysis rules (always loaded)
-2. **`modules/{language}/ai-rules/{language}.md`** — language-specific rules (e.g., `modules/php/ai-rules/php.md`)
-3. **`modules/{module}/ai-rules/*.md`** — framework-specific rules (e.g., `modules/php-laravel/ai-rules/laravel.md`)
-
-These files are inside the CodeGuard package. Locate them via the installed `.codeguard/modules/` directory:
-- `.codeguard/modules/core/ai-rules/core.md`
-- `.codeguard/modules/php/ai-rules/php.md`
-- `.codeguard/modules/php-laravel/ai-rules/laravel.md`
+1. **`.codeguard/modules/core/ai-rules/core.md`** — universal analysis rules (always loaded)
+2. **`.codeguard/modules/{language}/ai-rules/{language}.md`** — language-specific (e.g., `.codeguard/modules/php/ai-rules/php.md`)
+3. **`.codeguard/modules/{module}/ai-rules/*.md`** — framework-specific (e.g., `.codeguard/modules/php-laravel/ai-rules/laravel.md`)
 
 Read all three and internalize the instructions. These govern how you analyze code: priority order, false positive prevention, severity classification, and detection heuristics.
 
@@ -106,12 +101,14 @@ Run each enabled capability's tool against the scope. Check `codeguard.yaml` cap
 Larastan always runs on the **full project** regardless of scope (PHPStan needs full context for type inference). Run:
 
 ```bash
-vendor/bin/phpstan analyse --error-format=json --level={level} --configuration={config}
+vendor/bin/phpstan analyse --error-format=json --no-progress --level={level}
 ```
+
+Add `--configuration={config}` only if the config file exists in the project root (e.g., `phpstan.neon`). If it does not exist, omit the flag — PHPStan auto-discovers `phpstan.neon` or `phpstan.neon.dist`.
 
 Where:
 - `{level}` = `capabilities.static-analysis.level` from codeguard.yaml (falls back to preset default)
-- `{config}` = `tools.larastan.config` from preset.yaml (e.g., `phpstan.neon`)
+- `{config}` = `tools.larastan.config` from preset.yaml (e.g., `phpstan.neon`) — only if the file exists
 
 After getting results, **filter output to scope** — only keep findings in files that are within the analysis scope determined in Step 4.
 
