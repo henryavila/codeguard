@@ -1,6 +1,6 @@
 {
   "name": "@henryavila/codeguard",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "AI-powered code quality guardian — enforces project standards via pre-commit hooks and on-demand analysis",
   "license": "MIT",
   "repository": {
