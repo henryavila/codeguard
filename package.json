@@ -26,6 +26,7 @@
     "modules/"
   ],
   "scripts": {
+    "prebuild": "tsx scripts/generate-module-registry.ts",
     "build": "tsdown",
     "test": "vitest run",
     "test:watch": "vitest",

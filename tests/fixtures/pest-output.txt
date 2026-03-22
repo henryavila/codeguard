@@ -1,0 +1,9 @@
+   PASS  Tests\Architecture\CodeGuardArchTest > arch: strict types in all files
+   PASS  Tests\Architecture\CodeGuardArchTest > arch: controllers use single responsibility
+   FAIL  Tests\Architecture\CodeGuardArchTest > arch: controllers should not depend on models
+   at tests/Architecture/CodeGuardArchTest.php:15
+   FAIL  Tests\Architecture\CodeGuardArchTest > arch: services should not return http responses
+   at app/Services/OrderService.php:23
+
+  Tests:    2 failed, 2 passed (4 total)
+  Duration: 0.45s

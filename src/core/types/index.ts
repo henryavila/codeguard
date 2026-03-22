@@ -40,3 +40,8 @@ export type {
 } from './output.js';
 
 export type { Result } from './result.js';
+
+export type {
+  BaselineEntry,
+  BaselineFile,
+} from './baseline.js';

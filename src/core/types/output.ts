@@ -1,3 +1,4 @@
+import type { Enforcement } from './config.js';
 import type { AnalysisViolation, ToolError } from './violations.js';
 
 export interface FormatterContext {
@@ -6,6 +7,7 @@ export interface FormatterContext {
   baselineCount: number;
   totalFiles: number;
   scope: 'hook' | 'run' | 'health';
+  toolEnforcement?: Record<string, Enforcement>;
 }
 
 export interface OutputFormatter {

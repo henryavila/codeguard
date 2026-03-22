@@ -30,4 +30,6 @@ export type {
   FormatterContext,
   OutputFormatter,
   Result,
+  BaselineEntry,
+  BaselineFile,
 } from './core/types/index.js';

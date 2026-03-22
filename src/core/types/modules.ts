@@ -88,6 +88,7 @@ export interface DetectionResult {
 export interface ToolAdapter {
   readonly name: string;
   readonly binary: string;
+  readonly supportsFix: boolean;
   buildCommand(files: string[], config: ToolConfig): CommandSpec;
   parseOutput(raw: string): ToolResult;
   filterToStaged(violations: AnalysisViolation[], stagedFiles: string[]): AnalysisViolation[];

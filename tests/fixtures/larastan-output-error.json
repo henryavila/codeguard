@@ -1,0 +1,5 @@
+{
+  "totals": { "errors": 1, "file_errors": 0 },
+  "files": {},
+  "errors": ["PHPStan requires PHP >= 8.1, you have 7.4"]
+}
