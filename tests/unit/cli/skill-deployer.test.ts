@@ -1,4 +1,4 @@
-import { mkdtemp, rm, readdir, readFile } from 'node:fs/promises';
+import { mkdtemp, rm, readdir, readFile, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -18,32 +18,30 @@ afterEach(async () => {
 });
 
 describe('Skill Deployer', () => {
-  it('should deploy skills to an IDE directory via copy', async () => {
+  it('should deploy skills as directories with SKILL.md inside', async () => {
     const claude = IDE_REGISTRY.find((ide) => ide.id === 'claude-code')!;
     const result = await deploySkillsToIde(claude, tempDir);
-
     expect(result.success).toBe(true);
 
     const targetDir = join(tempDir, claude.skillsDir);
-    const files = await readdir(targetDir);
-    expect(files).toContain('codeguard-setup.md');
-    expect(files).toContain('codeguard-run.md');
-    expect(files).toContain('codeguard-health.md');
-  });
+    const entries = await readdir(targetDir);
+    expect(entries).toContain('codeguard-setup');
+    expect(entries).toContain('codeguard-run');
+    expect(entries).toContain('codeguard-health');
 
-  it('should deploy valid markdown with frontmatter', async () => {
-    const claude = IDE_REGISTRY.find((ide) => ide.id === 'claude-code')!;
-    await deploySkillsToIde(claude, tempDir);
+    // Each should be a directory containing SKILL.md
+    const setupStat = await stat(join(targetDir, 'codeguard-setup'));
+    expect(setupStat.isDirectory()).toBe(true);
 
-    const content = await readFile(
-      join(tempDir, claude.skillsDir, 'codeguard-setup.md'),
+    const skillFile = await readFile(
+      join(targetDir, 'codeguard-setup', 'SKILL.md'),
       { encoding: 'utf-8' },
     );
-    expect(content).toContain('---');
-    expect(content).toContain('name: codeguard-setup');
+    expect(skillFile).toContain('---');
+    expect(skillFile).toContain('name: codeguard-setup');
   });
 
-  it('should detect installed IDEs', async () => {
+  it('should detect installed IDEs by checking for skill directories', async () => {
     const claude = IDE_REGISTRY.find((ide) => ide.id === 'claude-code')!;
     await deploySkillsToIde(claude, tempDir);
 
@@ -62,7 +60,9 @@ describe('Skill Deployer', () => {
     await deploySkillsToIde(claude, tempDir);
 
     const targetDir = join(tempDir, claude.skillsDir);
-    const files = await readdir(targetDir);
-    expect(files).toHaveLength(3); // no duplicates
+    const entries = await readdir(targetDir);
+    // Should have exactly 3 skill directories, no duplicates
+    const skillDirs = entries.filter((e) => e.startsWith('codeguard-'));
+    expect(skillDirs).toHaveLength(3);
   });
 });

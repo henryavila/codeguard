@@ -2,7 +2,7 @@ import { checkbox } from '@inquirer/prompts';
 import chalk from 'chalk';
 
 import { IDE_REGISTRY } from '../ide-registry.js';
-import { deploySkillsToMultipleIdes, getInstalledIdes } from '../skill-deployer.js';
+import { deploySkillsToMultipleIdes, deployProjectAssets, getInstalledIdes } from '../skill-deployer.js';
 
 export async function runInstall(projectRoot: string, version: string): Promise<void> {
   // TTY check
@@ -52,12 +52,22 @@ export async function runInstall(projectRoot: string, version: string): Promise<
     }
   }
 
+  // Deploy project assets (hook-runner + modules) to .codeguard/
+  const assetsResult = await deployProjectAssets(projectRoot);
+  if (assetsResult.success) {
+    console.log(chalk.green('  \u2713 Project assets copied to .codeguard/'));
+  } else {
+    console.log(chalk.red('  \u2717 Failed to copy project assets to .codeguard/'));
+    console.log(chalk.dim(`    Reason: ${assetsResult.error}`));
+  }
+
   // Summary
   const successCount = results.filter((r) => r.success).length;
   const failCount = results.filter((r) => !r.success).length;
+  const assetsFailed = !assetsResult.success;
 
   console.log('');
-  if (failCount > 0 && successCount > 0) {
+  if ((failCount > 0 || assetsFailed) && successCount > 0) {
     console.log(chalk.yellow(`  Completed with errors. Installed for ${successCount} of ${results.length} IDEs.`));
     process.exitCode = 1;
   } else if (failCount > 0 && successCount === 0) {

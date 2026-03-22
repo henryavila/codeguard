@@ -1,4 +1,4 @@
-import { mkdir, copyFile, readdir, symlink, lstat, unlink } from 'node:fs/promises';
+import { cp, mkdir, readdir, stat, symlink, lstat, rm } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -11,13 +11,22 @@ export interface DeployResult {
   error?: string;
 }
 
-const SKILL_FILES = ['codeguard-setup.md', 'codeguard-run.md', 'codeguard-health.md'];
+const SKILL_DIRS = ['codeguard-setup', 'codeguard-run', 'codeguard-health'];
+
+/**
+ * Resolve the package root (where package.json lives).
+ * From compiled output at dist/cli/skill-deployer.js, go up to package root.
+ */
+function getPackageRoot(): string {
+  const currentDir = dirname(fileURLToPath(import.meta.url));
+  // Walk up from the current file until we find a directory that looks like the package root.
+  // In development (via tsx): src/cli/ -> package root is ../..
+  // In production (compiled): dist/cli/ -> package root is ../..
+  return resolve(currentDir, '..', '..');
+}
 
 function getSkillsSourceDir(): string {
-  // Skills ship inside the npm package at skills/
-  // Uses fileURLToPath for compatibility with Node.js >=20.0 (import.meta.dirname requires >=20.11)
-  const currentDir = dirname(fileURLToPath(import.meta.url));
-  return join(currentDir, '..', '..', 'skills');
+  return join(getPackageRoot(), 'skills');
 }
 
 async function deployByCopy(
@@ -26,8 +35,11 @@ async function deployByCopy(
 ): Promise<Result<void>> {
   try {
     await mkdir(targetDir, { recursive: true });
-    for (const file of SKILL_FILES) {
-      await copyFile(join(skillsSourceDir, file), join(targetDir, file));
+    for (const skillDir of SKILL_DIRS) {
+      const srcDir = join(skillsSourceDir, skillDir);
+      const destDir = join(targetDir, skillDir);
+      // Recursively copy the entire skill directory
+      await cp(srcDir, destDir, { recursive: true, force: true });
     }
     return { success: true, data: undefined };
   } catch (error) {
@@ -42,17 +54,17 @@ async function deployBySymlink(
 ): Promise<Result<void>> {
   try {
     await mkdir(targetDir, { recursive: true });
-    for (const file of SKILL_FILES) {
-      const source = resolve(skillsSourceDir, file);
-      const target = join(targetDir, file);
-      // Remove existing symlink/file before creating new one
+    for (const skillDir of SKILL_DIRS) {
+      const sourceDir = resolve(skillsSourceDir, skillDir);
+      const targetSkillDir = join(targetDir, skillDir);
+      // Remove existing symlink/directory before creating new one
       try {
-        await lstat(target);
-        await unlink(target);
+        await lstat(targetSkillDir);
+        await rm(targetSkillDir, { recursive: true, force: true });
       } catch {
         // Target doesn't exist, that's fine
       }
-      await symlink(source, target);
+      await symlink(sourceDir, targetSkillDir, 'dir');
     }
     return { success: true, data: undefined };
   } catch (error) {
@@ -109,8 +121,20 @@ export async function getInstalledIdes(projectRoot: string): Promise<string[]> {
   for (const ide of IDE_REGISTRY) {
     try {
       const dir = join(projectRoot, ide.skillsDir);
-      const files = await readdir(dir);
-      if (SKILL_FILES.some((sf) => files.includes(sf))) {
+      const entries = await readdir(dir);
+      // Check if at least one skill directory exists with a SKILL.md inside
+      const hasSkillDir = await Promise.all(
+        SKILL_DIRS.map(async (skillDir) => {
+          if (!entries.includes(skillDir)) return false;
+          try {
+            const s = await stat(join(dir, skillDir, 'SKILL.md'));
+            return s.isFile();
+          } catch {
+            return false;
+          }
+        }),
+      );
+      if (hasSkillDir.some(Boolean)) {
         installed.push(ide.id);
       }
     } catch {
@@ -119,4 +143,29 @@ export async function getInstalledIdes(projectRoot: string): Promise<string[]> {
   }
 
   return installed;
+}
+
+export async function deployProjectAssets(
+  projectRoot: string,
+): Promise<Result<void>> {
+  try {
+    const packageRoot = getPackageRoot();
+    const codeguardDir = join(projectRoot, '.codeguard');
+    await mkdir(codeguardDir, { recursive: true });
+
+    // Copy hook-runner
+    const hookRunnerSrc = join(packageRoot, 'dist', 'hooks', 'runner.js');
+    const hookRunnerDest = join(codeguardDir, 'hook-runner.js');
+    await cp(hookRunnerSrc, hookRunnerDest, { force: true });
+
+    // Recursively copy modules
+    const modulesSrc = join(packageRoot, 'modules');
+    const modulesDest = join(codeguardDir, 'modules');
+    await cp(modulesSrc, modulesDest, { recursive: true, force: true });
+
+    return { success: true, data: undefined };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { success: false, error: message };
+  }
 }

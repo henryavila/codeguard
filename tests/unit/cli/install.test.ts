@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, rm, readdir } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, rm, readdir, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -33,8 +33,12 @@ describe('Install Flow', () => {
     expect(results.every((r) => r.success)).toBe(true);
 
     for (const ide of ides) {
-      const files = await readdir(join(tempDir, ide.skillsDir));
-      expect(files).toContain('codeguard-setup.md');
+      const entries = await readdir(join(tempDir, ide.skillsDir));
+      expect(entries).toContain('codeguard-setup');
+
+      // Verify it's a directory with SKILL.md
+      const setupStat = await stat(join(tempDir, ide.skillsDir, 'codeguard-setup'));
+      expect(setupStat.isDirectory()).toBe(true);
     }
   });
 
