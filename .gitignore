@@ -1,25 +1,21 @@
-node_modules
-dist
-coverage
-.codeguard
+# Composer
+/vendor/
+composer.lock
 
-# BMAD tooling (local only)
-_bmad/
-_bmad-output/
+# IDE
+.idea/
+.vscode/
+*.swp
 
-# IDE agent directories (local only)
-.claude/
-.cursor/
-.opencode/
-.agents/
+# OS
+.DS_Store
+Thumbs.db
 
-# Memory and context files (local only)
-codeguard-memory.md
-codeguard-memory.md:Zone.Identifier
-nexus.yaml
+# Build / test artifacts
+/.phpunit.cache/
+/.phpunit.result.cache
+/coverage/
+/phpstan-baseline.neon.bak
 
-# Worktrees
-.worktrees/
-
-# OS files
-*.Zone.Identifier
+# Local AI scratch
+.claude/settings.local.json
