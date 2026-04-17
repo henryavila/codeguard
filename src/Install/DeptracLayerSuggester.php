@@ -47,6 +47,33 @@ final class DeptracLayerSuggester
         );
     }
 
+    /**
+     * Apply wizard decisions to produce an enriched LayerSuggestion including
+     * any custom layers the user introduced. Built-in layer defaults
+     * (Application → Domain, Persistence → Domain) are preserved; custom
+     * layers start with no outbound dependencies and can be tightened by
+     * editing deptrac.yaml manually.
+     */
+    public function withDecisions(LayerSuggestion $original, WizardResult $result): LayerSuggestion
+    {
+        if ($result->isEmpty()) {
+            return $original;
+        }
+
+        $groupedNamespaces = $this->groupDecisionsByLayer($original, $result);
+        $layers = $this->buildLayersFromGroups($groupedNamespaces);
+        $ruleset = $this->buildRulesetForLayers(
+            array_keys($layers),
+            $result->customLayers,
+        );
+
+        return new LayerSuggestion(
+            detectedNamespaces: $original->detectedNamespaces,
+            layers: $layers,
+            ruleset: $ruleset,
+        );
+    }
+
     public function toYaml(LayerSuggestion $suggestion): string
     {
         if ($suggestion->isEmpty()) {
@@ -177,6 +204,90 @@ final class DeptracLayerSuggester
     private function escapeRegex(string $namespace): string
     {
         return str_replace('\\', '\\\\', $namespace);
+    }
+
+    /**
+     * @return array<string, list<string>>  layerName => list of escaped namespace regexes
+     */
+    private function groupDecisionsByLayer(LayerSuggestion $original, WizardResult $result): array
+    {
+        $grouped = [];
+
+        foreach ($original->detectedNamespaces as $namespace) {
+            if ($namespace->suggestedLayer === null) {
+                continue;
+            }
+
+            $grouped[$namespace->suggestedLayer][] = $this->escapeRegex($namespace->namespace);
+        }
+
+        foreach ($result->decisions as $decision) {
+            if ($decision->layerName === null) {
+                continue;
+            }
+
+            $grouped[$decision->layerName][] = $this->escapeRegex($decision->namespace);
+        }
+
+        return $grouped;
+    }
+
+    /**
+     * @param  array<string, list<string>>  $grouped
+     * @return array<string, list<string>>
+     */
+    private function buildLayersFromGroups(array $grouped): array
+    {
+        $layers = [];
+
+        foreach ($grouped as $layerName => $escapedNamespaces) {
+            if ($escapedNamespaces === []) {
+                continue;
+            }
+
+            $unique = array_values(array_unique($escapedNamespaces));
+
+            $alternation = count($unique) === 1
+                ? $unique[0]
+                : '('.implode('|', $unique).')';
+
+            $layers[$layerName] = ['^'.$alternation.'\\\\.*'];
+        }
+
+        return $layers;
+    }
+
+    /**
+     * @param  list<string>  $activeLayers
+     * @param  list<string>  $customLayers
+     * @return array<string, list<string>>
+     */
+    private function buildRulesetForLayers(array $activeLayers, array $customLayers): array
+    {
+        $ruleset = [];
+
+        foreach (self::DEFAULT_RULESET as $layer => $allowed) {
+            if (! in_array($layer, $activeLayers, strict: true)) {
+                continue;
+            }
+
+            $ruleset[$layer] = array_values(array_filter(
+                $allowed,
+                static fn (string $other): bool => in_array($other, $activeLayers, strict: true),
+            ));
+        }
+
+        foreach ($customLayers as $customLayer) {
+            if (! in_array($customLayer, $activeLayers, strict: true)) {
+                continue;
+            }
+
+            if (! isset($ruleset[$customLayer])) {
+                $ruleset[$customLayer] = [];
+            }
+        }
+
+        return $ruleset;
     }
 
     /**

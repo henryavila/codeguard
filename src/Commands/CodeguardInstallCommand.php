@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Henryavila\Codeguard\Commands;
 
 use Henryavila\Codeguard\Install\DeptracLayerSuggester;
+use Henryavila\Codeguard\Install\DeptracLayerWizard;
 use Henryavila\Codeguard\Install\EnvironmentDetector;
 use Henryavila\Codeguard\Install\EnvironmentInfo;
 use Henryavila\Codeguard\Install\GatePlan;
 use Henryavila\Codeguard\Install\GatePlanRegistry;
+use Henryavila\Codeguard\Install\LayerDecisionStore;
 use Henryavila\Codeguard\Install\LayerSuggestion;
 use Henryavila\Codeguard\Install\LefthookInstallResult;
 use Henryavila\Codeguard\Install\LefthookInstallStatus;
@@ -30,7 +32,8 @@ final class CodeguardInstallCommand extends Command
     protected $signature = 'codeguard:install
         {--preset= : Force preset (default|full). Skip auto-detection.}
         {--no-interactive : CI mode — use auto-detection, no prompts.}
-        {--refresh-stubs : Overwrite existing stubs after diff review.}';
+        {--refresh-stubs : Overwrite existing stubs after diff review.}
+        {--no-deptrac-wizard : Skip the guided layer-classification wizard (use heuristic only).}';
 
     protected $description = 'Guided install — detects environment, selects preset, publishes stubs with diff-aware re-run, suggests Deptrac layers, installs Lefthook, prints next-steps.';
 
@@ -41,12 +44,15 @@ final class CodeguardInstallCommand extends Command
         GatePlanRegistry $planRegistry,
         StubPublisher $publisher,
         DeptracLayerSuggester $deptracSuggester,
+        DeptracLayerWizard $deptracWizard,
+        LayerDecisionStore $layerDecisionStore,
         LefthookInstaller $lefthookInstaller,
         NextStepsReporter $reporter,
         Filesystem $filesystem,
     ): int {
         $interactive = ! $this->option('no-interactive');
         $forceOverwrite = (bool) $this->option('refresh-stubs');
+        $skipWizard = (bool) $this->option('no-deptrac-wizard');
         $presetFlag = $this->option('preset');
 
         $this->renderHeader();
@@ -84,7 +90,15 @@ final class CodeguardInstallCommand extends Command
             return self::FAILURE;
         }
 
-        $this->maybeSuggestDeptracLayers($preset, $deptracSuggester, $filesystem, $interactive);
+        $this->maybeSuggestDeptracLayers(
+            $preset,
+            $deptracSuggester,
+            $deptracWizard,
+            $layerDecisionStore,
+            $filesystem,
+            $interactive,
+            $skipWizard,
+        );
         $this->maybeInstallLefthook($preset, $environment, $lefthookInstaller);
 
         $this->line('');
@@ -248,9 +262,14 @@ final class CodeguardInstallCommand extends Command
     private function maybeSuggestDeptracLayers(
         Preset $preset,
         DeptracLayerSuggester $suggester,
+        DeptracLayerWizard $wizard,
+        LayerDecisionStore $decisionStore,
         Filesystem $filesystem,
         bool $interactive,
+        bool $skipWizard,
     ): void {
+        unset($preset);
+
         $appPath = $this->laravel->basePath('app');
         $suggestion = $suggester->suggest($appPath);
 
@@ -262,18 +281,25 @@ final class CodeguardInstallCommand extends Command
         $this->components->info('Deptrac layer detection');
         $this->renderLayerSuggestion($suggestion);
 
-        $decision = $interactive
-            ? $this->promptDeptracDecision()
-            : 'use';
+        [$finalSuggestion, $wizardAction] = $this->runDeptracWizard(
+            suggestion: $suggestion,
+            suggester: $suggester,
+            wizard: $wizard,
+            decisionStore: $decisionStore,
+            interactive: $interactive,
+            skipWizard: $skipWizard,
+        );
 
-        if ($decision === 'skip') {
+        $action = $wizardAction ?? $this->resolveDeptracAction($interactive, $skipWizard);
+
+        if ($action === 'skip') {
             $this->components->bulletList(['Skipped — stub deptrac.yaml kept as-is.']);
 
             return;
         }
 
         $deptracPath = $this->laravel->basePath('deptrac.yaml');
-        $yaml = $suggester->toYaml($suggestion);
+        $yaml = $suggester->toYaml($finalSuggestion);
 
         try {
             $filesystem->put($deptracPath, $yaml);
@@ -288,9 +314,74 @@ final class CodeguardInstallCommand extends Command
             '<fg=green>written with suggested layers</>',
         );
 
-        if ($decision === 'edit') {
+        if ($action === 'edit') {
             $this->openInEditor($deptracPath);
         }
+    }
+
+    /**
+     * @return array{0: LayerSuggestion, 1: ?string}
+     */
+    private function runDeptracWizard(
+        LayerSuggestion $suggestion,
+        DeptracLayerSuggester $suggester,
+        DeptracLayerWizard $wizard,
+        LayerDecisionStore $decisionStore,
+        bool $interactive,
+        bool $skipWizard,
+    ): array {
+        if (! $interactive || $skipWizard) {
+            return [$suggestion, null];
+        }
+
+        $unclassifiedCount = 0;
+        foreach ($suggestion->detectedNamespaces as $namespace) {
+            if ($namespace->suggestedLayer === null) {
+                $unclassifiedCount++;
+            }
+        }
+
+        if ($unclassifiedCount === 0) {
+            return [$suggestion, null];
+        }
+
+        $saved = $decisionStore->load();
+
+        while (true) {
+            $result = $wizard->classify($suggestion, $saved, $this->output);
+
+            if ($result->isEmpty()) {
+                return [$suggestion, null];
+            }
+
+            $reviewChoice = $wizard->review($suggestion, $result->decisions, $result->customLayers);
+
+            if ($reviewChoice === 'restart') {
+                $saved = [];
+
+                continue;
+            }
+
+            $decisionStore->save($result);
+
+            $enriched = $suggester->withDecisions($suggestion, $result);
+            $action = $reviewChoice === 'edit' ? 'edit' : 'use';
+
+            return [$enriched, $action];
+        }
+    }
+
+    private function resolveDeptracAction(bool $interactive, bool $skipWizard): string
+    {
+        if (! $interactive) {
+            return 'use';
+        }
+
+        if ($skipWizard) {
+            return $this->promptDeptracDecision();
+        }
+
+        return 'use';
     }
 
     private function renderLayerSuggestion(LayerSuggestion $suggestion): void

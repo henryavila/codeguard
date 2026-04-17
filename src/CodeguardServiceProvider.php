@@ -6,8 +6,10 @@ namespace Henryavila\Codeguard;
 
 use Henryavila\Codeguard\Commands\CodeguardInstallCommand;
 use Henryavila\Codeguard\Install\DeptracLayerSuggester;
+use Henryavila\Codeguard\Install\DeptracLayerWizard;
 use Henryavila\Codeguard\Install\EnvironmentDetector;
 use Henryavila\Codeguard\Install\GatePlanRegistry;
+use Henryavila\Codeguard\Install\LayerDecisionStore;
 use Henryavila\Codeguard\Install\LefthookInstaller;
 use Henryavila\Codeguard\Install\NextStepsReporter;
 use Henryavila\Codeguard\Install\PresetSelector;
@@ -59,6 +61,18 @@ final class CodeguardServiceProvider extends ServiceProvider
             $filesystem = $app->make(Filesystem::class);
 
             return new DeptracLayerSuggester(filesystem: $filesystem);
+        });
+
+        $this->app->singleton(DeptracLayerWizard::class);
+
+        $this->app->singleton(LayerDecisionStore::class, function (Application $app): LayerDecisionStore {
+            /** @var Filesystem $filesystem */
+            $filesystem = $app->make(Filesystem::class);
+
+            return new LayerDecisionStore(
+                filesystem: $filesystem,
+                path: $app->basePath('.codeguard'.DIRECTORY_SEPARATOR.'layer-decisions.yaml'),
+            );
         });
 
         $this->app->singleton(LefthookInstaller::class, function (Application $app): LefthookInstaller {
