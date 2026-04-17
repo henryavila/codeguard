@@ -6,109 +6,120 @@ type: project
 
 # Conversation Handoff
 
-**Data**: 2026-04-16 (fim de tarde)
-**Sessão anterior**: ~15 user messages intensos — revisão crítica de design, pivot Node→PHP, decisão Option A
+**Última atualização**: 2026-04-16 (segunda sessão, pós design-refinement)
+**Sessões prévias**:
+- Sessão 1: Pivot Node→PHP, 10 reviews, consolidação memória
+- Sessão 2 (atual): Revisão ADRs/Open Questions via mdprobe, redesign de presets (3→2), início do Bloco 1
 
-## Estado Atual (ao fazer este handoff)
+## Estado Atual
 
-### Repo
-- `~/codeguard` reorganizado: Node artifacts removidos do `main`, preservados em branch `v0-npm-archive` + tag `v0-last-npm`
-- npm registry: `@henryavila/codeguard@0.1.1` continua publicado
-- Assets valiosos migrados para novo layout:
-  - `resources/patterns/` (28 YAMLs: 13 core + 6 php + 9 laravel + 2 meta files)
-  - `resources/skills/` (3 skills: setup, run, health — podem precisar adapt para Composer)
-  - `docs/legacy/npm-v0-README.md` (preservado)
+### Repo — Estrutura criada
 
-### Contexto Persistido
-- `.ai/memory/MEMORY.md` — índice
-- `.ai/memory/user-goals.md` — 3 metas reais
-- `.ai/memory/architecture-decisions.md` — 8 ADRs
-- `.ai/memory/codeguard-v2-design.md` — design consolidado PHP-only
-- `.ai/memory/reviews-consolidated.md` — 10 agent reviews
-- `.ai/memory/open-questions.md` — pendências
-- `CLAUDE.md` — bootstrapping para Claude
+```
+codeguard/
+├── composer.json                          ✅ criado (deps: Laravel 11|12, Pest 3|4, Prompts, Finder, Diff)
+├── config/codeguard.php                   ✅ criado (2 presets + gates completas)
+├── src/
+│   ├── CodeguardServiceProvider.php       ✅ criado (register + boot + 5 publish tags)
+│   └── Testing/
+│       ├── Preset.php                     ✅ enum Default|Full
+│       ├── GateConfig.php                 ✅ readonly DTO
+│       ├── StageConfig.php                ✅ readonly DTO
+│       ├── PrepareConfig.php              ✅ readonly DTO
+│       └── CodeguardConfig.php            ✅ readonly DTO principal
+├── resources/
+│   ├── patterns/                          ✅ herdado da v0 (28 YAMLs)
+│   ├── skills/                            ✅ herdado da v0
+│   ├── rules/                              ⚠️ vazio — preencher depois
+│   └── stubs/                              ❌ a criar (Onda 3)
+├── tests/                                 ❌ vazio — a criar (Onda 3)
+├── docs/
+│   ├── specs/                              ✅ preservado
+│   ├── legacy/                             ✅ preservado
+│   └── review/
+│       └── 2026-04-16-adrs-and-open-questions.md  ✅ criado + revisado (2 annotations resolvidas)
+└── .ai/memory/
+    ├── MEMORY.md                          ✅ atualizado
+    ├── architecture-decisions.md          ✅ ADR-001 + ADR-006 atualizadas
+    ├── conversation-handoff.md            ✅ este arquivo
+    ├── open-questions.md                  ✅ Q7b (Lefthook) adicionado
+    ├── preset-design-evolution.md         ✅ novo (jornada 3→2 presets)
+    └── [outros inalterados]
+```
 
-### Arch (projeto cliente) — ainda intocado
-- `/home/henry/arch` tem TestSuiteRunner (505 LOC) + RunTestsCommand (271 LOC) + PrepareTestDatabaseCommand
-- Design doc v4 em `/home/henry/arch/docs/plans/designs/2026-04-16-codeguard-v2-architecture.md`
-- Ainda não começou consolidação inline nem path repository setup
+### Design Decisions (pós-segunda sessão)
 
-## Próximo Passo Concreto (sequência recomendada)
+1. **2 presets** (`codeguard` + `codeguard-full`) com auto-detection de Node
+2. **Husky → Lefthook** (mérito técnico, não anti-Node)
+3. **jscpd mantido em Full** com Node como requisito documentado opt-in
+4. **Install híbrido**: smart stubs + guided Deptrac + post-install report
+5. **Estimativas honestas**: ~1h 15min (`codeguard`) / ~1h 45min (`codeguard-full`)
+6. **ADR-001 clarificada**: package core PHP; stubs podem referenciar Node
 
-### Bloco 1 — Fundação do package (1-2h)
-1. **Criar `composer.json`** inicial com:
-   - PSR-4 autoload `Henryavila\\Codeguard\\`
-   - Dependências base (illuminate/console, illuminate/support, symfony/process, symfony/yaml, symfony/finder)
-   - Dev dependencies (pest, orchestra/testbench)
-   - Scripts: test, test:coverage, pint, phpstan
-   - `extra.laravel.providers` para auto-discover
+### Memória Global Criada
 
-2. **Criar `src/CodeguardServiceProvider.php`**:
-   - `register()` merge config padrão
-   - `boot()`:
-     - registrar commands (condicional `$this->app->runningInConsole()`)
-     - `publishes()` com tags: `codeguard-config`, `codeguard-stubs`, `codeguard-rules`
-     - registrar Pest expectations se `class_exists(\Pest\Expectation::class) && app()->runningUnitTests()`
+Em `/home/henry/.claude/projects/-home-henry-codeguard/memory/`:
+- `MEMORY.md` (index)
+- `user-profile.md` (Henry — dev Laravel, WSL2, Arch consumer)
+- `feedback-evidence-based-estimates.md` (nunca inflar números)
+- `feedback-prefer-simplification.md` (simplificar opções quando intent preserva)
+- `feedback-honest-tradeoffs.md` (mostrar custos junto benefícios)
+- `feedback-node-when-justified.md` (Node OK se tool for superior)
+- `feedback-portuguese-typos.md` (interpretar intenção)
+- `project-codeguard-state.md` (stack, presets, dual-track)
+- `reference-mdprobe-review.md` (como revisar docs com mdprobe)
 
-3. **Criar `src/Testing/CodeguardConfig.php`** (DTO principal)
-4. **Criar `src/Testing/StageConfig.php` + `src/Testing/PrepareConfig.php`**
-5. **Criar `config/codeguard.php`** com defaults
+## Próximo Passo Concreto
 
-6. **Criar `README.md`** inicial declarando:
-   - "Laravel quality gates that survive your AI agent"
-   - Status: early development, pivot from npm announced
-   - Link para `docs/legacy/` para versão Node
+### Estratégia Aprovada
 
-### Bloco 2 — Primeiro Command + Arch consome (2-3h)
-1. **`codeguard:install` esqueleto** (só publish stubs Minimal por default)
-2. **Setup path repository no Arch**:
-   ```json
-   // ~/arch/composer.json
-   "repositories": [
-     {"type": "path", "url": "/home/henry/codeguard", "options": {"symlink": true}}
-   ],
-   "require-dev": {"henryavila/codeguard": "@dev"}
-   ```
-3. **Validar**: `composer update` no Arch puxa package local; `php artisan list` mostra `codeguard:install`
+- **Onda 1** (inline, ~2h): `CodeguardInstallCommand` skeleton com env detect + preset select + basic stub publish
+- **Onda 2** (inline, ~2-3h): Deptrac layer suggestion + idempotent re-run + Lefthook post-install
+- **Onda 3** (subagents paralelos, ~1h wall-clock): 8 stubs + Pest tests + README
 
-### Bloco 3 — Extract TestSuiteRunner (3-4h)
-1. Copy `/home/henry/arch/app/Services/Testing/*.php` → `src/Testing/`
-2. Adjust namespaces `App\Services\Testing` → `Henryavila\Codeguard\Testing`
-3. Refactor `TestSuiteRunner::stages()` hardcoded → `$this->config->stages` (CodeguardConfig DTO)
-4. Tests portados (ou novos escritos)
-5. No Arch: `use Henryavila\Codeguard\Testing\TestSuiteRunner` nas pages/commands que usam
-6. CI Arch verde
+**Checkpoint entre cada onda** — reportar ao usuário antes de prosseguir.
 
-### Bloco 4+ (depois)
-- Assertions + Pest expectations
-- Schema dump multi-DB
-- AI rules generator
-- Pattern engine
-- Claude plugin em repo separado
+### Onda 1 — Próximas Ações Concretas
 
-## Decisões Pendentes (leves)
+1. Criar `src/Commands/CodeguardInstallCommand.php` com:
+   - `$signature = 'codeguard:install {--preset=} {--no-interactive} {--refresh-stubs}'`
+   - `handle()` método orquestrando fases
+   - Private methods:
+     - `detectEnvironment()` — PHP, Composer, Node, package.json, node_modules
+     - `selectPreset()` — auto-detect + `select()` prompt se interactive
+     - `publishStubs(Preset $preset)` — copy stubs por preset
+     - `showNextSteps(Preset $preset)` — post-install report
+   - Usar `laravel/prompts` (`select`, `confirm`, `info`, `warning`)
+2. Validar com `composer dump-autoload` no Arch path-repo setup
+3. Testar manualmente: `php artisan codeguard:install --no-interactive` no Arch
 
-1. **Nome do Packagist**: `henryavila/codeguard` confirmado
-2. **Config path repository absoluto ou relativo**: absoluto para não quebrar entre máquinas
-3. **Versão dev inicial**: `dev-main` vs `1.0.0-alpha.1` — começar `dev-main`, tagar alpha quando install estabilizar
+### Dependências Técnicas Pendentes
+
+- `composer install` ainda não rodado (deps não resolvidas). Intelephense mostra errors esperados em ServiceProvider — ignorar. Resolverá quando:
+  - Path repository setup no Arch (Bloco 2 task)
+  - Ou quando `composer install` for possível (pode ser antes se for local dev em `/home/henry/codeguard` com `composer install --no-interaction`)
 
 ## Como Retomar
 
-Em nova sessão Claude Code, rodar:
+Em nova sessão:
 ```
 cd ~/codeguard
-# Claude lê automaticamente CLAUDE.md e .ai/memory/MEMORY.md
-# Usuário pede: "continue de onde paramos" ou "começa Bloco 1"
+# Claude lê automaticamente CLAUDE.md + .ai/memory/MEMORY.md
+# Usuário pede: "continua da Onda 1" ou "onde paramos?"
 ```
 
 Claude deve:
-1. Ler MEMORY.md + user-goals + architecture-decisions + este handoff
-2. Confirmar estado real (git status, existence de composer.json, etc)
-3. Propor Bloco 1 passo-a-passo
-4. Executar após confirmação
+1. Ler este handoff + memória global (Henry profile, feedback)
+2. Confirmar estado (git status, existência dos arquivos listados)
+3. Começar Onda 1 sem re-discutir decisions
 
-## Observação Importante
+## Observação Crítica
 
-O usuário é **multilíngue** (português/inglês), tipa rápido com muitos typos — isso é normal, não é falta de contexto. Interpretar intenção, não letra.
+**Não re-abrir decisões já resolvidas**:
+- Presets (2, não 3) — resolvido
+- Husky → Lefthook — resolvido
+- jscpd em Full com Node — resolvido
+- Install híbrido — resolvido
+- Estimativas honestas — resolvido
 
-Usuário usa **Claude Code via VSCode extension** (não CLI) — `!command` não funciona.
+Se usuário questionar, ele terá motivo novo — escutar, mas não tratar como re-discussão padrão.

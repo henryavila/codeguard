@@ -1,628 +1,663 @@
-# Design: CodeGuard v2 — Unified Architecture
+# Design: CodeGuard v5 — Laravel Quality Gates Composer Package
 
-**Data:** 2026-04-16
-**Status:** Draft v4 (pos-reviews 10 agentes: 6 adversariais + 4 steelman)
-**Autor:** Henry Avila + Claude
-**Decisao:** 3 pacotes em camadas (npm agnostic + Composer Laravel + Claude Plugin)
-**Contexto:** Merge do CodeGuard v0.1 + laravel-quality spec, mantendo agnosticismo
+**Data**: 2026-04-16
+**Status**: Active spec (supersedes v4)
+**Autor**: Henry Ávila + Claude
+**Decisão**: 2 pacotes (Composer core PHP + Claude plugin bash hooks) — PHP/Laravel-only
+**Contexto**: Consolidação de quality gates para múltiplos projetos Laravel do usuário, distribuído via Composer para rodar em múltiplas máquinas e controlar qualidade de dev terceirizado que não usa IA
+
+> **Supersedes**: este documento substitui o design v4 ("3-package agnostic architecture") após redesign da sessão 2026-04-16. Razões documentadas em `.ai/memory/preset-design-evolution.md` e `.ai/memory/architecture-decisions.md` (ADR-001 pivot, ADR-002 2 packages, ADR-006 preset redesign).
 
 ---
 
 ## Problema
 
-CodeGuard v0.1 tem o melhor sistema de pattern detection com AI semantic analysis para code governance — 28 patterns YAML, verification rules, false-positive prevention, module hierarchy extensivel. Mas falta test orchestration, test assertions, schema dump, e enforcement hard em tempo de IA.
+O usuário tem múltiplos projetos PHP/Laravel (Arch + outros) que precisam do mesmo stack de quality gates: Pint (formatação), PHPStan (type safety), Deptrac (arquitetura), Infection (test quality), Lefthook (pre-commit enforce). Problemas concretos:
 
-O spec laravel-quality tem o melhor test orchestration (multi-stage runner, anti-pattern detection, parallel safety, schema dump) e enforcement via Claude hooks. Mas falta pattern system, AI analysis, e agnosticismo.
+1. **Padronização manual é frágil** — cada projeto ganha uma versão ligeiramente diferente dos configs. Evolução do padrão exige cherry-pick em N repos.
+2. **Multi-machine drift** — Henry trabalha em desktop + notebook; diferentes versões das tools quebram CI reproducibility.
+3. **Dev terceirizado sem IA** — precisa de defesas writer-side (CI gates + pre-commit) e reviewer-side (AI rules + pattern analysis). Nenhuma ferramenta OSS cobre ambos em bundle coeso.
+4. **Ecossistema fragmentado** — existem excelentes tools individuais mas integração entre elas (consolidated report, multi-stage parallel, schema dump multi-DB) exige engineering custom em cada projeto.
 
-Nenhum dos dois e completo sozinho. Juntos, criam algo que nao existe em nenhum lugar.
+O Arch (`/home/henry/arch`) já escreveu ~770 LOC de `TestSuiteRunner` + `TestQualityAssertions` + `PrepareTestDatabaseCommand` porque nenhuma OSS atende. Essa base, extraída e generalizada como Composer package, resolve os 4 problemas.
 
-## Principio Fundamental
+## Princípio Fundamental
 
-**CodeGuard e agnostico a linguagem/framework.** Laravel e UM preset entre muitos possiveis. O core NUNCA sabe sobre TestSuiteRunner, Pest, ou Artisan. Features PHP/Laravel vivem em um pacote Composer separado que ENHANCES o core sem modifica-lo.
+**CodeGuard é um package Laravel.** Não é agnostic core, não é multi-framework wrapper. Stack target: PHP 8.3+ + Laravel 11|12 + Pest 3|4. Componentes não-Laravel (Vue, TypeScript, MongoDB) são **stages plugáveis**, não ecossistemas paralelos.
+
+Escopo "PHP-only" refere-se ao **core do package**: zero `node_modules` bundled, roda em Alpine PHP container sem Node runtime. Tools opcionais que requerem Node (jscpd) vivem em preset **opt-in** (`codeguard-full`) com dependência documentada e auto-detectada.
+
+Escalabilidade futura para outras linguagens é feita via **companion packages nativos** (`codeguard-symfony`, `codeguard-python` — se demanda real surgir), não via "agnostic core".
 
 ---
 
-## Arquitetura em 3 Camadas
+## Arquitetura em 2 Camadas
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│  @henryavila/codeguard (npm)                        │
-│  ─── Agnostic Core ───                              │
+│  henryavila/codeguard (Composer)                    │
+│  ─── Laravel Quality Gates Core ───                 │
 │                                                     │
-│  • Pattern YAML system + module hierarchy            │
-│  • AI semantic analysis (skills: setup, run, health) │
-│  • Hook runner (Node.js bundle, adapter interface)   │
-│  • IDE deployer (7 IDEs)                            │
-│  • Baseline system                                  │
-│  • CLI (npx codeguard install)                      │
+│  • Artisan commands (codeguard:*)                   │
+│    ├─ install      guided hybrid install            │
+│    ├─ check        quality gates (fail-fast)        │
+│    ├─ test         multi-stage test runner          │
+│    ├─ prepare      schema dump multi-DB             │
+│    ├─ analyze      pattern engine (LLM adjudicator) │
+│    └─ baseline     findings baseline manager        │
 │                                                     │
-│  modules/core/        → 13 patterns universais       │
-│  modules/php/         → 6 patterns PHP               │
-│  modules/php-laravel/ → 9 patterns Laravel           │
-│  modules/js-react/    → futuro                       │
-│  modules/python-django/ → futuro                     │
+│  • DTOs + services                                  │
+│    ├─ TestSuiteRunner (multi-stage)                 │
+│    ├─ CodeguardConfig + StageConfig + PrepareConfig │
+│    ├─ TestQualityAssertions (Traits + Pest expect)  │
+│    ├─ ParallelSafetyAssertions                      │
+│    └─ SchemaDumper (multi-driver)                   │
+│                                                     │
+│  • Resources (distribuído via Composer)             │
+│    ├─ patterns/       28 YAMLs (data contract)      │
+│    ├─ rules/          canonical AI rules markdown   │
+│    ├─ stubs/          Pint, PHPStan, Deptrac, etc.  │
+│    └─ skills/         Claude skills (setup, run)    │
+│                                                     │
+│  • Pattern engine (PHP nativo + symfony/yaml)       │
+│  • AI rules multi-tool generator                    │
 └──────────────────────┬──────────────────────────────┘
-                       │ enhances (optional)
+                       │ complements (optional)
 ┌──────────────────────▼──────────────────────────────┐
-│  henryavila/codeguard (Composer)             │
-│  ─── Laravel Power-Up ───                           │
+│  henryavila/codeguard-hooks (Claude Plugin)         │
+│  ─── Best-Effort Nudges — CI is the real gate ───   │
 │                                                     │
-│  • TestSuiteRunner (multi-stage, parallel phases)    │
-│  • PrepareTestDatabaseCommand (schema dump, multi-db)│
-│  • TestQualityAssertions + ParallelSafetyAssertions  │
-│  • Pest custom expectations                         │
-│  • Artisan commands (codeguard:*)                    │
-│  • AI rules multi-tool (Claude/Cursor/Copilot/Wind) │
-│  • Stubs (phpstan, pint, deptrac, infection...)      │
-│  • Deptrac 23-layer template                        │
-│  • Quality gate orchestration (auto-detect)          │
-└──────────────────────┬──────────────────────────────┘
-                       │ enhances (optional, Claude-only)
-┌──────────────────────▼──────────────────────────────┐
-│  henryavila/codeguard-hooks (Claude Plugin)       │
-│  ─── Best-Effort Nudges (CI is the real gate) ───   │
-│                                                     │
-│  • PostToolUse: php -l + Pint (warn)                │
-│  • PreToolUse: PHPStan pre-commit (block)           │
-│  • PreToolUse: config-protection (block)            │
-│  • Stop: testes condicionais (block)                │
+│  • PreToolUse: config-protection (nudge)            │
+│  • PreToolUse: Bash matcher (sed/awk/no-verify)     │
+│  • Stop: git tree-hash sentinel                     │
+│  • PostToolUse: php -l + Pint warning               │
 └─────────────────────────────────────────────────────┘
 ```
 
 ### Cada Camada Funciona Sozinha
 
-| Combinacao | O que o user ganha |
-|------------|-------------------|
-| **So npm** (`npx codeguard install`) | Patterns + AI analysis + hook runner + skills. Funciona para PHP, React, Django, qualquer stack |
-| **So Composer** (`codeguard`) | Test runner + assertions + quality gates + schema dump + AI rules. Sem pattern analysis, sem hook runner |
-| **npm + Composer** (recomendado) | Tudo: patterns + AI analysis + hook runner + test runner + assertions + stubs |
-| **npm + Composer + Claude plugin** | Tudo + enforcement hard em tempo real |
+| Install | O que o user ganha |
+|---------|-------------------|
+| **Só Composer** (`composer require --dev henryavila/codeguard`) | Full feature set: commands, DTOs, assertions, patterns, AI rules, schema dump, stubs. Funciona para qualquer projeto Laravel 11/12. |
+| **Composer + Claude plugin** (`/plugin install henryavila/codeguard-hooks`) | + config-protection nudges em tempo de edit Claude. CI continua sendo o gate real. |
 
 ---
 
-## Pacote 1: @henryavila/codeguard (npm) — Agnostic Core
-
-**Ja existe:** v0.1.1 publicado no npm. Sem mudancas arquiteturais necessarias.
-
-### Positioning Honesto (pos-steelman)
-
-O npm core **nao e static analyzer** — e um **rule distribution format + LLM adjudicator** onde AST nao alcanca. Analise dos 28 patterns:
-
-| Classe | Count | Abordagem |
-|--------|:-:|-----------|
-| **AST-replaceable** | 12 (43%) | Delegar para phpat / pest-arch / PHPMD / Deptrac |
-| **Hybrid** (AST narrows, LLM adjudicates) | 13 (46%) | AST candidates + LLM judgment |
-| **Pure semantic** | 3 (11%) | So LLM pode fazer (`single-responsibility`, `dry behavioral`, `value-objects primitive obsession`) |
-
-**Valor real que o pattern system entrega:**
-1. **Calibration anchors** — `verification.rules` citam PHPMD/SonarQube/NDepend (DIT=6, Miller's Law 7 params, McCabe CC=10). Ancora LLM em numeros da industria, nao alucinados
-2. **False-positive carve-outs** — cada pattern tem exception clause ("framework base classes", "DI params aceitaveis", "config-driven switches nao sao branching"). **Isso AST nao consegue encodar**
-3. **Semantic distinctions** — DRY pattern separa estrutural (PHPCPD) de behavioral duplication. AST nao distingue
-4. **Extraction recommendations** — `action-classes`, `value-objects`, `dto` nao so detectam, sugerem refactor proximo. AST flags; nao advise
-
-**Tagline corrigida**: "AI review where AST can't reach."
-
-**Custo real**: patterns rodam **on-demand via skill** (`/codeguard-run` quando invocado), NAO batch full-repo semanal. Custo por invocacao = 1-5k tokens de input por arquivo analisado.
-
-### O que ja tem (mantido intacto)
-
-- 28 pattern YAMLs (13 core + 6 PHP + 9 Laravel) com detection, verification, examples
-- ai-rules/*.md (3 camadas: core, php, laravel) com false-positive prevention
-- Module hierarchy (core → php → php-laravel) com detection heuristics
-- Hook runner Node.js (self-contained bundle) com 4 adapters (Larastan, Pint, PHPMD, Pest)
-- Baseline system com hash matching
-- 3 Skills (codeguard-setup, codeguard-run, codeguard-health)
-- IDE deployer para 7 IDEs
-- CLI (`npx codeguard install`)
-- codeguard.yaml schema com capabilities + patterns + thresholds
-- 18 test files (Vitest)
-
-### Mudancas para v2
-
-1. **README atualizado**: Mencionar `codeguard` como Laravel power-up
-2. **Skill `codeguard-setup`**: Detectar se Composer package esta instalado e sugerir
-3. **Roadmap modules**: `js-react/`, `python-django/`, `go/` como exemplos
-
-Nenhuma mudanca no core. O agnosticismo e preservado.
-
----
-
-## Pacote 2: henryavila/codeguard (Composer) — Laravel Power-Up
-
-### Proposta de valor
-
-```bash
-composer require --dev henryavila/codeguard
-
-# Setup interativo (stubs, test config, AI rules)
-php artisan codeguard:setup
-
-# Quality gates (auto-detect tools disponiveis)
-php artisan codeguard:check
-
-# Multi-stage test runner
-php artisan codeguard:test --mode=report
-
-# Schema dump com hash caching
-php artisan codeguard:prepare
-```
+## Pacote 1: henryavila/codeguard (Composer)
 
 ### Estrutura
 
 ```
-henryavila/codeguard/
+codeguard/
 ├── src/
-│   ├── CodeguardLaravelServiceProvider.php
+│   ├── CodeguardServiceProvider.php         # register + boot + publishes
 │   ├── Commands/
-│   │   ├── CodeguardSetupCommand.php      # php artisan codeguard:setup (Laravel wizard)
-│   │   ├── CodeguardCheckCommand.php        # php artisan codeguard:check
-│   │   ├── CodeguardTestCommand.php         # php artisan codeguard:test
-│   │   └── CodeguardPrepareCommand.php      # php artisan codeguard:prepare
+│   │   ├── CodeguardInstallCommand.php      # wizard guided híbrido
+│   │   ├── CodeguardCheckCommand.php        # gates sequencial fail-fast
+│   │   ├── CodeguardTestCommand.php         # multi-stage orchestrator
+│   │   ├── CodeguardPrepareCommand.php      # schema dump multi-DB
+│   │   ├── CodeguardAnalyzeCommand.php      # pattern engine (Fase 2)
+│   │   └── CodeguardBaselineCommand.php     # baseline manager (Fase 2)
 │   ├── Testing/
-│   │   ├── TestSuiteRunner.php            # Orquestrador multi-stage
-│   │   ├── TestRunResult.php              # Resultado imutavel
-│   │   ├── TestStageResult.php            # Resultado por stage
-│   │   ├── StageConfig.php               # DTO config de stage
-│   │   ├── PrepareConfig.php             # DTO config de schema dump
-│   │   ├── CodeguardConfig.php             # DTO config completa (via constructor)
-│   │   ├── CommandExecutor.php            # Interface
-│   │   ├── AsyncCommandExecutor.php       # Interface async
-│   │   ├── ProcessCommandExecutor.php     # Implementacao Symfony Process
-│   │   ├── RunningCommand.php             # Interface
-│   │   └── ProcessRunningCommand.php      # Implementacao
-│   └── Assertions/
-│       ├── TestQualityAssertions.php      # Trait: anti-pattern checks
-│       ├── ParallelSafetyAssertions.php   # Trait: parallel-safe checks
-│       ├── PestExpectations.php           # Pest expect()->quality() registration
-│       └── QualityExpectation.php         # Fluent API: ->noTautological()->noModelMock()
+│   │   ├── Preset.php                       # enum Default | Full
+│   │   ├── CodeguardConfig.php              # DTO principal
+│   │   ├── StageConfig.php                  # DTO stage
+│   │   ├── PrepareConfig.php                # DTO schema dump
+│   │   ├── GateConfig.php                   # DTO gate
+│   │   ├── TestSuiteRunner.php              # orquestrador
+│   │   ├── TestRunResult.php                # resultado imutável
+│   │   ├── TestStageResult.php              # resultado por stage
+│   │   ├── CommandExecutor.php              # interface
+│   │   ├── AsyncCommandExecutor.php         # interface
+│   │   ├── ProcessCommandExecutor.php       # symfony/process impl
+│   │   ├── RunningCommand.php               # interface
+│   │   └── ProcessRunningCommand.php        # impl
+│   ├── Assertions/
+│   │   ├── TestQualityAssertions.php        # Trait (PHPUnit compat)
+│   │   ├── ParallelSafetyAssertions.php     # Trait
+│   │   ├── PestExpectations.php             # Pest registration
+│   │   └── QualityExpectation.php           # fluent API
+│   ├── Install/
+│   │   ├── EnvironmentDetector.php          # PHP/Composer/Node detect
+│   │   ├── PresetSelector.php               # auto-detect + prompt
+│   │   ├── StubPublisher.php                # idempotent stub publish
+│   │   ├── DeptracLayerSuggester.php        # namespace scan + heurística
+│   │   ├── LefthookInstaller.php            # binary check + config install
+│   │   └── NextStepsReporter.php            # post-install report
+│   ├── Patterns/
+│   │   ├── PatternLoader.php                # symfony/yaml
+│   │   ├── PatternValidator.php             # schema validation
+│   │   ├── PatternAnalyzer.php              # contexto para LLM
+│   │   ├── AnalysisContext.php              # DTO
+│   │   ├── BaselineManager.php              # hash match, filter
+│   │   └── Finding.php                      # DTO
+│   ├── AiRules/
+│   │   ├── RulesGenerator.php               # orchestrator multi-tool
+│   │   ├── ClaudeFormatter.php              # paths: frontmatter
+│   │   ├── CursorFormatter.php              # globs: MDC
+│   │   ├── AgentsMdFormatter.php            # universal AGENTS.md
+│   │   └── CopilotFormatter.php             # .github/copilot-instructions.md
+│   └── Schema/
+│       ├── SchemaDumperInterface.php
+│       ├── NativeDriver.php                 # delega php artisan schema:dump
+│       ├── SqlitePdoDriver.php              # :memory: via sqlite_master
+│       └── SqlServerFallbackDriver.php      # prod sqlsrv → test sqlite
 ├── config/
-│   └── codeguard.php                      # Laravel config (stages, gates, prepare)
-├── stubs/
-│   ├── phpstan.neon.stub
-│   ├── phpstan-test-quality.neon.stub
-│   ├── pint.json.stub
-│   ├── deptrac.yaml.stub                  # Template 23 camadas Laravel
-│   ├── .jscpd.json.stub
-│   ├── infection.json5.stub
-│   ├── .husky/
-│   │   ├── pre-commit.stub
-│   │   └── pre-push.stub
-│   ├── scripts/
-│   │   └── check-hooks.sh.stub
-│   ├── tests/
-│   │   └── Arch/
-│   │       └── TestQualityTest.php.stub
-│   └── .claude/                           # For --claude-project-hooks
-│       ├── settings.json.stub
-│       └── hooks/*.sh.stub
-├── rules/                                 # Canonical AI rules (source of truth)
-│   ├── php-quality.md
-│   ├── php-testing.md
-│   ├── laravel-services.md
-│   ├── laravel-models.md
-│   ├── laravel-security.md
-│   ├── quality-gates.md
-│   └── parallel-tests.md
+│   └── codeguard.php
+├── resources/
+│   ├── patterns/                            # 28 YAMLs
+│   │   ├── core/*.yaml                      # 13
+│   │   ├── php/*.yaml                       # 6
+│   │   └── php-laravel/*.yaml               # 9
+│   ├── rules/                               # canonical markdown
+│   │   ├── php-quality.md
+│   │   ├── php-testing.md
+│   │   ├── laravel-services.md
+│   │   ├── laravel-models.md
+│   │   ├── laravel-security.md
+│   │   ├── quality-gates.md
+│   │   └── parallel-tests.md
+│   ├── skills/
+│   │   ├── codeguard-setup/SKILL.md
+│   │   ├── codeguard-run/SKILL.md
+│   │   └── codeguard-health/SKILL.md
+│   └── stubs/
+│       ├── phpstan.neon.stub
+│       ├── pint.json.stub
+│       ├── deptrac.yaml.stub
+│       ├── infection.json5.stub
+│       ├── lefthook.yml.stub
+│       ├── .jscpd.json.stub
+│       └── tests/Arch/TestQualityTest.php.stub
 ├── tests/
 │   ├── Unit/
-│   │   ├── TestSuiteRunnerTest.php
-│   │   ├── CodeguardCheckCommandTest.php
-│   │   ├── TestQualityAssertionsTest.php
-│   │   └── ParallelSafetyAssertionsTest.php
+│   ├── Feature/
 │   └── fixtures/
-│       ├── vitest-passed.json
-│       ├── vitest-failed.json
-│       ├── junit-passed.xml
-│       └── junit-failed.xml
-├── docs/
-│   ├── SETUP.md
-│   ├── STAGES.md
-│   ├── QUALITY-GATES.md
-│   ├── AI-RULES.md
-│   ├── CUSTOMIZATION.md
-│   ├── MIGRATION.md
-│   └── TROUBLESHOOTING.md
 ├── composer.json
-├── LICENSE
-└── README.md
+├── LICENSE (MIT)
+├── README.md
+└── CHANGELOG.md
 ```
 
-### Integracao com CodeGuard npm
+### Presets — 2 Opções com Auto-Detection
 
-O ServiceProvider detecta se o npm package esta instalado:
+Dois presets binários (sem "progressão forçada" estilo Minimal/Standard/Full). A decisão real do usuário é: *"meu projeto tem Node?"*.
 
-```php
-class CodeguardLaravelServiceProvider extends ServiceProvider
-{
-    public function boot(): void
-    {
-        $this->hasNpmCodeguard = file_exists(base_path('.codeguard/hook-runner.js'));
+| Preset | Tools | Requer Node? | Auto-select quando |
+|--------|-------|:---:|-------------------|
+| **`codeguard`** (default) | Pint + PHPStan + Deptrac + Infection + Lefthook | ❌ | Sem `package.json` e sem `node_modules/` |
+| **`codeguard-full`** | + jscpd + Insights + TestQualityTest | ✅ | `package.json` OU `node_modules/` presente |
 
-        // Enhanced mode: reference patterns, integrate with codeguard.yaml
-        // Standalone mode: use own config/codeguard.php only
-    }
-}
+**Auto-detection** no `codeguard:install`:
+
+```
+1. Existe node_modules/ OU package.json em base_path()?
+   → HIGH CONFIDENCE: projeto usa Node ativamente → codeguard-full
+2. Existe binário `node` globalmente (which node)?
+   → MEDIUM CONFIDENCE: tem Node mas projeto não usa → codeguard (+ hint)
+3. Nenhum dos dois
+   → LOW CONFIDENCE: ambiente PHP puro → codeguard
 ```
 
-Dois modos de operacao:
+**Override flags**:
 
-| Modo | Condicao | Comportamento |
-|------|----------|---------------|
-| **Enhanced** | `.codeguard/` existe (npm installed) | Integra com codeguard.yaml, patterns, hook runner. `codeguard:setup` complementa o `/codeguard-setup` skill |
-| **Standalone** | `.codeguard/` nao existe | Usa `config/codeguard.php` como unica fonte. `codeguard:setup` e self-contained. Avisa para instalar npm |
+```bash
+php artisan codeguard:install                    # auto-detect
+php artisan codeguard:install --preset=full      # force full
+php artisan codeguard:install --preset=default   # force PHP-only
+php artisan codeguard:install --no-interactive   # CI mode, use detection
+php artisan codeguard:install --refresh-stubs    # update stubs, preserve custom edits
+```
 
-### Config (config/codeguard.php)
+### Install Híbrido — 3 Camadas
+
+**Camada 1 — Stubs inteligentes** (7/8 gates):
+- Comentários inline explicando cada opção (o dev aprende lendo o arquivo)
+- Auto-preenchimento via inspeção de `composer.json` PSR-4 → Infection `srcDir`
+- Defaults calibrados (PHPStan level 5, Infection min-msi 60, Lefthook parallel=true)
+
+**Camada 2 — Guided setup para Deptrac** (único gate que não funciona sem input):
+- Scan de `app/*` subdirectories via `symfony/finder`
+- Pattern matching heurístico:
+  - Nome contém "Domain" → layer `Domain`
+  - Nome contém "Services" → layer `Application`
+  - Nome contém "Http|Controllers" → layer `Application`
+  - Nome contém "Models|Infrastructure|Repositories" → layer `Persistence`
+- Propor YAML resultante ao usuário com 3 opções: `[Y]` usar, `[E]` editar em `$EDITOR`, `[S]` skip (gera depfile.yaml vazio)
+
+**Camada 3 — Post-install next-steps report**:
+- Lista cada gate instalado
+- Próxima ação concreta por gate (ex: "Deptrac → verify layers in depfile.yaml match your architecture")
+- Link para docs relevantes
+
+Exemplo de output do `codeguard:install`:
+
+```
+Detecting environment...
+  ✓ PHP 8.3.12
+  ✓ Composer 2.7.0
+  ✓ Node.js 20.10.0 (found)
+  ✓ package.json detected
+
+Recommended preset: codeguard-full  ⭐
+
+? Install codeguard-full (8 quality gates)? [Y/n]
+
+=== Gates to install ===
+  ✓ Pint        auto-format         config: 0       CI: ~5s
+  ✓ PHPStan     type safety          config: 15min   CI: ~30s
+  ✓ Deptrac     architecture         config: 30min   CI: ~15s
+  ✓ Infection   test quality         config: 20min   CI: +3min
+  ✓ Lefthook    pre-commit enforce   config: 10min   CI: 0
+  ✓ jscpd       duplication          config: 5min    CI: +10s
+  ✓ Insights    metrics              config: 0       CI: +20s
+  ✓ TestQualityTest  meta-quality    config: 15min   CI: +5s
+
+Estimated total config: ~1h 45min
+
+Deptrac layer detection:
+  I scanned your app/ directory and found:
+    • app/Domain/*              (34 files)
+    • app/Http/Controllers/*    (12 files)
+    • app/Services/*            (8 files)
+    • app/Models/*              (15 files)
+    • app/Infrastructure/*      (4 files)
+
+? Use this suggested layer structure?
+    Layer: Domain          ← app/Domain/**
+    Layer: Application     ← app/Services/**, app/Http/**
+    Layer: Persistence     ← app/Models/**, app/Infrastructure/**
+    Rules:
+      Domain cannot depend on Application, Persistence
+      Application cannot depend on Persistence (except via contracts)
+
+  [Y] Use suggestion    [E] Edit in $EDITOR    [S] Skip
+
+Publishing stubs...
+  ✓ pint.json (exists, kept — use --refresh-stubs to update)
+  ✓ phpstan.neon
+  ✓ deptrac.yaml
+  ✓ infection.json5
+  ✓ lefthook.yml
+  ✓ .jscpd.json
+  ✓ tests/Arch/TestQualityTest.php
+
+Lefthook post-install:
+  ✓ lefthook install (.git/hooks/ registered)
+
+Next steps:
+  1. PHPStan    → review level in phpstan.neon (currently 5)
+                  Run: composer codeguard:check
+  2. Deptrac    → verify layers in depfile.yaml
+                  Run: vendor/bin/deptrac analyse
+  3. Infection  → generate baseline:
+                  Run: vendor/bin/infection --initial-tests-only
+  4. Lefthook   → test hook: git commit --allow-empty -m test
+  5. jscpd      → review threshold in .jscpd.json
+
+Documentation: https://github.com/henryavila/codeguard#configuration
+```
+
+### Artisan Commands
+
+| Comando | Função | MVP? |
+|---------|--------|:---:|
+| `codeguard:install` | Wizard híbrido: env detect + preset + stubs + Deptrac guided + Lefthook + report | ✅ |
+| `codeguard:check` | Gates sequenciais fail-fast, auto-detect tool presence | ✅ |
+| `codeguard:test` | Multi-stage test runner com consolidated report | ✅ |
+| `codeguard:prepare` | Schema dump com hash cache (multi-driver) | ✅ |
+| `codeguard:analyze` | Pattern engine (LLM adjudicator) sobre code/diff | Fase 2 |
+| `codeguard:baseline` | Gerar/atualizar baseline de findings | Fase 2 |
+
+### Config (`config/codeguard.php`)
 
 ```php
 return [
-    'stages' => [
-        [
-            'key' => 'frontend',
-            'label' => 'Frontend (Vitest)',
-            'phase' => 1,
-            'enabled' => true,
-            'command' => ['./node_modules/.bin/vitest', 'run', '--dom', '--reporter=json'],
-            'report_type' => 'vitest-json',
-            'report_file' => 'frontend.json',
-            'report_arg_prefix' => '--outputFile=',
-            'fast_fail_arguments' => ['--bail=1'],
-        ],
-        [
-            'key' => 'prepare',
-            'label' => 'Prepare Database',
-            'phase' => 1,
-            'enabled' => true,
-            'command' => [PHP_BINARY, 'artisan', 'codeguard:prepare'],
-            'report_type' => null,
-            'report_file' => null,
-            'report_arg_prefix' => null,
-            'fast_fail_arguments' => [],
-        ],
-        [
-            'key' => 'php-main',
-            'label' => 'Unit + Feature + Integration',
-            'phase' => 2,
-            'enabled' => true,
-            'command' => ['./vendor/bin/pest', '--testsuite=Unit,Feature,Integration'],
-            'report_type' => 'junit',
-            'report_file' => 'php-main.xml',
-            'report_arg_prefix' => '--log-junit=',
-            'fast_fail_arguments' => ['--bail'],
-        ],
-    ],
+    'mode' => env('CODEGUARD_MODE', 'default'),  // default | ci | dev | debug
+
+    'preset' => env('CODEGUARD_PRESET', 'codeguard'),
 
     'gates' => [
-        'audit'    => ['enabled' => true,  'label' => 'Security Audit',        'command' => 'composer audit --format=plain'],
-        'pint'     => ['enabled' => true,  'label' => 'Code Style (Pint)',      'command' => './vendor/bin/pint --test'],
-        'phpstan'  => ['enabled' => true,  'label' => 'Static Analysis',        'command' => './vendor/bin/phpstan analyse --memory-limit=8G --no-progress'],
-        'deptrac'  => ['enabled' => false, 'label' => 'Architecture (Deptrac)', 'command' => './vendor/bin/deptrac analyse --no-progress'],
-        'jscpd'    => ['enabled' => false, 'label' => 'Copy-Paste Detection',   'command' => 'npx jscpd app/ --min-lines 5 --min-tokens 50 --threshold 10'],
-        'insights' => ['enabled' => false, 'label' => 'Code Quality Insights',  'command' => 'php artisan insights --no-interaction --summary'],
+        'audit'     => ['enabled' => true,  'command' => 'composer audit --format=plain',                        'description' => 'Composer security audit'],
+        'pint'      => ['enabled' => true,  'command' => './vendor/bin/pint --test',                             'description' => 'Laravel Pint (code style check)'],
+        'phpstan'   => ['enabled' => true,  'command' => './vendor/bin/phpstan analyse --no-progress',           'description' => 'PHPStan static analysis'],
+        'deptrac'   => ['enabled' => true,  'command' => './vendor/bin/deptrac analyse --no-progress',           'description' => 'Deptrac architecture boundaries'],
+        'infection' => ['enabled' => true,  'command' => './vendor/bin/infection --min-msi=60 --min-covered-msi=70 --show-mutations=false', 'description' => 'Infection mutation testing'],
+        'jscpd'     => ['enabled' => false, 'command' => 'npx jscpd --reporters console --threshold 3',          'description' => 'Code duplication detection (requires Node.js)'],
+        'insights'  => ['enabled' => false, 'command' => 'php artisan insights --no-interaction --summary',      'description' => 'PHP Insights metrics'],
+    ],
+
+    'stages' => [
+        'unit'    => ['enabled' => true, 'command' => './vendor/bin/pest --testsuite=Unit',    'env' => [], 'report_format' => 'junit'],
+        'feature' => ['enabled' => true, 'command' => './vendor/bin/pest --testsuite=Feature', 'env' => [], 'report_format' => 'junit'],
     ],
 
     'report_dir' => storage_path('framework/testing/test-reports'),
 
     'prepare' => [
-        'connection' => env('CODEGUARD_PREPARE_CONNECTION', 'sqlite'),
-        'connection_overrides' => [],
-        'extra_migration_paths' => [],
-        'schema_path' => database_path('schema'),
-        'hash_file' => database_path('schema/.migrations-hash'),
+        'connection'      => env('CODEGUARD_PREPARE_CONNECTION', env('DB_CONNECTION', 'sqlite')),
+        'dump_path'       => database_path('schema/dump.sql'),
+        'hash_path'       => database_path('schema/.dump-hash'),
+        'migrations_path' => database_path('migrations'),
     ],
 
     'protected_configs' => [
-        'phpstan.neon', 'phpstan-baseline.neon', 'phpstan-test-quality.neon',
+        'phpstan.neon', 'phpstan-baseline.neon',
         'pint.json', 'deptrac.yaml', 'deptrac-baseline.yaml',
-        'psalm.xml', 'psalm-baseline.xml', 'infection.json5',
-        'phpunit.xml', '.jscpd.json', '.jscpd-tests.json',
+        'psalm.xml', 'infection.json5', 'phpunit.xml',
+        '.jscpd.json', 'lefthook.yml',
+    ],
+
+    'patterns' => [
+        'enabled_presets' => ['core', 'php', 'php-laravel'],
+        'custom_paths'    => [],  // auto-discovers base_path('.codeguard/patterns') + this list
+        'baseline_path'   => base_path('.codeguard/baseline.json'),
+    ],
+
+    'ai_rules' => [
+        'targets' => [
+            'claude'    => true,   // .claude/rules/*.md + CLAUDE.md
+            'cursor'    => true,   // .cursor/rules/*.mdc
+            'copilot'   => true,   // .github/copilot-instructions.md
+            'agents_md' => true,   // AGENTS.md (universal)
+        ],
     ],
 ];
 ```
 
-### Artisan Commands
+### Dependencies
 
-| Comando | Funcao | Modo Enhanced | Modo Standalone |
-|---------|--------|:---:|:---:|
-| `codeguard:setup` | Wizard: stubs + test config + AI rules + hooks | Complementa /codeguard-setup | Self-contained |
-| `codeguard:check` | Quality gates sequenciais (fail-fast, auto-detect) | ✅ | ✅ |
-| `codeguard:test` | Multi-stage test runner com report consolidado | ✅ | ✅ |
-| `codeguard:prepare` | Schema dump com hash caching, multi-driver | ✅ | ✅ |
-
-### codeguard:setup Wizard
-
-```
-$ php artisan codeguard:setup
-
- CodeGuard Laravel Setup
- =======================
-
- ℹ CodeGuard npm detected (.codeguard/ exists)
-   Pattern analysis available via /codeguard-setup skill.
-
- Choose a preset (default: Minimal — press enter):
-  [1] Minimal (Pint + PHPStan — 2 files)              ← DEFAULT
-  [2] Standard (+ Deptrac + Infection + Husky hooks — 7 files)
-  [3] Full (+ jscpd + Insights + TestQualityTest — 12 files)
- > [enter]
-
- Publishing stubs (Minimal preset)...
- ✓ phpstan.neon
- ✓ pint.json
-
- Generate AI rules for your coding assistant? [yes/no]
- > yes
-
- Which AI tools do you use?
- [x] Claude Code (.claude/rules/)
- [x] Cursor (.cursor/rules/)
- [ ] GitHub Copilot
- [ ] Windsurf
- > ↵
-
- ✓ .claude/rules/php-quality.md (+ 3 more)
- ✓ .cursor/rules/php-quality.mdc (+ 3 more)
-
- Add Composer scripts? [yes/no]
- > yes
- ✓ Added quality, codeguard:test, codeguard:test:ci
-
- Done! Run `php artisan codeguard:check` to verify.
+```json
+{
+    "require": {
+        "php": "^8.3",
+        "illuminate/console": "^11.0|^12.0",
+        "illuminate/support": "^11.0|^12.0",
+        "illuminate/filesystem": "^11.0|^12.0",
+        "laravel/prompts": "^0.1.15|^0.3",
+        "symfony/process": "^7.0",
+        "symfony/yaml": "^7.0",
+        "symfony/finder": "^7.0",
+        "sebastian/diff": "^5.1|^6.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^9.0|^10.0",
+        "pestphp/pest": "^3.0|^4.0",
+        "pestphp/pest-plugin-laravel": "^3.0|^4.0",
+        "laravel/pint": "^1.15",
+        "phpstan/phpstan": "^1.11"
+    }
+}
 ```
 
-### AI Rules Multi-Tool
+**Rationale de versões**:
+- PHP 8.3+ obrigatório para `readonly` classes, typed enums, match expressions idiomatic
+- Laravel 11|12 para suportar ambos sem lock
+- `laravel/prompts` para UI interativa moderna (select, confirm, text)
+- `sebastian/diff` para mostrar diffs ao usuário em `--refresh-stubs`
 
-Canonical source em `rules/`. O wizard gera formato nativo para cada tool:
-
-| Tool | Formato | Path | Path trigger |
-|------|---------|------|-------------|
-| Claude Code | Markdown + `paths:` frontmatter | `.claude/rules/*.md` | YAML `paths:` |
-| Cursor | MDC + `globs:` frontmatter | `.cursor/rules/*.mdc` | YAML `globs:` |
-| Copilot | Plain markdown (append) | `.github/copilot-instructions.md` | Nenhum (always loaded) |
-| Windsurf | Plain markdown (append) | `.windsurfrules` | Nenhum (always loaded) |
-
-7 rules distribuidas:
-
-| Rule | Scope (`file_patterns`) | Conteudo principal |
-|------|------------------------|--------------------|
-| `php-quality` | `app/**/*.php` | strict_types, sprintf, null checks, validated() |
-| `php-testing` | `tests/**`, `database/factories/**` | Pest syntax, no assertTrue(true), no model mock, no truncate |
-| `laravel-services` | `app/Services/**` | SRP, DI constructor, value objects, no HTTP in services |
-| `laravel-models` | `app/Models/**` | Data + queries only, no service imports |
-| `laravel-security` | `app/Http/**`, `routes/**` | validated(), no raw SQL, CSRF, mass assignment |
-| `quality-gates` | `phpstan.neon`, `pint.json`, `deptrac.yaml` | HARD GATE: never weaken configs |
-| `parallel-tests` | `tests/**` | function_exists, no global state, factory isolation |
-
-### DTOs — Config via Constructor Injection
+### ServiceProvider Wiring
 
 ```php
-final readonly class StageConfig
+final class CodeguardServiceProvider extends ServiceProvider
+{
+    public function register(): void
+    {
+        $this->mergeConfigFrom(__DIR__.'/../config/codeguard.php', 'codeguard');
+
+        $this->app->singleton(CodeguardConfig::class, fn ($app) =>
+            CodeguardConfig::fromArray($app['config']->get('codeguard', []))
+        );
+    }
+
+    public function boot(): void
+    {
+        if ($this->app->runningInConsole()) {
+            $this->bootConsole();
+        }
+    }
+
+    private function bootConsole(): void
+    {
+        $this->commands([
+            CodeguardInstallCommand::class,
+            // CodeguardCheckCommand::class (Fase 2)
+            // CodeguardTestCommand::class (Fase 2)
+            // CodeguardPrepareCommand::class (Fase 2)
+        ]);
+
+        $this->publishes([
+            __DIR__.'/../config/codeguard.php' => config_path('codeguard.php'),
+        ], 'codeguard-config');
+
+        // Stub publish tags (usados por CodeguardInstallCommand, não vendor:publish direto)
+        $this->publishes([...], 'codeguard-stubs-default');   // pint + phpstan
+        $this->publishes([...], 'codeguard-stubs-advanced');  // deptrac + infection + lefthook
+        $this->publishes([...], 'codeguard-stubs-full');      // jscpd + TestQualityTest
+        $this->publishes([...], 'codeguard-rules');           // resources/rules
+        $this->publishes([...], 'codeguard-patterns');        // resources/patterns
+    }
+}
+```
+
+### DTOs — Readonly Classes + Named Arguments
+
+Todos os DTOs são `final readonly` com `fromArray()` factory. Padrão Laravel 11+ moderno, type-safe, imutável.
+
+```php
+namespace Henryavila\Codeguard\Testing;
+
+enum Preset: string
+{
+    case Default = 'codeguard';
+    case Full = 'codeguard-full';
+
+    public function requiresNode(): bool { return $this === self::Full; }
+    public function label(): string { /* ... */ }
+    public function enabledGateKeys(): array { /* ... */ }
+}
+
+final readonly class GateConfig
 {
     public function __construct(
         public string $key,
-        public string $label,
-        public int $phase,
         public bool $enabled,
-        public array $command,
-        public ?string $reportType,       // 'vitest-json' | 'junit' | null
-        public ?string $reportFile,
-        public ?string $reportArgPrefix,
-        public array $fastFailArguments,
+        public string $command,
+        public string $description,
     ) {}
+    public static function fromArray(string $key, array $data): self { /* ... */ }
+}
 
-    public static function fromArray(array $data): self { /* ... */ }
+final readonly class StageConfig
+{
+    /** @param array<string, string> $env */
+    public function __construct(
+        public string $key,
+        public bool $enabled,
+        public string $command,
+        public array $env,
+        public string $reportFormat,
+    ) {}
+    public static function fromArray(string $key, array $data): self { /* ... */ }
 }
 
 final readonly class PrepareConfig
 {
     public function __construct(
         public string $connection,
-        public array $connectionOverrides,
-        public array $extraMigrationPaths,
-        public string $schemaPath,
-        public string $hashFile,
+        public string $dumpPath,
+        public string $hashPath,
+        public string $migrationsPath,
     ) {}
-
     public static function fromArray(array $data): self { /* ... */ }
 }
 
 final readonly class CodeguardConfig
 {
     /**
-     * @param StageConfig[] $stages
-     * @param array<string, array{enabled: bool, label: string, command: string}> $gates
-     * @param string[] $protectedConfigs
+     * @param array<string, GateConfig> $gates
+     * @param array<string, StageConfig> $stages
+     * @param list<string> $protectedConfigs
+     * @param list<string> $enabledPresets
+     * @param list<string> $customPatternPaths
+     * @param array<string, bool> $aiRulesTargets
      */
     public function __construct(
-        public array $stages,
+        public string $mode,
+        public Preset $preset,
         public array $gates,
+        public array $stages,
         public string $reportDir,
-        public array $protectedConfigs,
         public PrepareConfig $prepare,
+        public array $protectedConfigs,
+        public array $enabledPresets,
+        public array $customPatternPaths,
+        public string $baselinePath,
+        public array $aiRulesTargets,
     ) {}
-
     public static function fromArray(array $config): self { /* ... */ }
+
+    /** @return list<GateConfig> */
+    public function enabledGates(): array { /* filter enabled */ }
+
+    /** @return list<StageConfig> */
+    public function enabledStages(): array { /* filter enabled */ }
 }
 ```
 
-ServiceProvider wiring:
+### Assertions — TestQualityAssertions + ParallelSafetyAssertions
+
+Dual expression: Traits (PHPUnit compat) + Pest expectations (idiomatic).
+
+**TestQualityAssertions (3 checks)**:
+- `assertNoTautologicalAssertions()` / `expect()->quality()->noTautologicalAssertions()` — detecta `assertTrue(true)`, `assertEquals(1, 1)`, etc.
+- `assertNoEloquentModelMocking()` / `expect()->quality()->noEloquentModelMocking()` — detecta `Mockery::mock(App\Models\*::class)`
+- `assertNoBareAssertNotNull()` / `expect()->quality()->noBareAssertNotNull()` — detecta `assertNotNull($x)` sem verificar conteúdo depois
+
+**ParallelSafetyAssertions (4 checks)**:
+- `assertNoTruncateInTests(allowlist)`
+- `assertNoForceDeleteInTests(allowlist)`
+- `assertNoDbQueriesInFactoryDefinition(allowlist)`
+- `assertNoEagerCreateInFactoryDefinition(allowlist)`
+
+Pest registration condicional (Pest pode não estar instalado):
 
 ```php
-// ServiceProvider — testavel sem framework
-$this->app->singleton(CodeguardConfig::class, fn ($app) =>
-    CodeguardConfig::fromArray($app['config']['codeguard'])
-);
-
-$this->app->bind(CommandExecutor::class, ProcessCommandExecutor::class);
-
-// TestSuiteRunner recebe config via constructor
-public function __construct(
-    private readonly CodeguardConfig $config,
-    private readonly CommandExecutor $executor,
-) {}
-```
-
-### TestQualityAssertions + ParallelSafetyAssertions
-
-Dual: Traits (PHPUnit compat) + Pest expectations (idiomatic).
-
-**TestQualityAssertions (3 checks):**
-- `assertNoTautologicalAssertions()` / `expect()->quality()->noTautologicalAssertions()`
-- `assertNoEloquentModelMocking()` / `expect()->quality()->noEloquentModelMocking()`
-- `assertNoBareAssertNotNull()` / `expect()->quality()->noBareAssertNotNull()`
-
-**ParallelSafetyAssertions (4 checks):**
-- `assertNoTruncateInTests(allowlist)` / `expect()->quality()->noTruncateInTests()`
-- `assertNoForceDeleteInTests(allowlist)` / `expect()->quality()->noForceDeleteInTests()`
-- `assertNoDbQueriesInFactoryDefinition(allowlist)` / `expect()->quality()->noDbQueriesInFactories()`
-- `assertNoEagerCreateInFactoryDefinition(allowlist)` / `expect()->quality()->noEagerCreateInFactories()`
-
-### Pest Expectations — Registro
-
-`PestExpectations.php` registra custom expectations via `Pest\Expectation::extend()`. O ServiceProvider chama o registro condicionalmente (Pest pode nao estar instalado):
-
-```php
-// CodeguardLaravelServiceProvider::boot()
+// CodeguardServiceProvider::boot()
 if (class_exists(\Pest\Expectation::class) && app()->runningUnitTests()) {
     PestExpectations::register();
 }
-
-// PestExpectations.php
-final class PestExpectations
-{
-    public static function register(): void
-    {
-        expect()->extend('quality', fn () => new QualityExpectation());
-    }
-}
-
-// QualityExpectation — fluent API
-final class QualityExpectation
-{
-    public function noTautologicalAssertions(): self { /* scan test files */ }
-    public function noEloquentModelMocking(): self { /* scan test files */ }
-    // ... 5 mais
-}
 ```
 
-Resultado: `expect()->quality()->noTautologicalAssertions()->noEloquentModelMocking()` encadeaveis.
+### Schema Dump Multi-Driver (Killer Feature)
 
-### CodeguardCheckCommand — Auto-detect
-
-Cada gate verifica se a ferramenta existe antes de executar. Se PHPStan nao esta instalado mas enabled=true, o gate e pulado com aviso claro.
-
-### CodeguardPrepareCommand — Multi-driver (Killer Feature)
-
-Laravel `schema:dump` tem limitacoes severas documentadas em Laravel 12.x:
+Laravel `schema:dump` tem limitações documentadas:
 
 | Driver | Laravel nativo | CodeGuard fallback |
 |--------|:-:|:-:|
 | MySQL / MariaDB / PostgreSQL | ✅ (mysqldump / pg_dump) | delega ao nativo |
-| SQLite (file) | ⚠️ (buggy — bug [#52131](https://github.com/laravel/framework/issues/52131) inclui `sqlite_stat*` tables) | delega + filtra `sqlite_%` internal tables |
-| **SQLite `:memory:`** | ❌ (so load, nao dump — `SqliteSchemaState.php:65-72`) | ✅ PDO + `sqlite_master` export |
-| **SQL Server (sqlsrv)** | ❌ `throw new RuntimeException('Schema dumping is not supported')` | ✅ PDO export para connection secundario SQLite (common pattern: prod sqlsrv, tests sqlite) |
-| Windows sem `sqlite3` CLI | ❌ (issue [#35162](https://github.com/laravel/framework/issues/35162)) | ✅ PDO nao precisa binario |
+| SQLite (file) | ⚠️ bug #52131 (inclui `sqlite_stat*` tables) | delega + filtra `sqlite_%` |
+| **SQLite `:memory:`** | ❌ (só load, não dump — `SqliteSchemaState.php:65-72`) | ✅ PDO + `sqlite_master` export |
+| **SQL Server (sqlsrv)** | ❌ `throw new RuntimeException('Schema dumping is not supported')` | ✅ PDO export para connection secundário SQLite |
+| Windows sem `sqlite3` CLI | ❌ issue #35162 | ✅ PDO não precisa binário |
 | MongoDB | N/A (sem Schema grammar) | stage separado no runner |
 
-**Target projetos (que nativo nao atende):**
-- Prod sqlsrv + tests sqlite — `schema:dump` lanca RuntimeException no connection prod
-- Tests em SQLite `:memory:` (`LazilyRefreshDatabase`) — dump path nao existe
+**Target de projetos** (que o nativo não atende):
+- Prod sqlsrv + tests sqlite (caso Arch)
+- Tests em SQLite `:memory:` com `LazilyRefreshDatabase`
 - Containers Alpine / Windows sem `sqlite3` CLI
-- Multi-path migrations (`database/migrations/externals/` para bancos externos)
-- Multi-package config overrides (Spatie activitylog, spatie/health)
+- Multi-path migrations
 
-**Benchmark** (Laravel News, Alex Vanderbist):
-- 126 migrations: 11s → 1.2s (85% reducao)
-- 235 migrations × 20 ParaTest workers (caso Arch) = ~4.700 DDL statements evitados por `composer test`
+**Benchmark** (Arch, 235 migrations × 20 ParaTest workers): ~4.700 DDL statements evitados por `composer test`.
 
-**Guard contra producao**: recusa se `APP_ENV=production` ou `DB_HOST` nao e localhost.
+**Guard contra produção**: recusa se `APP_ENV=production` ou `DB_HOST` não é localhost.
 
-### CodeguardTestCommand — UX Features
+### Pattern Engine (Fase 2)
 
-1. Progress callback (conta ticks Pest + dots ParaTest, atualiza 500ms)
-2. Log tee (stdout + arquivo simultaneamente)
-3. Duration formatting (4 faixas: ms/s/m/h)
-4. Consolidated report (tabela por stage + totals + failure list)
-
-### Dependencias
-
-```json
-{
-  "require": {
-    "php": "^8.2",
-    "illuminate/console": "^11.0|^12.0",
-    "illuminate/support": "^11.0|^12.0",
-    "illuminate/filesystem": "^11.0|^12.0",
-    "symfony/process": "^7.0"
-  },
-  "suggest": {
-    "@henryavila/codeguard": "Full pattern analysis and AI-powered code governance",
-    "larastan/larastan": "Static analysis with Laravel support",
-    "laravel/pint": "Code style formatting",
-    "qossmic/deptrac": "Architectural boundary enforcement",
-    "infection/infection": "Mutation testing",
-    "nunomaduro/phpinsights": "Code quality insights"
-  }
-}
+```
+php artisan codeguard:analyze --scope=diff:main
+           ↓
+    PatternLoader reads resources/patterns/*.yaml
+           ↓
+    PatternValidator (schema check)
+           ↓
+    PatternAnalyzer builds AnalysisContext
+           ↓
+    Output JSON {patterns: [...], context: {...}}
+           ↓
+    Claude skill codeguard-run reads JSON
+           ↓
+    LLM applies verification.rules to code
+           ↓
+    Findings reported (filtered by BaselineManager)
 ```
 
-### vendor:publish tags
+**Positioning**: pattern system NÃO é "static analyzer". É **structured prompt distribution + LLM adjudicator onde AST não alcança**. Dos 28 patterns: 12 AST-replaceable (delegar para phpat/PHPMD), 13 hybrid, 3 pure semantic.
 
-```php
-$this->publishes([...], 'codeguard-config');
-$this->publishes([...], 'codeguard-phpstan');
-$this->publishes([...], 'codeguard-pint');
-$this->publishes([...], 'codeguard-deptrac');
-$this->publishes([...], 'codeguard-test-assertions');
-$this->publishes([...], 'codeguard-husky');
-```
+**Tagline**: *"AI review where AST can't reach."*
+
+### AI Rules Multi-Tool
+
+Canonical source em `resources/rules/`. Generator gera formato nativo para cada tool:
+
+| Tool | Formato | Path | Path trigger |
+|------|---------|------|-------------|
+| Claude Code | Markdown + `paths:` frontmatter | `.claude/rules/*.md` + `CLAUDE.md` | YAML `paths:` |
+| Cursor | MDC + `globs:` frontmatter | `.cursor/rules/*.mdc` | YAML `globs:` |
+| Copilot | Plain markdown (append) | `.github/copilot-instructions.md` | Nenhum |
+| AGENTS.md | Concatenated markdown | `AGENTS.md` | Nenhum |
+
+7 rules canônicas:
+
+| Rule | Scope | Conteúdo |
+|------|-------|----------|
+| `php-quality` | `app/**/*.php` | strict_types, sprintf, null checks, validated() |
+| `php-testing` | `tests/**`, `database/factories/**` | Pest syntax, no tautological assertions, no model mock |
+| `laravel-services` | `app/Services/**` | SRP, DI constructor, value objects |
+| `laravel-models` | `app/Models/**` | Data + queries only, no service imports |
+| `laravel-security` | `app/Http/**`, `routes/**` | validated(), no raw SQL, CSRF, mass assignment |
+| `quality-gates` | `phpstan.neon`, `pint.json`, `deptrac.yaml` | HARD: never weaken configs |
+| `parallel-tests` | `tests/**` | function_exists, no global state, factory isolation |
 
 ---
 
-## Pacote 3: henryavila/codeguard-hooks (Claude Plugin)
+## Pacote 2: henryavila/codeguard-hooks (Claude Plugin)
 
-Hooks-only. **Best-effort nudges** (não "hard enforcement") — Claude-exclusive. CI continua sendo o gate real.
+**Positioning**: *Best-Effort Nudges — CI is the real gate*. Repo separado (não subpasta) porque ciclo de vida é diferente (distribui via `/plugin install`, não Composer).
 
-### Limitacoes Reconhecidas (Claude Code)
+### Limitações Reconhecidas (Claude Code)
 
-Hooks do Claude Code tem limitacoes arquiteturais documentadas em issues oficiais (fechadas como "not planned"):
+Hooks do Claude Code têm limitações arquiteturais documentadas em issues oficiais:
 
-| # | Limitacao | Issue | Mitigacao CodeGuard |
+| # | Limitação | Issue | Mitigação CodeGuard |
 |---|-----------|-------|---------------------|
-| L1 | `Bash(sed/awk/tee/>)` contorna `Edit|Write` matcher | [#6876](https://github.com/anthropics/claude-code/issues/6876), [#29709](https://github.com/anthropics/claude-code/issues/29709) | Adicionar matcher `Bash` ao config-protection com regex de file-mutating commands |
-| L2 | `git commit --no-verify` / `HUSKY=0` burla pre-commit | [#40117](https://github.com/anthropics/claude-code/issues/40117) (Opus 4.6 fazendo isso em 6 commits seguidos) | Bash matcher detecta `--no-verify`; CI e o real gate |
-| L3 | Task tool spawna subagents — **nao herdam hooks** | [#27661](https://github.com/anthropics/claude-code/issues/27661) (OPEN) | Documentar honestamente: subagents bypassam. Reforcar com CI |
-| L4 | MCP tools (`mcp__*__write_file`) contornam matcher Edit/Write | config matcher | Adicionar `mcp__.*` ao matcher list |
-| L5 | PostToolUse exit code ignorado para Write/Edit | [#13744](https://github.com/anthropics/claude-code/issues/13744) | Documentar: PostToolUse e warn-only |
-| L6 | Hooks rodam com user permissions — `chmod -x` os desabilita | — | Mitigacao inerente-Claude, nao CodeGuard |
+| L1 | `Bash(sed/awk/tee/>)` contorna `Edit\|Write` matcher | #6876, #29709 | Adicionar matcher `Bash` com regex de file-mutating commands |
+| L2 | `git commit --no-verify` / `HUSKY=0` burla pre-commit | #40117 (Opus 4.6 fez isso em 6 commits seguidos) | Bash matcher detecta `--no-verify` |
+| L3 | Task tool spawna subagents — **não herdam hooks** | #27661 OPEN | Documentar honestamente |
+| L4 | MCP tools (`mcp__*__write_file`) contornam matcher | config | Adicionar `mcp__.*` ao matcher |
+| L5 | PostToolUse exit code ignorado em Write/Edit | #13744 | Documentar: PostToolUse é warn-only |
+| L6 | Hooks rodam com user permissions — `chmod -x` desabilita | — | Limitação inerente |
 
-**Framing honesto**: "Best-Effort Nudges for honest mistakes — CI is the real gate. Never merge on hook success alone."
+**Framing honesto**: *"Best-Effort Nudges for honest mistakes — CI is the real gate. Never merge on hook success alone."*
 
 ### Estrutura
 
 ```
-henryavila/codeguard-hooks/
+codeguard-hooks/
 ├── .claude-plugin/
 │   └── plugin.json
 ├── hooks/
-│   ├── hooks.json
-│   ├── post-php-lint.sh          # PostToolUse: php -l + Pint (warn)
-│   ├── pre-commit-phpstan.sh     # PreToolUse: PHPStan staged (block)
-│   ├── stop-verify-tests.sh      # Stop: PHPStan + Pest if .php modified (block)
-│   └── config-protection-php.sh  # PreToolUse: block config edits (block)
-├── README.md
+│   ├── hooks.json                      # matchers: Edit|Write|Bash|mcp__.*
+│   ├── config-protection.sh            # block edits em phpstan.neon etc.
+│   ├── config-protection-bash.sh       # regex Bash para sed/awk/tee/git --no-verify
+│   ├── pre-commit-phpstan.sh           # intercepta git commit
+│   ├── stop-verify-tests.sh            # git tree-hash sentinel
+│   └── post-php-lint.sh                # warn-only (PostToolUse)
+├── README.md                            # honest limitations documented
 └── LICENSE
 ```
 
-### Hook Design (incorporando fixes dos 10 reviews)
-
-**Seguranca basica:**
-- JSON parsing: `jq` primario, python3 fallback
-- Newline stripping: `tr -d '\n'` apos extracao
-- Config-protection: `realpath` + case-insensitive comparison
-- Temp files: `trap EXIT` + `chmod 600`
-- Stop hook: sentinel file `.quality-verified` como opt-in (com caveats — ver L7)
-
-**Matchers expandidos (incorporando bypasses conhecidos):**
+### Hook Design — Matchers Expandidos
 
 ```json
 {
@@ -630,299 +665,248 @@ henryavila/codeguard-hooks/
     "PreToolUse": [
       {
         "matcher": "Edit|Write|mcp__.*__write_file|mcp__.*__str_replace",
-        "hooks": [{"command": "config-protection-php.sh"}]
+        "hooks": [{"command": "config-protection.sh"}]
       },
       {
         "matcher": "Bash",
         "hooks": [{"command": "config-protection-bash.sh"}],
-        "description": "Block sed/awk/tee/>/cat > on protected configs + git commit --no-verify"
+        "description": "Block sed/awk/tee/>/git --no-verify on protected configs"
+      }
+    ],
+    "Stop": [
+      {"command": "stop-verify-tests.sh"}
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [{"command": "post-php-lint.sh"}],
+        "description": "Warn (not block) on PHP lint/Pint failures"
       }
     ]
   }
 }
 ```
 
-**config-protection-bash.sh** (novo hook) deve regex-parse o comando Bash por:
-- `(sed|awk|perl|python|tee|>\s*|>>)\s+.*\b(phpstan\.neon|pint\.json|deptrac\.yaml|\.neon|\.yaml baseline)\b`
-- `git commit.*--no-verify`
-- `git.*core\.hooksPath`
-- `HUSKY=0`, `chmod -x .*hooks`
+### Stop Hook — Sentinel Upgrade
 
-**Stop hook — sentinel upgrade (L7 mitigation):**
+Empty-file sentinel é trivialmente spoofável (`touch .quality-verified`). CodeGuard usa **git tree-hash sentinel**:
 
 ```bash
-# Nao basta arquivo existir — verifica tree hash
 EXPECTED=$(git rev-parse HEAD:)
 ACTUAL=$(cat .quality-verified 2>/dev/null)
 [[ "$EXPECTED" != "$ACTUAL" ]] && exit 2
 ```
 
-Touch vazio nao passa. Codeguard:check escreve `git rev-parse HEAD:` no sentinel ao passar.
+`codeguard:check` escreve `git rev-parse HEAD:` no sentinel ao passar. Touch vazio não passa porque não é hash válido do tree atual.
 
-**Correcoes dos reviews:**
-- PostToolUse: warn-only (documentado honestamente — exit code ignorado em Write/Edit)
-- PreToolUse PHPStan: timeout 120s, `--error-format=table`, **staged-files only** via `--paths-file` (resolve monorepo performance)
-- Stop hook: PHPStan primeiro, depois Pest focado (Unit+Feature+Integration)
-- **README deve declarar**: "Hooks sao best-effort nudges. CI e o gate real. Nunca faca merge so com hook success."
+### Segurança Básica
 
----
-
-## Onde Cada Feature Mora
-
-| Feature | npm (agnostic) | Composer (Laravel) | Claude Plugin |
-|---------|:-:|:-:|:-:|
-| 28 pattern YAMLs | ✅ | Acessa via .codeguard/ | |
-| AI rules + false-positive prevention | ✅ | | |
-| Module hierarchy (core→php→laravel) | ✅ | | |
-| Hook runner (Node.js) | ✅ | | |
-| Tool adapters (Larastan, Pint, PHPMD, Pest) | ✅ | | |
-| Baseline system | ✅ | | |
-| Skills (setup, run, health) | ✅ | | |
-| IDE deployer (7 IDEs) | ✅ | | |
-| codeguard.yaml schema | ✅ | Le se disponivel | |
-| CODEGUARD.md generation | ✅ (via skill) | | |
-| TestSuiteRunner | | ✅ | |
-| PrepareTestDatabaseCommand | | ✅ | |
-| TestQualityAssertions (7 checks) | | ✅ | |
-| Pest custom expectations | | ✅ | |
-| Artisan commands (codeguard:*) | | ✅ | |
-| AI rules multi-tool | | ✅ | |
-| Stubs (phpstan, pint, deptrac) | | ✅ | |
-| Deptrac 23-layer template | | ✅ | |
-| Quality gate orchestration | | ✅ | |
-| Config protection (protected_configs) | | ✅ (list) | ✅ (enforcement) |
-| PostToolUse php -l + Pint | | | ✅ |
-| PreToolUse PHPStan | | | ✅ |
-| PreToolUse config-protection | | | ✅ |
-| Stop testes condicionais | | | ✅ |
+- JSON parsing: `jq` primário, `python3` fallback
+- Newline stripping: `tr -d '\n'` após extração
+- Config-protection: `realpath` + case-insensitive comparison
+- Temp files: `trap EXIT` + `chmod 600`
 
 ---
 
-## Extracao do Arch — Delta
+## Dual-Track Development (ADR-007)
 
-O codigo atual no Arch (`app/Services/Testing/`) e a base para o Composer package. Esta secao documenta o que muda durante a extracao.
+Arch (`/home/henry/arch`) é **primeiro consumidor real**, via `composer path repository` (symlink) durante desenvolvimento.
 
-### Ja existe no Arch (extrair diretamente)
+```json
+// ~/arch/composer.json
+"repositories": [
+    {"type": "path", "url": "/home/henry/codeguard", "options": {"symlink": true}}
+],
+"require-dev": {
+    "henryavila/codeguard": "@dev"
+}
+```
 
-| Classe Arch | Classe Package | Mudancas |
+**Benefícios**:
+- Arch valida package em uso real desde dia 1 (dogfooding)
+- Namespaces no Arch já espelham package (`App\Services\Testing\*` → `Henryavila\Codeguard\Testing\*`) para find/replace único quando migrar
+- Ciclo feedback apertado: edit no package → symlink propaga → Arch rebuild → problemas aparecem hoje, não semana que vem
+
+**Limitações** (documentadas):
+- Symlink quebra em Windows nativo (Henry usa WSL — fine)
+- `composer update` no Arch pode pegar breaking changes — Henry controla ambos, risco baixo
+
+## Extração do Arch — Delta
+
+### Extrair diretamente (sem mudança semântica)
+
+| Classe Arch | Classe Package | Mudanças |
 |-------------|---------------|----------|
-| `TestSuiteRunner` | `TestSuiteRunner` | Remover `stages()` hardcoded → receber `StageConfig[]` via `CodeguardConfig` |
-| `TestRunResult` | `TestRunResult` | Nenhuma — ja e imutavel e desacoplado |
-| `TestStageResult` | `TestStageResult` | Nenhuma |
-| `CommandExecutor` | `CommandExecutor` | Nenhuma (interface) |
-| `AsyncCommandExecutor` | `AsyncCommandExecutor` | Nenhuma (interface) |
-| `ProcessCommandExecutor` | `ProcessCommandExecutor` | Nenhuma |
-| `RunningCommand` | `RunningCommand` | Nenhuma (interface) |
-| `ProcessRunningCommand` | `ProcessRunningCommand` | Nenhuma |
-| `RunTestsCommand` | `CodeguardTestCommand` | Renomear, remover refs Arch-specific (MongoDB stage, Playwright cleanup) |
+| `TestSuiteRunner` | `Testing\TestSuiteRunner` | Remover `stages()` hardcoded → receber `StageConfig[]` via `CodeguardConfig` |
+| `TestRunResult` | `Testing\TestRunResult` | Nenhuma (já imutável) |
+| `TestStageResult` | `Testing\TestStageResult` | Nenhuma |
+| `CommandExecutor` | `Testing\CommandExecutor` | Nenhuma (interface) |
+| `AsyncCommandExecutor` | `Testing\AsyncCommandExecutor` | Nenhuma (interface) |
+| `ProcessCommandExecutor` | `Testing\ProcessCommandExecutor` | Nenhuma |
+| `RunningCommand` | `Testing\RunningCommand` | Nenhuma (interface) |
+| `ProcessRunningCommand` | `Testing\ProcessRunningCommand` | Nenhuma |
+| `RunTestsCommand` | `Commands\CodeguardTestCommand` | Renomear, remover refs Arch-specific (Playwright cleanup) |
 
-### Nao existe no Arch (criar do zero)
+### Criar do zero (não existe no Arch)
 
-| Classe | Razao |
+| Classe | Razão |
 |--------|-------|
-| `StageConfig` | Stages sao hardcoded em `TestSuiteRunner::stages()` — precisa virar DTO |
-| `PrepareConfig` | Schema dump config esta dispersa no Arch |
-| `CodeguardConfig` | Unifica stages + gates + prepare num unico DTO injetavel |
-| `CodeguardLaravelServiceProvider` | Wiring de singletons, merge config, auto-detect |
-| `CodeguardSetupCommand` | Wizard com presets — nao existe no Arch |
-| `CodeguardCheckCommand` | Quality gates — no Arch sao scripts Composer, nao artisan |
-| `CodeguardPrepareCommand` | Schema dump — no Arch e inline no runner |
-| `TestQualityAssertions` | Anti-pattern checks — no Arch sao testes avulsos, nao trait reutilizavel |
-| `ParallelSafetyAssertions` | Parallel-safety checks — mesma situacao |
-| `PestExpectations` | Registration via `Pest\Expectation::extend()` — nao existe |
-| `QualityExpectation` | Fluent API para expectations encadeaveis — nao existe |
-
-### Mudanca arquitetural principal
-
-```
-ANTES (Arch):
-  TestSuiteRunner::stages() → array hardcoded com 5 stages
-  RunTestsCommand → instancia runner com CommandExecutor + $reportDir string
-
-DEPOIS (Package):
-  config/codeguard.php → StageConfig[] via CodeguardConfig::fromArray()
-  CodeguardTestCommand → instancia runner com CodeguardConfig + CommandExecutor
-```
-
-O Arch depois de migrar sera consumidor do package: `composer require --dev henryavila/codeguard` e override de stages em `config/codeguard.php` (adicionando mongodb, browser, etc.).
+| `Preset` (enum) | Nova categorização de presets |
+| `StageConfig` | Stages hardcoded no Arch → virar DTO |
+| `PrepareConfig` | Schema dump config disperso |
+| `GateConfig` | Gates hardcoded no Arch → virar DTO |
+| `CodeguardConfig` | Unifica tudo num DTO injetável |
+| `CodeguardServiceProvider` | Wiring, merge config, publishes |
+| `CodeguardInstallCommand` | Wizard híbrido — não existe no Arch |
+| `CodeguardCheckCommand` | Gates — no Arch são scripts Composer |
+| `CodeguardPrepareCommand` | Schema dump — no Arch inline |
+| `Install\*` (6 classes) | Install orchestration — não existe no Arch |
+| `Assertions\TestQualityAssertions` | Anti-pattern checks — no Arch são testes avulsos |
+| `Assertions\ParallelSafetyAssertions` | Parallel-safety — mesma situação |
+| `Assertions\PestExpectations` + `QualityExpectation` | Fluent Pest API — não existe |
 
 ---
 
-## Fluxos de Instalacao
-
-### Full Stack (recomendado para Laravel + AI)
+## Fluxo de Instalação (Novo User)
 
 ```bash
-# 1. Core: patterns + AI analysis + hook runner
-npx @henryavila/codeguard install
-
-# 2. Laravel: test runner + assertions + quality gates
+# 1. Require dev
 composer require --dev henryavila/codeguard
 
-# 3. AI skill: configure everything
-/codeguard-setup
+# 2. Guided install (auto-detects Node, selects preset)
+php artisan codeguard:install
+# → publishes stubs, suggests Deptrac layers, installs Lefthook hooks, prints next-steps
 
-# 4. Laravel-specific: stubs + test config + AI rules
-php artisan codeguard:setup
+# 3. Verify
+composer codeguard:check
 
-# 5. (Optional) Claude enforcement hooks
-# In Claude Code:
+# 4. Optional: Claude enforcement plugin
 /plugin install henryavila/codeguard-hooks
-```
-
-### Laravel-Only (sem npm)
-
-```bash
-composer require --dev henryavila/codeguard
-php artisan codeguard:setup
-php artisan codeguard:check
-```
-
-### Non-Laravel (React, Django, etc.)
-
-```bash
-npx @henryavila/codeguard install
-/codeguard-setup
-# No Composer package needed
 ```
 
 ---
 
 ## Roadmap
 
-| Fase | O que | Repo |
-|------|-------|------|
-| **1** | Criar `codeguard` — extrair TestSuiteRunner + assertions do Arch | Composer |
-| **2** | codeguard:setup artisan + wizard com presets + stubs | Composer |
-| **3** | AI rules multi-tool generation | Composer |
-| **4** | Integracao enhanced/standalone com .codeguard/ detection | Composer |
-| **5** | Claude plugin (4 hooks com fixes) | Plugin |
-| **6** | Arch migra para `codeguard` + testa ambos modos | Arch |
-| **7** | Atualizar CodeGuard npm README + link para Composer package | npm |
-| **8** | Lancamento coordenado | Todos |
+| Fase | Entregável | Depende de |
+|------|-----------|------------|
+| **1 (feita)** | composer.json + config + DTOs + ServiceProvider (foundation) | — |
+| **2** | `CodeguardInstallCommand` com hybrid flow completo | Fase 1 |
+| **3** | Stubs para 8 gates + initial Pest tests | Fase 2 |
+| **4** | README final + primeiro release alpha (`1.0.0-alpha.1`) | Fase 3 |
+| **5** | Extract `TestSuiteRunner` do Arch + `CodeguardTestCommand` | Fase 2 |
+| **6** | Assertions (TestQualityAssertions + ParallelSafetyAssertions) | Fase 5 |
+| **7** | Schema dump multi-DB + `CodeguardPrepareCommand` | Fase 5 |
+| **8** | Pattern engine + `CodeguardAnalyzeCommand` | Fase 7 |
+| **9** | AI rules generator (multi-tool) | Fase 8 |
+| **10** | Claude plugin (`codeguard-hooks` repo separado) | Fase 9 |
+| **11** | Arch migra do inline para package `@dev` | Fase 5 |
+| **12** | Segundo projeto Henry adota → `1.0.0-beta.1` → `1.0.0` | Fase 11 |
+
+**Timeline AI-assisted**: ~1.5–2.5 semanas calendar (ADR-008).
 
 ---
 
-## Diferenciadores Reais (pos-steelman)
+## Diferenciadores Reais (pós-steelman)
 
-Dos 8 "diferenciadores" originais, 5 sobrevivem honestidade factual:
+| # | Claim | Verdict | Evidência |
+|---|-------|---------|-----------|
+| 1 | Pattern YAML + LLM adjudicator | **SOBREVIVE** (reposicionado) | 16/28 patterns codificam judgment não-AST |
+| 2 | Multi-stage test orchestration | **SOBREVIVE** | Arch escreveu 770 LOC porque nenhuma OSS cobre multi-stage heterogêneo (Vitest + Pest + Browser + Mongo) |
+| 3 | Test anti-pattern kit (traits + Pest) | **SOBREVIVE** | 7 checks packaged como kit |
+| 4 | AI rules multi-tool generator | **SOBREVIVE** (janela 6 meses) | AGENTS.md emergindo mas sem path-triggering em 2026 |
+| 5 | AI-time config-protection | **SOBREVIVE FORTE** | Genuinamente único no mercado |
+| 6 | Schema dump multi-DB | **SOBREVIVE FORTE** | Laravel nativo falha em sqlsrv/`:memory:`/Windows |
+| 7 | Guided hybrid install | **NOVO** | Deptrac layer suggestion + idempotent stubs + auto-detect Node |
+| 8 | Lefthook integration out-of-box | **NOVO** | Parallel execution, zero runtime, superior a Husky |
 
-| # | Claim | Veredicto | Evidencia |
-|---|-------|-----------|-----------|
-| 1 | Pattern YAML + AI adjudicator | **SOBREVIVE** (repositioning) | 16/28 patterns codificam judgment AST nao captura (`single-responsibility`, `dry behavioral`, `value-objects`, `action-classes`, `no-logic-in-blade`, `no-god-object`, `bounded-contexts`, `separation-of-concerns`, `policies`) |
-| 2 | Multi-stage parallel test orchestration | **SOBREVIVE** | Arch escreveu 770 LOC porque nenhuma OSS faz. GrumPHP tem tasks homogeneas, nao multi-stage heterogeneo com report parsing (Vitest JSON + JUnit XML) |
-| 3 | Test anti-pattern kit (traits + Pest expectations) | **SOBREVIVE PARCIAL** | 7 checks packaged como kit — novo. Mas conteudo se sobrepoe a `pest-plugin-arch` presets (delegar onde possivel) |
-| 4 | AI rules native format × 4 tools | **SOBREVIVE FRAGIL** | 6 meses de janela antes de commodification (AGENTS.md emergindo). Ate la, unico |
-| 5 | AI-time config-protection via Claude hooks | **SOBREVIVE FORTE** | Genuinamente unico. "Block AI de enfraquecer phpstan.neon" ninguem oferece |
-| 6 | Schema dump multi-driver + hash cache | **SOBREVIVE FORTE** | Laravel nativo nao suporta sqlsrv, `:memory:`, Windows sem sqlite3 CLI. Killer feature para multi-DB |
-| 7 | Deptrac 23-layer template | **DESCARTAR** | E um YAML — ship como example gist, nao default stub |
-| 8 | Language-agnostic core | **DESCARTAR** | MegaLinter ja cobre 50 linguagens. Claim com so PHP e marketing |
-
-**Tagline honesta**: *"Laravel quality gates that survive your AI agent — pattern recognition where AST can't reach, test orchestration where GrumPHP can't reach, schema acceleration where Laravel can't reach."*
+**Tagline honesta**: *"Laravel quality gates that survive your AI agent — consolidated install, honest hybrid setup, and AI review where AST can't reach."*
 
 ---
 
 ## Riscos
 
-| Risco | Mitigacao |
-|-------|----------|
-| 2 installs (npm + Composer) e fricao | Cada um funciona sozinho; full stack e opcional |
-| npm CodeGuard parado desde marco 2026 | v2 update com link para Composer package revive |
-| Config split (codeguard.yaml vs codeguard.php) | Enhanced mode le ambos; standalone usa so .php |
-| Complexidade 3 pacotes | Separacao clara de responsabilidade; cada um e simples |
-| PHP devs sem Node.js | Composer standalone funciona sem npm |
-| Node.js devs sem PHP | npm standalone funciona sem Composer |
-| Claude plugin audiencia limitada | AI rules universais no Composer compensam |
+| Risco | Mitigação |
+|-------|-----------|
+| Symlink path repo quebra | Fallback `"type": "vcs"` + branch local |
+| Laravel 11 vs 12 compatibility em `laravel/prompts` | CI matrix PHP 8.3/8.4 × Laravel 11/12 |
+| Usuário sem Node tenta preset Full | Auto-detect bloqueia seleção inválida + clear error message |
+| Deptrac layer suggestion erra | Fallback: skip option sempre disponível, user pode editar depois |
+| Lefthook binário não instalado no ambiente | Install command detecta e oferece `brew/apt/composer install lefthook` |
+| Pest 3 vs 4 breaking changes | Testar ambos em CI; declarar `^3.0|^4.0` só se ambos funcionam |
+| Claude plugin audiência limitada | AI rules universais no Composer compensam |
 
 ---
 
-## Review Round 2 — Resultados Consolidados
+## Apêndice Histórico — Round 2 Reviews (6 adversarial agents)
 
-**Agents:** Architecture, DX/Adoption, Migration v0.1→v2, Naming/Positioning (2026-04-16)
+Round 2 produziu veredicto agregado **3.5/10** com **prompt-induced bias 7/10**. Gaps metodológicos identificados no Round 3:
 
-### Consenso: Composer e o Hero
+| # | Review | Gap |
+|---|--------|-----|
+| 1 | AI Rules Efficacy | Strawman — atacou "rules como enforcement determinístico" (design nunca assumiu isso) |
+| 2 | Enforcement Depth | False equivalence com GrumPHP (GrumPHP não faz multi-stage heterogêneo) |
+| 3 | Pattern System | Atacou amostra pequena (pattern mais fraco) e generalizou |
+| 4 | Adoption Friction | Persona errada (42% zero-tools — target são os 36% que já usam Pint+PHPStan) |
+| 5 | Security Bypass | Bypasses são limitações do Claude Code, não do CodeGuard |
+| 6 | Competitive | Claims factualmente errados (schema dump "30 LOC" → real 182 LOC) |
 
-Todos os 4 reviews convergem: **o Composer package deve ser o entry point principal**. O npm package e optional power-up, mencionado em secao "Advanced".
+**Claims factualmente errados**:
+1. "Schema dump = 30 linhas" → Real: 182 linhas resolvendo gaps Laravel
+2. "GrumPHP faz 80%" → GrumPHP não faz multi-stage heterogêneo
+3. "28 patterns = fraude" → 16/28 codificam judgment não-AST
+4. "Copilot 4k limit" → Design gera 7 arquivos separados
 
-README hero: `composer require --dev henryavila/codeguard && php artisan codeguard:setup`
+Ver análise completa em `.ai/memory/reviews-consolidated.md`.
 
-### Hard Conflicts Resolvidos
+## Apêndice Histórico — Round 3 Steelman (4 agents)
 
-| Conflict | Resolucao |
-|----------|-----------|
-| `.git/hooks/pre-commit` — npm hook-runner vs Husky | Enhanced: skip Husky (npm hook-runner e o pre-commit). Standalone: Husky |
-| Pint/PHPStan rodam 2x — hook runner + `codeguard:check` | Documentar: hook runner = commit-time, `codeguard:check` = CI/manual |
-| 2 config files (yaml + php) | yaml = AI/hooks (npm scope), php = artisan commands (Composer scope). Standalone: so .php |
-| 2 setup flows confusos | Enhanced mode: artisan detecta npm e skip duplicatas |
-| `.codeguard/` deteccao fragil | Config: `'mode' => env('CODEGUARD_MODE', 'auto')` |
-| Enhanced mode merge semantics | codeguard.yaml vence para tool config; codeguard.php vence para stages/gates |
+Score agregado revisado:
 
-### Naming (confirmado)
-
-- `henryavila/codeguard` (Packagist) — `-laravel` redundante (illuminate/* no require)
-- `henryavila/codeguard-hooks` (Claude Plugin) — brand coherence
-- Namespace `codeguard:*` para todos os artisan commands
-- Tagline: "Your codebase has standards. Now they're enforced."
-
-### Validados sem problemas
-
-3-package split sound, dependency direction unidirecional (Composer→npm), extensibility funciona, Packagist zero colisao
-
----
-
-## Review Round 3 — Steelman Pos-Adversarial (2026-04-16 tarde)
-
-Apos Round 2 adversarial (6 agentes) chegar a veredicto 3.5/10, foi conduzido Round 3 com 4 agentes em modo **steelman** + **methodology audit**. Resultado: Round 2 teve **prompt-induced bias score 7/10** — tom adversarial amplificou gaps factuais.
-
-### Score Agregado Revisado (honesto)
-
-| Componente | Round 2 (adversarial) | Round 3 (steelman) | Delta |
+| Componente | R2 (adversarial) | R3 (steelman) | Delta |
 |------------|:---:|:---:|:---:|
-| Composer package (TestSuiteRunner + assertions + prepare) | 3-4/10 | **7/10** | +3 |
-| npm core (patterns + AI adjudicator) | 3/10 | **5/10** | +2 |
-| Claude hooks plugin | 3/10 | **6/10** | +3 |
-| 3-package split | 3/10 | **6/10** | +3 |
-| Schema dump multi-DB | "WEAK, 30 LOC" | **HIGH (killer feature)** | correcao factual |
-| 28 patterns value | "snake oil" | 16/28 codificam judgment real | invertido |
-| Test orchestration | "90% GrumPHP" | nenhuma OSS cobre >40% | correcao factual |
+| Composer package | 3-4/10 | **7/10** | +3 |
+| Pattern system (repositioned) | "snake oil" | 16/28 válidos | invertido |
+| Schema dump multi-DB | "WEAK 30 LOC" | **killer feature** | correção factual |
+| Test orchestration | "90% GrumPHP" | nenhuma OSS >40% | correção factual |
 | **Agregado** | **3.5/10** | **6.0/10** | **+2.5** |
 
-### Gaps Metodologicos Identificados (Round 2)
+**Strengths que nenhum adversarial identificou**:
+1. Compositional layering (cada pacote testável isolado)
+2. Multi-stage heterogeneous report parsing (Vitest + JUnit)
+3. `CODEGUARD_MODE` env override (defensive engineering)
+4. Constructor DTO injection (testável sem framework)
+5. Dual expression (Trait + Pest) — acomoda legacy E idiomatic
 
-| # | Review | Gap | Correcao |
-|---|--------|-----|----------|
-| 1 | AI Rules Efficacy | Strawman — atacou "rules como enforcement deterministico" (design nao assume isso) | Rules sao onboarding; hooks sao enforcement |
-| 2 | Enforcement Depth | False equivalence com GrumPHP (GrumPHP nao faz multi-stage Vitest+Pest+Mongo+Browser) | Stack Arch real comprova |
-| 3 | Pattern System | Atacou pattern mais fraco (`no-env-outside-config`) e generalizou | 16/28 sao semantic/hybrid |
-| 4 | Adoption Friction | Persona errada (42% zero tools — target sao 36% que ja usam Pint+PHPStan) | Default preset = Minimal |
-| 5 | Security Bypass | Bypasses sao limitacoes do Claude Code, nao do CodeGuard | Adicionar Bash matcher + documentar honestamente |
-| 6 | Competitive | "Schema dump = 30 linhas" factualmente falso | Laravel nao suporta sqlsrv/`:memory:`/Windows |
+## Apêndice Histórico — v4 Pre-Preset-Redesign
 
-### Claims Factualmente Errados do Round 2
+v4 propunha **3 packages** (npm agnostic + Composer + Claude plugin) com **3 presets** (Minimal/Standard/Full) e **Husky**. Foi superseded pelas decisões desta sessão:
 
-1. "Schema dump = 30 linhas" → Real: 182 linhas resolvendo gaps do Laravel nativo
-2. "GrumPHP faz 80%" → GrumPHP nao faz multi-stage heterogeneo (Vitest JSON + JUnit XML + Browser)
-3. "28 patterns = fraude" → 16/28 codificam judgment nao-AST
-4. "Copilot 4k limit" → Design gera 7 arquivos separados, nao concatenado
-5. "AgentIF <30% compliance" → Benchmark agentic generico, nao file-scoped rules
+- 3 packages → 2 packages (ADR-002)
+- Agnostic core → Laravel-only (ADR-001)
+- Minimal/Standard/Full → codeguard/codeguard-full com auto-detect (ADR-006)
+- Husky → Lefthook (Q7b)
+- Stub dump → Install híbrido (smart stubs + guided Deptrac)
 
-### Strengths que Nenhum Adversarial Reviewer Identificou
-
-1. **Compositional layering** — cada pacote funciona sozinho (testavel/deployavel/rollback independente)
-2. **Multi-stage heterogeneous report parsing** — Vitest JSON + JUnit XML consolidados (GrumPHP nao faz)
-3. **`CODEGUARD_MODE` env override** — resolve fragile detection *antes* de virar bug
-4. **Constructor DTO injection** — runner testavel sem framework
-5. **Dual expression (Trait + Pest)** — acomoda legacy PHPUnit E Pest idiomatic
+Jornada documentada em `.ai/memory/preset-design-evolution.md`.
 
 ---
 
-## Decisoes Pendentes (atualizado pos-review)
+## Decisões Resolvidas (não reabrir sem motivo forte)
 
-| Decisao | Opcoes | Recomendacao Review | Quando |
-|---------|--------|-------------------|--------|
-| Config name | `codeguard.php` vs `quality.php` | `codeguard.php` (brand coherence) | Fase 1 |
-| `protected_configs` duplicacao | Gerar bash de PHP vs listas independentes | Listas independentes (pragmatismo) | Fase 5 |
-| Claude plugin tests | BATS vs manual | Manual para v1, BATS para v2 | Fase 5 |
-| Enhanced mode: como Pint enforcement resolve | `codeguard.yaml` vence vs gate skip | Documentar: hook runner = commit, `codeguard:check` = CI/manual | Fase 4 |
-| Enhanced mode: quem instala git hooks | npm hook-runner vs Husky | npm hook-runner em Enhanced, Husky em Standalone | Fase 4 |
-| Enhanced mode: AI rules gerados por quem | npm skill vs artisan setup | artisan setup e autoritativo para rules multi-tool; skill gera CODEGUARD.md | Fase 3-4 |
+- **Stack**: PHP 8.3+ / Laravel 11|12 / Pest 3|4 / Composer-only
+- **2 packages**: `henryavila/codeguard` + `henryavila/codeguard-hooks`
+- **Namespace**: `Henryavila\Codeguard\*`
+- **Commands**: `codeguard:*` (install, check, test, prepare, analyze, baseline)
+- **Default preset**: `codeguard` (PHP-native: Pint + PHPStan + Deptrac + Infection + Lefthook)
+- **Full preset**: `codeguard-full` (adds jscpd + Insights + TestQualityTest, requires Node)
+- **Auto-detect**: Node presence pre-selects preset
+- **Install**: hybrid (smart stubs + guided Deptrac + idempotent re-run + post-install report)
+- **Pre-commit**: Lefthook (não Husky)
+- **Pattern engine**: PHP nativo com `symfony/yaml` (não Node)
+- **Hooks plugin**: best-effort nudges (CI é o gate real)
+- **Timeline**: ~1.5–2.5 semanas calendar AI-assisted
+
+## Decisões Pendentes
+
+Ver `.ai/memory/open-questions.md`. Nenhuma bloqueia Bloco 1. Q2 (skill distribution) exige pesquisa ampla antes de Fase 9.

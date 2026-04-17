@@ -10,9 +10,10 @@ Memória persistente do projeto — leia antes de qualquer trabalho substantivo.
 - [Pivot Rationale](../../docs/specs/2026-04-16-pivot-npm-to-composer.md) — por que abandonamos Node
 
 ## Design Evolution (ordem cronológica)
-- [CodeGuard v2 Design](codeguard-v2-design.md) — decisões chave consolidadas
-- [Design Doc v4 (Arch)](../../docs/specs/2026-04-16-codeguard-v2-architecture.md) — design completo pós-reviews
+- [Design Doc v5 ACTIVE](../../docs/specs/2026-04-16-codeguard-v2-architecture.md) — **canonical spec** (2 packages, codeguard/codeguard-full presets, Lefthook, install híbrido)
+- [CodeGuard v2 Internal Design](codeguard-v2-design.md) — decisões consolidadas (pré-preset redesign)
 - [Reviews Consolidated](reviews-consolidated.md) — 10 agentes (6 adversariais + 4 steelman)
+- [Preset Design Evolution](preset-design-evolution.md) — jornada 3 presets → 2 presets + Node auto-detect + install híbrido (sessão 2, 2026-04-16)
 
 ## State & Handoff
 - [Conversation Handoff](conversation-handoff.md) — onde paramos, próximo passo concreto

@@ -73,10 +73,22 @@ Mas Laravel projects tipicamente querem todos 3. Symfony projects: core + php. V
 
 ## Implementation Pending
 
-### Q7 — Pint vs CS Fixer vs ECS
+### Q7 — Pint vs CS Fixer vs ECS (RESOLVIDO 2026-04-16)
 Arch usa Pint. Mas alguns Laravel devs preferem friendsofphp/php-cs-fixer.
 
 **Decisão**: Stubs Pint por default. Gate `pint` no config pode apontar para qualquer binário via config override.
+
+### Q7b — Husky vs Lefthook (RESOLVIDO 2026-04-16)
+Husky é dominante JS/TS mas requer Node runtime. Lefthook é Go binary sem runtime.
+
+**Decisão**: **Lefthook**. Não é aversão a Node — é melhor engineering:
+- Execução paralela nativa (Husky não tem)
+- Cold start ~10-50ms vs Husky ~300ms
+- Zero runtime dependency (binário Go)
+- Config YAML clara
+- Funciona em Starter/Recommended preset (PHP-only)
+
+Husky continua válido como alternativa documentada se usuário preferir.
 
 ### Q8 — CodeguardTestCommand progress output
 Arch's RunTestsCommand conta ticks Pest + dots ParaTest manualmente. Feio mas funciona.

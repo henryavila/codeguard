@@ -1,0 +1,433 @@
+version: 1
+source: 2026-04-16-adrs-and-open-questions.md
+source_hash: sha256:6c789db344f6dad598a21fa3c9fa034b93bf37f84994ffd4543ac35883766821
+sections:
+  - heading: CodeGuard — Revisão de ADRs + Open Questions
+    level: 1
+    status: approved
+  - heading: Parte A — Architecture Decision Records (ADRs)
+    level: 2
+    status: approved
+  - heading: 'ADR-001: Pivot Node.js → PHP/Composer'
+    level: 3
+    status: approved
+  - heading: Contexto
+    level: 4
+    status: approved
+  - heading: Explicação
+    level: 4
+    status: approved
+  - heading: Decisão
+    level: 4
+    status: approved
+  - heading: Consequências
+    level: 4
+    status: approved
+  - heading: Recomendação Fundamentada
+    level: 4
+    status: approved
+  - heading: Aberto a revisar?
+    level: 4
+    status: approved
+  - heading: 'ADR-002: 2 Packages, Não 3'
+    level: 3
+    status: approved
+  - heading: Contexto
+    level: 4
+    status: approved
+  - heading: Explicação
+    level: 4
+    status: approved
+  - heading: Decisão
+    level: 4
+    status: approved
+  - heading: Explicação Técnica
+    level: 4
+    status: approved
+  - heading: Consequências
+    level: 4
+    status: approved
+  - heading: Recomendação Fundamentada
+    level: 4
+    status: approved
+  - heading: Aberto a revisar?
+    level: 4
+    status: approved
+  - heading: 'ADR-003: Option A — Reusar Repo henryavila/codeguard'
+    level: 3
+    status: approved
+  - heading: Contexto
+    level: 4
+    status: approved
+  - heading: Explicação
+    level: 4
+    status: approved
+  - heading: Decisão
+    level: 4
+    status: approved
+  - heading: Rationale Detalhado
+    level: 4
+    status: approved
+  - heading: Consequências
+    level: 4
+    status: approved
+  - heading: Recomendação Fundamentada
+    level: 4
+    status: approved
+  - heading: Aberto a revisar?
+    level: 4
+    status: approved
+  - heading: 'ADR-004: "Hard Enforcement" → "Best-Effort Nudges"'
+    level: 3
+    status: approved
+  - heading: Contexto
+    level: 4
+    status: approved
+  - heading: Explicação
+    level: 4
+    status: approved
+  - heading: Decisão
+    level: 4
+    status: approved
+  - heading: Consequências
+    level: 4
+    status: approved
+  - heading: Recomendação Fundamentada
+    level: 4
+    status: approved
+  - heading: Aberto a revisar?
+    level: 4
+    status: approved
+  - heading: 'ADR-005: Pattern System = Rule Distribution + LLM Adjudicator'
+    level: 3
+    status: approved
+  - heading: Contexto
+    level: 4
+    status: approved
+  - heading: Explicação
+    level: 4
+    status: approved
+  - heading: Decisão
+    level: 4
+    status: approved
+  - heading: Consequências
+    level: 4
+    status: approved
+  - heading: Recomendação Fundamentada
+    level: 4
+    status: approved
+  - heading: Aberto a revisar?
+    level: 4
+    status: approved
+  - heading: 'ADR-006: Default Preset = Minimal'
+    level: 3
+    status: approved
+  - heading: Contexto
+    level: 4
+    status: approved
+  - heading: Explicação
+    level: 4
+    status: approved
+  - heading: Decisão
+    level: 4
+    status: approved
+  - heading: Consequências
+    level: 4
+    status: approved
+  - heading: Recomendação Fundamentada
+    level: 4
+    status: approved
+  - heading: Aberto a revisar?
+    level: 4
+    status: approved
+  - heading: 'ADR-007: Dual-Track Development'
+    level: 3
+    status: approved
+  - heading: Contexto
+    level: 4
+    status: approved
+  - heading: Explicação
+    level: 4
+    status: approved
+  - heading: Decisão
+    level: 4
+    status: approved
+  - heading: Consequências
+    level: 4
+    status: approved
+  - heading: Recomendação Fundamentada
+    level: 4
+    status: approved
+  - heading: Aberto a revisar?
+    level: 4
+    status: approved
+  - heading: 'ADR-008: Timeline AI-Assisted ~1–2 Semanas'
+    level: 3
+    status: approved
+  - heading: Contexto
+    level: 4
+    status: approved
+  - heading: Explicação
+    level: 4
+    status: approved
+  - heading: Estimativa Realista (AI-assisted)
+    level: 4
+    status: approved
+  - heading: Decisão
+    level: 4
+    status: approved
+  - heading: Consequências
+    level: 4
+    status: approved
+  - heading: Recomendação Fundamentada
+    level: 4
+    status: approved
+  - heading: Aberto a revisar?
+    level: 4
+    status: approved
+  - heading: Parte B — Open Questions (Q1–Q12)
+    level: 2
+    status: approved
+  - heading: Q1 — Extensibilidade de patterns customizados por projeto
+    level: 3
+    status: approved
+  - heading: Contexto
+    level: 4
+    status: approved
+  - heading: Explicação das Opções
+    level: 4
+    status: approved
+  - heading: Recomendação Fundamentada
+    level: 4
+    status: approved
+  - heading: Impacto no Bloco 1
+    level: 4
+    status: approved
+  - heading: Q2 — Como Claude skills distribuídas no Composer package instalam?
+    level: 3
+    status: approved
+  - heading: Contexto
+    level: 4
+    status: approved
+  - heading: Explicação das Opções
+    level: 4
+    status: approved
+  - heading: Recomendação Fundamentada
+    level: 4
+    status: approved
+  - heading: Impacto no Bloco 1
+    level: 4
+    status: approved
+  - heading: 'Q3 — AI rules: AGENTS.md vs per-tool files'
+    level: 3
+    status: approved
+  - heading: Contexto
+    level: 4
+    status: approved
+  - heading: Explicação das Opções
+    level: 4
+    status: approved
+  - heading: Recomendação Fundamentada
+    level: 4
+    status: approved
+  - heading: Impacto no Bloco 1
+    level: 4
+    status: approved
+  - heading: Q4 — Semver v0.x vs v1.0 threshold
+    level: 3
+    status: approved
+  - heading: Contexto
+    level: 4
+    status: approved
+  - heading: Explicação
+    level: 4
+    status: approved
+  - heading: Recomendação Fundamentada
+    level: 4
+    status: approved
+  - heading: Impacto no Bloco 1
+    level: 4
+    status: approved
+  - heading: Q5 — Claude plugin repo strategy
+    level: 3
+    status: approved
+  - heading: Contexto
+    level: 4
+    status: approved
+  - heading: Explicação das Opções
+    level: 4
+    status: approved
+  - heading: Recomendação Fundamentada
+    level: 4
+    status: approved
+  - heading: Impacto no Bloco 1
+    level: 4
+    status: approved
+  - heading: 'Q6 — Pattern presets: como consumidor seleciona?'
+    level: 3
+    status: approved
+  - heading: Contexto
+    level: 4
+    status: approved
+  - heading: Explicação
+    level: 4
+    status: approved
+  - heading: Recomendação Fundamentada
+    level: 4
+    status: approved
+  - heading: Impacto no Bloco 1
+    level: 4
+    status: approved
+  - heading: Q7 — Pint vs CS Fixer vs ECS
+    level: 3
+    status: approved
+  - heading: Contexto
+    level: 4
+    status: approved
+  - heading: Explicação
+    level: 4
+    status: approved
+  - heading: Recomendação Fundamentada
+    level: 4
+    status: approved
+  - heading: Impacto no Bloco 1
+    level: 4
+    status: approved
+  - heading: Q8 — CodeguardTestCommand progress output
+    level: 3
+    status: approved
+  - heading: Contexto
+    level: 4
+    status: approved
+  - heading: Explicação das Opções
+    level: 4
+    status: approved
+  - heading: Recomendação Fundamentada
+    level: 4
+    status: approved
+  - heading: Impacto no Bloco 1
+    level: 4
+    status: approved
+  - heading: Q9 — Windows compatibility
+    level: 3
+    status: approved
+  - heading: Contexto
+    level: 4
+    status: approved
+  - heading: Explicação
+    level: 4
+    status: approved
+  - heading: Recomendação Fundamentada
+    level: 4
+    status: approved
+  - heading: Impacto no Bloco 1
+    level: 4
+    status: approved
+  - heading: 'Q10 — README: pivot vs PHP novo'
+    level: 3
+    status: approved
+  - heading: Contexto
+    level: 4
+    status: approved
+  - heading: Explicação das Opções
+    level: 4
+    status: approved
+  - heading: Recomendação Fundamentada
+    level: 4
+    status: approved
+  - heading: Impacto no Bloco 1
+    level: 4
+    status: approved
+  - heading: Q11 — Changelog strategy
+    level: 3
+    status: approved
+  - heading: Contexto
+    level: 4
+    status: approved
+  - heading: Explicação
+    level: 4
+    status: approved
+  - heading: Recomendação Fundamentada
+    level: 4
+    status: approved
+  - heading: Impacto no Bloco 1
+    level: 4
+    status: approved
+  - heading: Q12 — Breaking changes entre v0 (npm) e v1 (Composer)
+    level: 3
+    status: approved
+  - heading: Contexto
+    level: 4
+    status: approved
+  - heading: Explicação
+    level: 4
+    status: approved
+  - heading: Recomendação Fundamentada
+    level: 4
+    status: approved
+  - heading: Impacto no Bloco 1
+    level: 4
+    status: approved
+  - heading: Parte C — Status para Bloco 1
+    level: 2
+    status: approved
+  - heading: Questões que bloqueiam Bloco 1
+    level: 3
+    status: approved
+  - heading: Questões com influência leve no Bloco 1
+    level: 3
+    status: approved
+  - heading: ADRs Relevantes para Bloco 1
+    level: 3
+    status: approved
+  - heading: Parte D — Perguntas para o Revisor
+    level: 2
+    status: approved
+  - heading: Apêndice — Referências
+    level: 2
+    status: approved
+annotations:
+  - id: c725259a
+    selectors:
+      position:
+        startLine: 318
+        startColumn: 1
+        endLine: 318
+        endColumn: 1
+      quote:
+        exact: Manter Minimal como default
+        prefix: ''
+        suffix: ''
+    comment: Pode até manter minimal com odefault, mas precias já exibir as oturas opçoes, senao corre o risco d isuuario nem saber ueq tem mais. achar uqe o minimo é tudo o qeu o codguard pode oferecer
+    tag: nitpick
+    status: resolved
+    author: anonymous
+    created_at: '2026-04-16T21:29:47.595Z'
+    updated_at: '2026-04-16T22:51:19.442Z'
+    replies:
+      - author: Henry Ávila
+        comment: 'Endereçado: ADR-006 reformulada para 2 presets com auto-detection de Node. Preset default agora chamado ''codeguard'' (inclui Deptrac+Infection+Lefthook — Meta 3 compliant). Install prompt mostra gates individuais com config time e CI cost. Discovery via `codeguard:install --preset=full` flag + README tabela comparativa. Ver architecture-decisions.md atualizada.'
+        created_at: '2026-04-16T22:51:19.441Z'
+  - id: ce729afa
+    selectors:
+      position:
+        startLine: 483
+        startColumn: 1
+        endLine: 484
+        endColumn: 1
+      quote:
+        exact: |+
+          Claude Code detecta skills em dois lugares:
+
+        prefix: ''
+        suffix: ''
+    comment: O lcoal e fomtao das skills od claude tem muitas pecuialilrdaes. deve sre feiata uma pesausis ampla sobre o assunto, apr evitar impletamcao errada
+    tag: nitpick
+    status: resolved
+    author: anonymous
+    created_at: '2026-04-16T21:32:14.989Z'
+    updated_at: '2026-04-16T22:51:19.442Z'
+    replies:
+      - author: Henry Ávila
+        comment: 'Endereçado: antes de implementar skill distribution (Fase 2), será feita pesquisa ampla em claude-skills-research.md cobrindo: formato SKILL.md frontmatter, locais válidos (~/.claude/skills vs .claude/skills vs plugin), mecanismo de descoberta, distinção plugin skill vs project skill, gotchas e best practices. Adicionado como pré-requisito para Fase 2 (não bloqueia Bloco 1).'
+        created_at: '2026-04-16T22:51:19.442Z'

@@ -23,6 +23,14 @@ type: project
 - 28 pattern YAMLs migram para `resources/patterns/` como data contract
 - Skills migram para `resources/skills/` (integradas via Composer install)
 
+**Clarificação (2026-04-16, pós discussão preset design)**:
+
+Escopo do "no Node.js":
+- ✅ **Package core** é 100% PHP (`henryavila/codeguard` não requer Node runtime para funcionar)
+- ✅ **Preset default (`codeguard`)** usa apenas tools PHP/binário: Pint + PHPStan + Deptrac + Infection + **Lefthook** (Go binary)
+- ⚠️ **Preset opt-in (`codeguard-full`)** referencia tools Node: jscpd. Justificativa: ecossistema PHP de CPD é fraco (phpcpd arquivado desde Dez/2020; phpmd CPD inferior). Node é requisito **documentado e opt-in**, auto-detectado pelo installer (projetos Laravel+Vue já têm Node).
+- ❌ Package core NÃO bundles node_modules, NÃO exige `node` no $PATH para rodar comandos base (`codeguard:install`, `codeguard:check`, `codeguard:test`, `codeguard:analyze`)
+
 ## ADR-002: 2 Packages, Não 3 (2026-04-16)
 
 **Decisão**: Shippar apenas 2 packages:
@@ -91,15 +99,88 @@ type: project
 - 12 AST-replaceable patterns delegar para phpat/pest-arch/PHPMD/Deptrac (reduzir redundância)
 - Keep pattern YAMLs como data contract em `resources/patterns/`
 
-## ADR-006: Default Preset = Minimal (2026-04-16)
+## ADR-006: 2 Presets com Auto-Detection + Install Híbrido (2026-04-16, revisado)
 
-**Decisão**: `codeguard:install` default = Minimal (Pint + PHPStan). Standard/Full behind opt-in flags.
+**Decisão**: Simplificar de 3 presets (Minimal/Standard/Full) para **2 presets** binários baseados em Node availability. Install é **híbrido** (stubs inteligentes + guided Deptrac + post-install report).
 
-**Razão**:
-- JetBrains State of PHP 2025: 42% devs usam zero tools; PHPStan 36%, Pint 30%, Rector 10%
-- Deptrac/Infection/jscpd abaixo do noise floor
-- "Full preset publica 12 arquivos root" foi critica justa
-- Adoption friction mata adoption
+### Presets Finais
+
+| Preset | Tools | Requer Node? | Auto-select quando |
+|--------|-------|:---:|-------------------|
+| **`codeguard`** (default) | Pint + PHPStan + Deptrac + Infection + Lefthook | ❌ | Projeto não tem `package.json` nem binário `node` |
+| **`codeguard-full`** | + jscpd + Insights + TestQualityTest | ✅ | Projeto tem `package.json` ou `node_modules/` |
+
+### Rationale da Simplificação
+
+Descartou-se preset "Starter/Minimal" (só Pint + PHPStan) porque:
+- **Persona inexistente**: "dev experimentando 30s" não é usuário real
+- **Meta 3 (dev terceirizado) exige Infection + Lefthook** — preset fraco não atende objetivo do projeto
+- **Falso conforto**: preset Minimal deixa dev achando que está protegido quando não está
+- **Progressive disclosure inútil**: tooling PHP não tem "níveis" comparáveis a PHPStan levels; ou você tem arch enforcement ou não tem
+
+### Auto-Detection do Installer
+
+```
+1. Existe node_modules/ OU package.json em base_path()?
+   → Pre-select: codeguard-full (high confidence)
+
+2. Existe binário `node` globalmente (which node)?
+   → Pre-select: codeguard (medium confidence — tem Node mas não usa no projeto)
+   → Hint: "node detected globally; use --preset=full to include jscpd"
+
+3. Nenhum dos dois
+   → Pre-select: codeguard (low/zero node presence)
+```
+
+### Install Híbrido (3 camadas)
+
+**Camada 1 — Stubs inteligentes** (7/8 gates):
+- Stubs com comentários inline explicando cada opção (dev aprende lendo)
+- Auto-preenchimento via inspeção de `composer.json` (PSR-4 autoload → infection source dirs)
+- Defaults sensatos (PHPStan level 5, Infection min-msi 60)
+
+**Camada 2 — Guided setup para Deptrac** (único gate que não funciona sem input):
+- Scan `app/*` namespaces via `symfony/finder`
+- Pattern matching heurístico para propor layers (Domain/Application/Persistence)
+- Usuário confirma, edita em `$EDITOR`, ou skip (gera depfile.yaml vazio)
+
+**Camada 3 — Post-install next-steps report**:
+- Lista cada gate instalado
+- Próxima ação concreta por gate (ex: "Deptrac → verify layers match architecture")
+- Link para docs
+
+### Override Flags
+
+```bash
+php artisan codeguard:install                    # auto-detect
+php artisan codeguard:install --preset=full      # force full
+php artisan codeguard:install --preset=default   # force PHP-only
+php artisan codeguard:install --no-interactive   # CI mode, use detection result
+php artisan codeguard:install --refresh-stubs    # update stubs without losing customizations
+```
+
+### Numbers Honestos (não inflados)
+
+| Gate | Config time real |
+|------|:---:|
+| Pint | 0 (Laravel preset) |
+| PHPStan | ~15min (ajustar level + excludePaths) |
+| Deptrac | ~30min (layers via guided suggestion + first analyse) |
+| Infection | ~20min (srcDir via auto-detect + baseline) |
+| Lefthook | ~10min (review stub) |
+| jscpd | ~5min |
+| Insights | 0 |
+| TestQualityTest | ~15min (allowlist ajustes) |
+| **Total `codeguard`** | **~1h 15min** |
+| **Total `codeguard-full`** | **~1h 45min** |
+
+### Anti-Patterns Rejeitados
+
+- ❌ Minimal default (deixa usuário achando que tá protegido)
+- ❌ 3 presets com progressão forçada (escolhas desnecessárias)
+- ❌ Wizard de 15 perguntas (repetitivo em multi-machine)
+- ❌ Stub dump cru sem explicação (frustra dev que não sabe por onde começar)
+- ❌ Estimativas inflacionadas (perde credibilidade)
 
 ## ADR-007: Dual-Track Development (Work-in-place + Extract-as-you-go) (2026-04-16)
 

@@ -1,71 +1,215 @@
 # CodeGuard
 
-> Laravel quality gates that survive your AI agent.
+> **Laravel quality gates that survive your AI agent.**
 
-**Status**: v1.0 in early development (post-pivot from Node.js to PHP/Composer)
+Consolidated install for Pint, PHPStan, Deptrac, Infection, and Lefthook — with AI review where AST can't reach, multi-database schema dump, and honest best-effort Claude hooks.
 
-CodeGuard is a Composer package providing unified quality gates for Laravel projects — test orchestration, pattern analysis, schema dump acceleration, and AI rules generation. Optional Claude plugin adds AI-time enforcement hooks.
+**Status**: v1.0 in active development. Installs and runs on Laravel 11/12 via `composer path repository` today. First Packagist tag (`1.0.0-alpha.1`) expected mid-2026-04.
 
-## Current Status (2026-04-16)
+---
 
-This repository recently pivoted from a Node.js/TypeScript npm package to a PHP/Composer package. See [pivot spec](docs/specs/2026-04-16-pivot-npm-to-composer.md) for rationale.
+## Why CodeGuard
 
-- **Legacy Node version**: `@henryavila/codeguard@0.1.1` remains on npm (branch `v0-npm-archive`, tag `v0-last-npm`)
-- **New PHP version**: under active development on `main` branch
-- **Not yet on Packagist** — coming in v1.0.0-alpha.1
+You have a Laravel project. You want:
+- **PHPStan** catching type bugs
+- **Deptrac** enforcing architecture boundaries
+- **Infection** detecting `assertTrue(true)` type tests written by a contractor who doesn't use AI
+- **Lefthook** blocking bad commits before they hit CI
+- The same setup replicated across **every project** you own
+- Easy upgrade path (`composer update`) to evolve the standard over time
 
-## Planned Features (v1.0)
+You don't want to hand-configure 7 tools in each project, drift between repos, or pretend your `assertTrue(true)` tests work.
 
-### Core (`henryavila/codeguard` Composer package)
-- `codeguard:install` — zero-config wizard (Pint + PHPStan default)
-- `codeguard:check` — unified quality gates orchestration (auto-detect tools)
-- `codeguard:test` — multi-stage test runner (Vitest + Pest + MongoDB + Browser)
-- `codeguard:prepare` — schema dump with hash caching (multi-DB: MySQL, PostgreSQL, SQLite `:memory:`, SQL Server fallback)
-- `codeguard:analyze` — pattern engine over code diff (28 curated patterns: core + PHP + Laravel)
-- `codeguard:baseline` — baseline management for incremental adoption
+CodeGuard is a Composer package that installs, configures, and runs these gates cohesively.
 
-### Testing Kit
-- `TestQualityAssertions` trait — detect tautological assertions, model mocking, bare assertNotNull
-- `ParallelSafetyAssertions` trait — detect truncate, forceDelete, DB queries in factories
-- Pest custom expectations: `expect()->quality()->noTautologicalAssertions()->noEloquentModelMocking()`
+---
 
-### AI Integration
-- Multi-tool AI rules generator (Claude, Cursor, Copilot, Windsurf, AGENTS.md)
-- Path-triggered rules (per-scope: services, models, controllers, tests)
-- Claude skills embedded (`codeguard-setup`, `codeguard-run`, `codeguard-health`)
-- Optional Claude plugin for AI-time config protection (best-effort nudges)
+## Quick Start
 
-### Stubs
-- PHPStan + Larastan config
-- Pint config
-- Deptrac template (opt-in)
-- Husky / Lefthook pre-commit hooks
-- GitHub Actions CI workflows
+```bash
+composer require --dev henryavila/codeguard
+php artisan codeguard:install
+```
 
-## Roadmap
+The installer auto-detects your environment, recommends a preset, shows you exactly what will be installed (with honest config-time estimates), asks Deptrac layer questions scanned from your `app/` directory, and sets up Lefthook hooks.
 
-- [ ] v1.0.0-alpha.1 — MVP extracted from [Arch](https://github.com/henryavila/arch) laboratory (~2 weeks)
-- [ ] v1.0.0-beta — validated in 2+ projects
-- [ ] v1.0.0 — stable on Packagist
-- [ ] v1.1 — pattern engine + baseline
-- [ ] v1.2 — Claude plugin `henryavila/codeguard-hooks`
-- [ ] v2.0 — companion packages (`codeguard-symfony`, `codeguard-filament`)
+```
+CodeGuard — Laravel quality gates installer
+
+Detecting environment...
+  PHP                   8.3.12
+  Composer              2.7.0
+  Node.js               20.10.0
+  package.json          found
+  Lefthook binary       available
+
+Recommended preset ... codeguard-full ⭐
+  • Project uses Node.js (package.json or node_modules detected).
+
+=== Gates to install ===
+  ✓ Pint             auto-format          config: 0         CI: ~5s
+  ✓ PHPStan          type safety          config: 15min     CI: ~30s
+  ✓ Deptrac          architecture         config: 30min     CI: ~15s
+  ✓ Infection        test quality         config: 20min     CI: +3min
+  ✓ Lefthook         pre-commit enforce   config: 10min     CI: 0
+  ✓ jscpd            duplication          config: 5min      CI: ~10s
+  ✓ Insights         metrics              config: 0         CI: ~20s
+  ✓ TestQualityTest  meta-quality         config: 15min     CI: ~5s
+
+  Estimated total config ......... 1h 35min
+
+Proceed with install? [yes]
+
+Publishing stubs...
+  pint.json                                 created
+  phpstan.neon                              created
+  deptrac.yaml                              created
+  infection.json5                           created
+  lefthook.yml                              created
+  .jscpd.json                               created
+  tests/Arch/TestQualityTest.php            created
+
+Deptrac layer detection
+  app/Domain         (34 files)  → Domain
+  app/Http           (12 files)  → Application
+  app/Services       (8 files)   → Application
+  app/Models         (15 files)  → Persistence
+  app/Infrastructure (4 files)   → Persistence
+
+  Layers: Domain, Application, Persistence
+  Rules:
+    Domain → (no dependencies allowed)
+    Application → Domain
+    Persistence → Domain
+
+  [Use suggested layers]
+
+  deptrac.yaml written with suggested layers
+
+Lefthook setup
+  lefthook install      installed (.git/hooks registered)
+
+Next steps:
+  PHPStan     Review level in phpstan.neon (currently 5).
+              → composer codeguard:check
+  Deptrac     Verify layers in deptrac.yaml.
+              → ./vendor/bin/deptrac analyse
+  ...
+```
+
+---
+
+## Presets
+
+Two presets, auto-selected by the installer based on Node.js presence in your project.
+
+| Preset | Tools | Requires Node? | Auto-selected when |
+|--------|-------|:---:|--------------------|
+| **`codeguard`** (default) | Pint + PHPStan + Deptrac + Infection + Lefthook | ❌ | No `package.json` or `node_modules/` |
+| **`codeguard-full`** | + jscpd + Insights + TestQualityTest | ✅ | `package.json` or `node_modules/` present |
+
+**Philosophy**: no "Minimal" starter preset that gives false comfort. Both presets enforce the gates you actually need for a team project. The only real decision axis is whether you already have Node.js (and you probably do if you're running Vite/Vue).
+
+**Override auto-selection**:
+
+```bash
+php artisan codeguard:install --preset=default      # force PHP-only
+php artisan codeguard:install --preset=full         # force Node-included
+php artisan codeguard:install --no-interactive      # CI mode
+php artisan codeguard:install --refresh-stubs       # update stubs (diff-aware)
+```
+
+---
+
+## Features
+
+### ✅ Available today (v1.0.0-alpha WIP)
+
+- **Guided hybrid install** — smart stubs with inline educational comments, auto-detection, Deptrac layer suggestion from your `app/` namespaces, Lefthook binary check and install
+- **Idempotent re-run** — `--refresh-stubs` diffs existing files and lets you `keep`, `overwrite`, or review full diff before choosing. No silent customization loss.
+- **Auto-detect Node** — installer picks the right preset for your project without asking
+- **Honest estimates** — per-gate config time and CI cost shown before you commit
+
+### 🚧 Coming in v1.0 stable
+
+- `codeguard:check` — run all enabled gates sequentially with fail-fast and consolidated report
+- `codeguard:test` — multi-stage test runner (Vitest + Pest + Browser + MongoDB stages heterogeneous)
+- `codeguard:prepare` — multi-database schema dump (MySQL, PostgreSQL, SQLite `:memory:`, SQL Server PDO fallback, Windows without `sqlite3` CLI)
+- `TestQualityAssertions` + `ParallelSafetyAssertions` traits + Pest custom expectations
+- `codeguard:analyze` — pattern engine (28 curated YAMLs) with LLM adjudicator for where AST can't reach
+
+### 🔮 Future
+
+- `henryavila/codeguard-hooks` — Claude plugin for best-effort config-protection nudges (separate repo, install via `/plugin install`)
+- Companion packages (`codeguard-symfony`, `codeguard-python`) if demand surfaces
+
+---
 
 ## Philosophy
 
-> Core is YAML contracts; implementations are native to each language.
+**Laravel-first, not language-agnostic.** We tried the "agnostic core" approach in v0.x (npm package). The core was a thin shell with 90% of real value being Laravel-specific. [Pivot rationale](docs/specs/2026-04-16-pivot-npm-to-composer.md).
 
-CodeGuard explicitly avoids the "language-agnostic core" trap (MegaLinter owns that space). Instead, each language ecosystem gets a native package sharing pattern definitions as data contracts.
+**Best-effort Claude hooks, not hard enforcement.** Claude Code has [documented bypasses](https://github.com/anthropics/claude-code/issues/40117) for Edit/Write matchers (via Bash, MCP tools, `git commit --no-verify`). We do not claim what we cannot deliver. Hooks reduce friction for honest mistakes. **CI is the real gate.**
 
-**Target persona**: Laravel developers with ≥3 quality configs, AI-assisted codebase, multi-DB stacks, and one-or-more contracted developers on PRs.
+**Honest estimates, not marketing numbers.** When you see "config: 30min" for Deptrac, that's calibrated to real projects, not "2-4 hours" inflated to sound cautious.
 
-**Not for**: Single-file APIs that just need `laravel/pint`. Use Pint directly.
+**PHP-native core, Node opt-in.** The package itself requires zero Node runtime. The `codeguard-full` preset references `jscpd` (Node) because no PHP CPD tool currently matches its quality — we document the requirement instead of hiding it.
+
+---
+
+## Stack Requirements
+
+- PHP **8.3+**
+- Laravel **11** or **12**
+- Pest **3** or **4** (dev only)
+- Composer **2.x**
+
+Optional:
+- Node.js **18+** (only if using `codeguard-full` preset)
+- Lefthook binary (installer suggests install commands if missing)
+
+---
+
+## Architecture
+
+CodeGuard is a thin layer over best-in-class standalone tools, not a replacement:
+
+```
+Your Laravel project
+     │
+     ▼
+codeguard:install      ◄── guided setup (this package)
+     │
+     ├─► pint.json              ──► laravel/pint (format)
+     ├─► phpstan.neon           ──► phpstan/phpstan (type safety)
+     ├─► deptrac.yaml           ──► qossmic/deptrac (architecture)
+     ├─► infection.json5        ──► infection/infection (test quality)
+     ├─► lefthook.yml           ──► lefthook binary (pre-commit)
+     ├─► .jscpd.json            ──► jscpd (duplication, Full only)
+     ├─► tests/Arch/*.php       ──► Pest architecture tests
+     └─► config/codeguard.php   ──► Artisan orchestrator (codeguard:check, :test)
+```
+
+---
 
 ## Documentation
 
-- [Architecture Design (v4)](docs/specs/2026-04-16-codeguard-v2-architecture.md) — full design with 10 agent reviews
-- [Pivot Spec (Node → PHP)](docs/specs/2026-04-16-pivot-npm-to-composer.md) — why the pivot
-- [Legacy npm README](docs/legacy/npm-v0-README.md) — preserved for reference
+- [Architecture spec v5](docs/specs/2026-04-16-codeguard-v2-architecture.md) — canonical design, ADRs, roadmap
+- [Pivot rationale (Node → PHP)](docs/specs/2026-04-16-pivot-npm-to-composer.md) — why the rewrite
+- [Legacy npm package](docs/legacy/npm-v0-README.md) — `@henryavila/codeguard@0.1.1` reference
+
+## Migrating from npm v0.x?
+
+v1.0 is a **complete rewrite** from Node to PHP/Composer. No programmatic migration path.
+
+- **If you use PHP/Laravel**: install v1.0 fresh and re-configure via `php artisan codeguard:install`.
+- **If you use Node**: continue with `@henryavila/codeguard@0.1.1` on npm (no further updates planned).
+
+---
+
+## Contributing
+
+Currently in closed active development by [@henryavila](https://github.com/henryavila). Open issues welcome for questions and design feedback. PRs accepted once v1.0.0-alpha.1 is tagged.
 
 ## License
 
