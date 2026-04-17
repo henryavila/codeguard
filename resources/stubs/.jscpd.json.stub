@@ -1,0 +1,38 @@
+{
+    "// ABOUT": "jscpd — copy/paste detector for 150+ languages",
+    "// Docs": "https://github.com/kucherenko/jscpd",
+    "// Why": "Code duplication is a leading indicator of missing abstractions. Tracking duplication catches copy-paste debt before it compounds.",
+
+    "// threshold": "Maximum ALLOWED duplication as a percentage of total code. jscpd exits non-zero if duplication exceeds this value. 3% is a strict-but-achievable bar for a healthy codebase. Raise to 5-10% for legacy projects while refactoring.",
+    "threshold": 3,
+
+    "// reporters": "How results are rendered. - console: human-readable summary in CI logs - html: interactive report at ./report/jscpd/jscpd-report.html. Other options: json, xml, csv, threshold, verbose, silent",
+    "reporters": ["console", "html"],
+
+    "// ignore": "Glob patterns excluded from scanning. - vendor/node_modules: third-party code, not your responsibility - storage/bootstrap/cache: Laravel-generated artifacts - tests: test fixtures/arrange blocks legitimately repeat; flagging them produces mostly noise. Exclude unless you actively refactor test duplication via pest datasets or helpers.",
+    "ignore": [
+        "**/vendor/**",
+        "**/node_modules/**",
+        "**/storage/**",
+        "**/bootstrap/cache/**",
+        "**/tests/**"
+    ],
+
+    "// min-lines": "Minimum consecutive lines to count as a clone. Below 5 lines, matches are usually trivial (imports, getters).",
+    "min-lines": 5,
+
+    "// min-tokens": "Minimum lexical tokens in a clone. Tokens are language-aware units (keywords, identifiers, operators). 50 tokens ~= a small method body. Lower values catch more but noisier.",
+    "min-tokens": 50,
+
+    "// format": "Languages/file types to scan. php + blade covers the Laravel backend; js/ts/vue covers frontend. Add 'css', 'scss', 'json' as needed.",
+    "format": ["php", "blade", "javascript", "typescript", "vue"],
+
+    "// absolute": "Use absolute paths in reports (easier to click in IDE).",
+    "absolute": true,
+
+    "// gitignore": "Respect .gitignore patterns in addition to `ignore` above.",
+    "gitignore": true,
+
+    "// output": "Directory for generated reports (HTML, JSON, etc.).",
+    "output": "./storage/jscpd-report"
+}

@@ -1,0 +1,49 @@
+{
+    "_comment": "Laravel Pint config for CodeGuard. Pint is an opinionated PHP-CS-Fixer wrapper. JSON does not support inline comments, so read this _comment block and the Pint docs at https://laravel.com/docs/11.x/pint to learn each rule. Run: vendor/bin/pint (fix) or vendor/bin/pint --test (CI-safe check).",
+    "_docs": {
+        "pint": "https://laravel.com/docs/11.x/pint",
+        "php-cs-fixer-rules": "https://cs.symfony.com/doc/rules/index.html",
+        "presets": "laravel | psr12 | symfony | per | per-cs — 'laravel' follows Taylor's style conventions"
+    },
+    "preset": "laravel",
+    "exclude": [
+        "bootstrap",
+        "storage",
+        "vendor"
+    ],
+    "rules": {
+        "_rule_docs": {
+            "declare_strict_types": "Adds `declare(strict_types=1);` at top of every PHP file — catches silent type coercion bugs",
+            "strict_comparison": "Forces === and !== instead of == and != — avoids JS-style truthy surprises",
+            "strict_param": "Replaces loose params like in_array($x, $y) with in_array($x, $y, true) — prevents type juggling",
+            "ordered_imports": "Sorts `use` statements alphabetically — reduces merge conflicts",
+            "no_unused_imports": "Strips unused `use` statements — keeps file head clean",
+            "no_superfluous_phpdoc_tags": "Removes @param/@return docs that duplicate native types — signal over noise",
+            "single_quote": "Prefers 'single quotes' when no interpolation is needed — marginal perf + convention",
+            "concat_space": "Forces `'a' . 'b'` with spaces around the dot — readability",
+            "array_syntax": "Enforces `[]` over `array()` — modern PHP 5.4+ syntax",
+            "method_argument_space": "Normalizes spacing in multi-line method signatures"
+        },
+        "declare_strict_types": true,
+        "strict_comparison": true,
+        "strict_param": true,
+        "ordered_imports": {
+            "sort_algorithm": "alpha"
+        },
+        "no_unused_imports": true,
+        "no_superfluous_phpdoc_tags": {
+            "allow_mixed": true,
+            "remove_inheritdoc": false
+        },
+        "single_quote": true,
+        "concat_space": {
+            "spacing": "one"
+        },
+        "array_syntax": {
+            "syntax": "short"
+        },
+        "method_argument_space": {
+            "on_multiline": "ensure_fully_multiline"
+        }
+    }
+}

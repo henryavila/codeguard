@@ -1,0 +1,94 @@
+# ==============================================================================
+# Deptrac configuration for CodeGuard
+# ------------------------------------------------------------------------------
+# Deptrac enforces architectural boundaries: "Domain must never depend on
+# Persistence", "Controllers cannot bypass Application services", etc. It
+# detects ruleset violations at static-analysis time, before they ship.
+#
+# Core concepts (read in this order):
+#   - Layers      : named buckets of classes (Domain, Application, ...)
+#   - Collectors  : rules that decide which classes go in which layer
+#                   (by regex, namespace, class name, interface, attribute)
+#   - Ruleset     : which layers are ALLOWED to depend on which other layers.
+#                   Anything NOT listed = forbidden = violation.
+#
+# Docs: https://deptrac.github.io/deptrac/latest/
+# Collectors reference: https://deptrac.github.io/deptrac/latest/collectors/
+# Run: vendor/bin/deptrac analyse
+# ==============================================================================
+
+deptrac:
+    # Paths Deptrac scans for PHP classes.
+    paths:
+        - ./app
+
+    # Files excluded from analysis. PCRE regex delimited by '#'.
+    # '#.*test.*#i' = case-insensitive match on any path containing "test".
+    exclude_files:
+        - '#.*test.*#i'
+
+    # --------------------------------------------------------------------------
+    # LAYERS — define architectural buckets.
+    # Each layer uses `collectors` to match classes by namespace regex.
+    # The `classLike` collector matches class / interface / trait full names.
+    # --------------------------------------------------------------------------
+    layers:
+        # Domain = pure business logic. Entities, Value Objects, domain services.
+        # No framework, no DB, no HTTP. This is the innermost ring of the onion.
+        - name: Domain
+          collectors:
+              - type: classLike
+                value: ^App\\(Domain|Models)\\.*
+
+        # Application = orchestration layer. Use-cases, application services,
+        # controllers, console commands. It talks to Domain and Persistence.
+        - name: Application
+          collectors:
+              - type: classLike
+                value: ^App\\(Services|Http|Console)\\.*
+
+        # Persistence = infrastructure adapters. Repositories, DB access,
+        # external API clients. Implements interfaces defined in Domain.
+        - name: Persistence
+          collectors:
+              - type: classLike
+                value: ^App\\Infrastructure\\.*
+
+    # --------------------------------------------------------------------------
+    # RULESET — allowed dependencies between layers.
+    # Syntax: <LayerName>: [<allowed dependency>, ...]
+    # '~' (tilde) = null = "this layer may depend on NOTHING in our ruleset".
+    # Any dependency not listed here triggers a violation.
+    # --------------------------------------------------------------------------
+    ruleset:
+        # Domain is sacred — zero outbound dependencies on our other layers.
+        # (It can still use vendor code, PHP stdlib, etc. — Deptrac only
+        #  enforces rules between layers you define here.)
+        Domain: ~
+
+        # Application orchestrates Domain. It must not reach into Persistence
+        # directly; instead it depends on Domain interfaces that Persistence
+        # implements (dependency inversion principle).
+        Application:
+            - Domain
+
+        # Persistence implements Domain contracts. It knows about Domain
+        # types, but Domain must never know about Persistence.
+        Persistence:
+            - Domain
+
+    # --------------------------------------------------------------------------
+    # Optional: baseline to grandfather existing violations during adoption.
+    # Generate with: vendor/bin/deptrac analyse --formatter=baseline
+    # --------------------------------------------------------------------------
+    # baseline_file: deptrac-baseline.yaml
+
+    # --------------------------------------------------------------------------
+    # Optional: formatters control report output. Default is console table.
+    # Uncomment for CI-friendly output:
+    # formatters:
+    #     github-actions:
+    #         report_uncovered: true
+    #     json:
+    #         dump_file: ./deptrac-report.json
+    # --------------------------------------------------------------------------

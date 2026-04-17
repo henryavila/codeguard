@@ -1,0 +1,71 @@
+<?php
+
+declare(strict_types=1);
+
+/*
+|--------------------------------------------------------------------------
+| Test Quality — Architecture Tests
+|--------------------------------------------------------------------------
+|
+| These Pest tests enforce quality invariants ACROSS your entire test suite.
+| They catch anti-patterns that silently erode test value:
+|
+|   - tautological assertions (assertions that can never fail)
+|   - mocking Eloquent models (brittle, couples tests to ORM internals)
+|   - `assertNotNull` without a follow-up assertion (low signal)
+|   - `truncate()` / `forceDelete()` in tests (breaks parallel test execution)
+|   - DB queries inside Factory::definition() (runs on every factory call)
+|   - `->create()` chained inside factory definitions (same issue, eager)
+|
+| HOW TO RUN:
+|   ./vendor/bin/pest --testsuite=Arch
+|
+| Each assertion accepts an `allowlist: []` of fully-qualified class or file
+| paths. Use this ESCAPE HATCH sparingly — document WHY each entry is there.
+|
+| Docs: https://github.com/henryavila/codeguard
+|
+*/
+
+use Henryavila\Codeguard\Assertions\ParallelSafetyAssertions;
+use Henryavila\Codeguard\Assertions\TestQualityAssertions;
+
+uses(TestQualityAssertions::class, ParallelSafetyAssertions::class)->in('Arch');
+
+it('has no tautological assertions', function (): void {
+    // Flags patterns like `expect(true)->toBeTrue()` that always pass.
+    $this->assertNoTautologicalAssertions(allowlist: []);
+});
+
+it('does not mock Eloquent models', function (): void {
+    // Mocking Eloquent couples tests to internals. Prefer factories + in-memory SQLite.
+    $this->assertNoEloquentModelMocking(allowlist: []);
+});
+
+it('has no bare assertNotNull calls', function (): void {
+    // `assertNotNull($user)` alone is weak — always follow with a behavioural assertion.
+    $this->assertNoBareAssertNotNull(allowlist: []);
+});
+
+it('does not truncate tables in tests', function (): void {
+    // `DB::table(...)->truncate()` breaks parallel test isolation.
+    // Use RefreshDatabase or DatabaseTransactions instead.
+    $this->assertNoTruncateInTests(allowlist: []);
+});
+
+it('does not forceDelete in tests', function (): void {
+    // forceDelete() bypasses soft-delete semantics and leaks state across workers.
+    $this->assertNoForceDeleteInTests(allowlist: []);
+});
+
+it('has no DB queries inside factory definitions', function (): void {
+    // Factory::definition() runs on EVERY ->make() / ->create() call.
+    // DB queries inside it cause N+1 explosions in test setup.
+    $this->assertNoDbQueriesInFactoryDefinition(allowlist: []);
+});
+
+it('has no eager create() inside factory definitions', function (): void {
+    // `'user_id' => User::factory()->create()->id` eagerly creates users.
+    // Use `User::factory()` (lazy) — Laravel resolves it during persistence.
+    $this->assertNoEagerCreateInFactoryDefinition(allowlist: []);
+});

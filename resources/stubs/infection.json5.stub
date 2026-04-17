@@ -1,0 +1,64 @@
+// Infection — PHP mutation testing framework
+// Docs: https://infection.github.io/guide/
+//
+// WHAT IS MUTATION TESTING?
+// Infection introduces small changes ("mutants") into your source code
+// (e.g. flipping `>` to `>=`, removing a method call) and then re-runs
+// your test suite. If your tests still pass with the mutated code, it
+// means your tests are NOT actually exercising that logic — a "survived"
+// mutant indicates a gap in your test quality.
+//
+// MSI = Mutation Score Indicator = percentage of mutants KILLED by tests.
+// High MSI means your tests genuinely verify behavior (not just coverage).
+{
+    "$schema": "vendor/infection/infection/resources/schema.json",
+
+    // Source code to mutate. Keep this narrow — mutation testing is O(mutants × tests).
+    "source": {
+        "directories": ["app"],
+
+        // Excluded paths — these are typically framework glue or bootstrapping
+        // where mutation testing yields little signal and much noise.
+        //   - Console: Artisan command scaffolding, often thin wrappers
+        //   - Exceptions: handler classes, mostly framework-driven
+        //   - Providers: service providers, mostly container wiring
+        "excludes": ["Console", "Exceptions", "Providers"]
+    },
+
+    // Per-test timeout in seconds. If a mutant causes an infinite loop,
+    // Infection kills the process after this many seconds and marks it killed.
+    // Raise this for slow test suites; lower it to catch runaway mutants faster.
+    "timeout": 10,
+
+    // Mutators — rules for generating mutants.
+    // "@default" is a curated profile of ~50 safe, high-signal mutators.
+    // Alternatively you can enable/disable individual ones, e.g.
+    //   "TrueValue": true, "FalseValue": false, "PublicVisibility": { ... }
+    // See: https://infection.github.io/guide/mutators.html
+    "mutators": {
+        "@default": true
+    },
+
+    // Quality thresholds — Infection exits non-zero if MSI falls below these.
+    // minMsi: mutation score across ALL mutants (including uncovered code).
+    // minCoveredMsi: mutation score only for mutants in CODE-COVERED lines.
+    // Aim for 70+ on minCoveredMsi for serious projects.
+    "minMsi": 60,
+    "minCoveredMsi": 70,
+
+    // Test framework integration. Pest uses PHPUnit under the hood, so "pest" works.
+    "testFramework": "pest",
+
+    // Only run the Unit suite during mutation testing — Feature/Integration tests
+    // are too slow to run N times (once per mutant). Mutation testing gives
+    // highest ROI on pure Unit tests anyway.
+    "testFrameworkOptions": "--testsuite=Unit",
+
+    // Reports — written under storage/ so they are already .gitignored by Laravel.
+    // Inspect the HTML report to see which specific mutants survived and where.
+    "logs": {
+        "text": "storage/infection/infection.log",
+        "html": "storage/infection/infection.html",
+        "summary": "storage/infection/summary.log"
+    }
+}
