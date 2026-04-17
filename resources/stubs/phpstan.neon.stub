@@ -8,14 +8,26 @@
 # ==============================================================================
 
 includes:
-    # Larastan adds Laravel-specific rules (Eloquent relation types, facade
-    # resolution, view/config helpers). Uncomment after
-    # `composer require --dev larastan/larastan`. Without it, Laravel "magic"
-    # appears as "mixed" everywhere and PHPStan misses real issues.
-    # - vendor/larastan/larastan/extension.neon
+    - vendor/larastan/larastan/extension.neon  # @codeguard:ext=larastan
 
-    # Baseline file — snapshot of CURRENT errors so you can bump the level
-    # without fixing everything at once. Generate with:
+    # PHPStan-PHPUnit — required for Pest (runs on top of PHPUnit)
+    - vendor/phpstan/phpstan-phpunit/extension.neon  # @codeguard:ext=phpunit
+    - vendor/phpstan/phpstan-phpunit/rules.neon  # @codeguard:ext=phpunit
+
+    # Cognitive complexity — Sonar-style metric measuring reader mental overhead
+    - vendor/tomasvotruba/cognitive-complexity/config/extension.neon  # @codeguard:ext=cognitive-complexity
+
+    # Dead code detector — unused methods/constants/properties with Laravel awareness
+    - vendor/shipmonk/dead-code-detector/rules.neon  # @codeguard:ext=dead-code
+
+    # Disallowed calls — bans dd(), var_dump(), etc. in production code
+    - vendor/spaze/phpstan-disallowed-calls/extension.neon  # @codeguard:ext=disallowed-calls
+
+    # CodeGuard test-quality kit — bans Laravel testing anti-patterns
+    - phpstan-test-quality.neon  # @codeguard:ext=test-quality
+
+    # Baseline — snapshot of CURRENT errors so you can bump level without fixing
+    # everything at once. Generate with:
     #   vendor/bin/phpstan analyse --generate-baseline
     # Commit phpstan-baseline.neon and fix entries incrementally.
     # - phpstan-baseline.neon
@@ -25,50 +37,106 @@ parameters:
     # Rule level: 0 (loose) to 10 (max strict).
     # Reference: https://phpstan.org/user-guide/rule-levels
     #   0  — basic checks, unknown classes/functions
-    #   1  — undefined variables, unknown magic methods
-    #   2  — unknown methods on all expressions (not just $this)
     #   3  — return types, property assignment types
-    #   4  — dead code (always-true conditions, unreachable branches)
     #   5  — argument types passed to methods    <-- CodeGuard default
-    #   6  — missing typehints
-    #   7  — partially wrong union types
     #   8  — calling methods / accessing properties on nullable types
-    #   9  — strict mixed (narrow before use)
     #   10 — every type must be explicit (nothing implicit)
     # Tip: raise gradually. Each bump uncovers real bugs you can fix in a PR.
     # --------------------------------------------------------------------------
     level: 5
 
-    # Paths to analyze. Keep narrow — bigger = slower.
     paths:
         - app
-        - config
         - database
         - routes
         # Add `tests` once your test suite is PHPStan-clean.
 
-    # Paths to skip entirely. Use `analyseAndScan` (not `analyse`) so PHPStan
-    # still knows these classes exist but won't report errors inside them.
     excludePaths:
-        analyseAndScan: []
+        analyseAndScan:
+            - storage
+            - bootstrap/cache
+            # Add project-specific exclusions below:
             # - app/Legacy/*
-            # - database/migrations/2019_*.php
 
-    # PHPDoc types can lie (they're comments, not enforced). Setting this to
-    # FALSE makes PHPStan verify the code actually matches the docblock,
-    # catching stale @var/@return tags after refactors. Highly recommended.
-    treatPhpDocTypesAsCertain: false
+    # Infer private property types from the constructor when not explicitly
+    # annotated. Safe, zero behavior change, improves inference precision.
+    inferPrivatePropertyTypeFromConstructor: true
+
+    # Enforce class-name casing (Foo vs foo). Catches bugs on case-sensitive
+    # filesystems (Linux CI + macOS dev). Laravel/Composer autoload is
+    # case-sensitive on Linux — this prevents environment-specific breakage.
+    checkClassCaseSensitivity: true
 
     # Larastan-only option: inspects Eloquent $fillable/$casts/migrations to
-    # type model properties. Only takes effect when the larastan extension is
-    # loaded (see `includes` above). Safe to leave true even without larastan.
+    # type model properties. No-op without larastan, harmless to leave on.
     checkModelProperties: true
 
     # Report unused @phpstan-ignore comments (ignore markers with no matching
     # error below them). Keeps the ignore list honest as code evolves.
     reportUnmatchedIgnoredErrors: true
 
-    # ignoreErrors lets you silence specific patterns. Prefer the baseline
-    # approach over this list when possible — baselines are auto-managed.
+    # ignoreErrors lets you silence specific patterns. Prefer baseline over
+    # this list when possible — baselines are auto-managed.
     ignoreErrors: []
-        # - '#Call to an undefined method .+::scope[A-Z].+#'
+
+    # --------------------------------------------------------------------------
+    # Cognitive Complexity thresholds (Laravel-calibrated defaults)
+    # --------------------------------------------------------------------------
+    # @codeguard:ext=cognitive-complexity:params:start
+    cognitive_complexity:
+        class: 50       # typical Laravel controller+service range
+        function: 15    # individual method reasonable upper bound
+    # @codeguard:ext=cognitive-complexity:params:end
+
+    # --------------------------------------------------------------------------
+    # Dead Code Detector — Laravel usage providers ENABLED
+    # Without these, Laravel DI magic (ServiceProviders, route bindings, event
+    # subscribers, policies, etc.) produces massive false positives.
+    # --------------------------------------------------------------------------
+    # @codeguard:ext=dead-code:params:start
+    shipmonkDeadCode:
+        usageProviders:
+            laravel:
+                enabled: true
+            eloquent:
+                enabled: true
+        detect:
+            deadMethods: true
+            deadConstants: true
+            deadEnumCases: true
+            deadProperties:
+                neverRead: true
+                neverWritten: true
+    # @codeguard:ext=dead-code:params:end
+
+    # --------------------------------------------------------------------------
+    # Disallowed Function/Method Calls — Laravel production anti-patterns
+    # --------------------------------------------------------------------------
+    # @codeguard:ext=disallowed-calls:params:start
+    disallowedFunctionCalls:
+        -
+            function: 'dd()'
+            message: 'Use logger() or proper debugging. dd() crashes production.'
+        -
+            function: 'dump()'
+            message: 'Not for production — use logger()->debug() or xdebug.'
+        -
+            function: 'var_dump()'
+            message: 'Use logger() — var_dump() leaks to stdout in production.'
+        -
+            function: 'print_r()'
+            message: 'Use logger() — print_r() leaks to stdout.'
+        -
+            function: 'die()'
+            message: 'Throw an exception instead — die() bypasses error handlers.'
+        -
+            function: 'exit()'
+            message: 'Throw an exception instead — exit() bypasses error handlers.'
+
+    disallowedStaticCalls:
+        -
+            method: 'Illuminate\Support\Env::get()'
+            message: 'env() is only valid inside config/ files (cached in production). Use config() elsewhere.'
+            allowIn:
+                - config/*
+    # @codeguard:ext=disallowed-calls:params:end

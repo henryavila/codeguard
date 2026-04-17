@@ -16,6 +16,10 @@ use Henryavila\Codeguard\Install\LefthookInstallResult;
 use Henryavila\Codeguard\Install\LefthookInstallStatus;
 use Henryavila\Codeguard\Install\LefthookInstaller;
 use Henryavila\Codeguard\Install\NextStepsReporter;
+use Henryavila\Codeguard\Install\PhpstanExtension;
+use Henryavila\Codeguard\Install\PhpstanExtensionApplier;
+use Henryavila\Codeguard\Install\PhpstanExtensionSelector;
+use Henryavila\Codeguard\Install\PhpstanExtensionStore;
 use Henryavila\Codeguard\Install\PresetSelector;
 use Henryavila\Codeguard\Install\StubPublisher;
 use Henryavila\Codeguard\Install\StubPublishResult;
@@ -47,6 +51,9 @@ final class CodeguardInstallCommand extends Command
         DeptracLayerWizard $deptracWizard,
         LayerDecisionStore $layerDecisionStore,
         LefthookInstaller $lefthookInstaller,
+        PhpstanExtensionSelector $phpstanExtSelector,
+        PhpstanExtensionStore $phpstanExtStore,
+        PhpstanExtensionApplier $phpstanExtApplier,
         NextStepsReporter $reporter,
         Filesystem $filesystem,
     ): int {
@@ -91,6 +98,13 @@ final class CodeguardInstallCommand extends Command
 
             return self::FAILURE;
         }
+
+        $this->applyPhpstanExtensionChoice(
+            phpstanExtSelector: $phpstanExtSelector,
+            phpstanExtStore: $phpstanExtStore,
+            phpstanExtApplier: $phpstanExtApplier,
+            interactive: $interactive,
+        );
 
         $this->maybeSuggestDeptracLayers(
             $preset,
@@ -259,6 +273,41 @@ final class CodeguardInstallCommand extends Command
         }
 
         return false;
+    }
+
+    private function applyPhpstanExtensionChoice(
+        PhpstanExtensionSelector $phpstanExtSelector,
+        PhpstanExtensionStore $phpstanExtStore,
+        PhpstanExtensionApplier $phpstanExtApplier,
+        bool $interactive,
+    ): void {
+        $phpstanPath = $this->laravel->basePath('phpstan.neon');
+
+        if (! file_exists($phpstanPath)) {
+            return;
+        }
+
+        $this->line('');
+        $this->components->info('PHPStan extensions');
+
+        $saved = $phpstanExtStore->load();
+
+        $selected = $interactive
+            ? $phpstanExtSelector->prompt($saved === [] ? PhpstanExtension::defaultEnabled() : $saved)
+            : $phpstanExtSelector->autoResolve($saved);
+
+        $phpstanExtApplier->apply($phpstanPath, $selected);
+        $phpstanExtStore->save($selected);
+
+        $activeNames = array_map(
+            static fn (PhpstanExtension $ext): string => $ext->displayName(),
+            $selected,
+        );
+
+        $this->components->twoColumnDetail(
+            'phpstan.neon extensions active',
+            '<fg=green>'.implode(', ', $activeNames).'</>',
+        );
     }
 
     private function maybeSuggestDeptracLayers(

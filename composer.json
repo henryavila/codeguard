@@ -31,14 +31,19 @@
         "symfony/process": "^7.0|^8.0",
         "symfony/yaml": "^7.0|^8.0",
         "symfony/finder": "^7.0|^8.0",
-        "sebastian/diff": "^5.1|^6.0|^7.0"
+        "sebastian/diff": "^5.1|^6.0|^7.0",
+        "phpstan/phpstan": "^1.11|^2.0",
+        "larastan/larastan": "^2.11|^3.0",
+        "phpstan/phpstan-phpunit": "^1.4|^2.0",
+        "tomasvotruba/cognitive-complexity": "^0.2|^1.0",
+        "shipmonk/dead-code-detector": "^0.13|^0.15",
+        "spaze/phpstan-disallowed-calls": "^3.0|^4.0"
     },
     "require-dev": {
         "orchestra/testbench": "^9.0|^10.0",
         "pestphp/pest": "^3.0|^4.0",
         "pestphp/pest-plugin-laravel": "^3.0|^4.0",
-        "laravel/pint": "^1.15",
-        "phpstan/phpstan": "^1.11"
+        "laravel/pint": "^1.15"
     },
     "autoload": {
         "psr-4": {

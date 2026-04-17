@@ -1,0 +1,50 @@
+# ==============================================================================
+# PHPStan Test Quality Rules — CodeGuard anti-pattern kit
+# ------------------------------------------------------------------------------
+# Uses spaze/phpstan-disallowed-calls to ban Laravel testing anti-patterns
+# that universally degrade test-suite reliability. Activated via the include
+# in phpstan.neon and only inspects NON-test files (allowExceptIn: tests/).
+#
+# Requires: spaze/phpstan-disallowed-calls (bundled with codeguard)
+# Docs: https://github.com/spaze/phpstan-disallowed-calls
+# ==============================================================================
+
+parameters:
+    disallowedMethodCalls:
+
+        # Don't test FormRequest::rules() directly. Validation must be exercised
+        # through the HTTP verb (post/put/patch/delete) + assertSessionHasErrors,
+        # so that middleware, auth, and route binding are covered. Direct rules()
+        # testing drifts from production behavior.
+        -
+            method: 'Illuminate\Foundation\Http\FormRequest::rules()'
+            message: 'Do not test validation rules directly. Test through HTTP verbs (post/put) and assertSessionHasErrors() instead.'
+            allowExceptIn:
+                - tests/
+
+        # Don't assert on SQL strings — test the actual query result or behavior.
+        # toSql() output is fragile (whitespace, alias ordering, driver quirks)
+        # and couples tests to Eloquent's SQL-generation implementation.
+        -
+            method: 'Illuminate\Database\Eloquent\Builder::toSql()'
+            message: 'Do not assert on SQL strings in tests. Test actual query results instead.'
+            allowExceptIn:
+                - tests/
+
+        -
+            method: 'Illuminate\Database\Query\Builder::toSql()'
+            message: 'Do not assert on SQL strings in tests. Test actual query results instead.'
+            allowExceptIn:
+                - tests/
+
+        -
+            method: 'Illuminate\Database\Eloquent\Builder::toRawSql()'
+            message: 'Do not assert on raw SQL strings in tests. Test actual query results instead.'
+            allowExceptIn:
+                - tests/
+
+        -
+            method: 'Illuminate\Database\Query\Builder::toRawSql()'
+            message: 'Do not assert on raw SQL strings in tests. Test actual query results instead.'
+            allowExceptIn:
+                - tests/

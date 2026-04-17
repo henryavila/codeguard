@@ -12,6 +12,9 @@ use Henryavila\Codeguard\Install\GatePlanRegistry;
 use Henryavila\Codeguard\Install\LayerDecisionStore;
 use Henryavila\Codeguard\Install\LefthookInstaller;
 use Henryavila\Codeguard\Install\NextStepsReporter;
+use Henryavila\Codeguard\Install\PhpstanExtensionApplier;
+use Henryavila\Codeguard\Install\PhpstanExtensionSelector;
+use Henryavila\Codeguard\Install\PhpstanExtensionStore;
 use Henryavila\Codeguard\Install\PresetSelector;
 use Henryavila\Codeguard\Install\StubDiffer;
 use Henryavila\Codeguard\Install\StubPublisher;
@@ -77,6 +80,25 @@ final class CodeguardServiceProvider extends ServiceProvider
 
         $this->app->singleton(LefthookInstaller::class, function (Application $app): LefthookInstaller {
             return new LefthookInstaller(basePath: $app->basePath());
+        });
+
+        $this->app->singleton(PhpstanExtensionSelector::class);
+
+        $this->app->singleton(PhpstanExtensionStore::class, function (Application $app): PhpstanExtensionStore {
+            /** @var Filesystem $filesystem */
+            $filesystem = $app->make(Filesystem::class);
+
+            return new PhpstanExtensionStore(
+                filesystem: $filesystem,
+                path: $app->basePath('.codeguard'.DIRECTORY_SEPARATOR.'phpstan-extensions.yaml'),
+            );
+        });
+
+        $this->app->singleton(PhpstanExtensionApplier::class, function (Application $app): PhpstanExtensionApplier {
+            /** @var Filesystem $filesystem */
+            $filesystem = $app->make(Filesystem::class);
+
+            return new PhpstanExtensionApplier(filesystem: $filesystem);
         });
 
         $this->app->singleton(StubDiffer::class, function (Application $app): StubDiffer {

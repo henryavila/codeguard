@@ -16,6 +16,7 @@ final class StubRegistry
         $default = [
             new StubDefinition('pint.json.stub', 'pint.json', 'pint'),
             new StubDefinition('phpstan.neon.stub', 'phpstan.neon', 'phpstan'),
+            new StubDefinition('phpstan-test-quality.neon.stub', 'phpstan-test-quality.neon', 'phpstan'),
             new StubDefinition('deptrac.yaml.stub', 'deptrac.yaml', 'deptrac'),
             new StubDefinition('infection.json5.stub', 'infection.json5', 'infection'),
             new StubDefinition('lefthook.yml.stub', 'lefthook.yml', 'lefthook'),

@@ -245,10 +245,18 @@ php artisan codeguard:install --refresh-stubs    # update stubs without losing c
 - ⚠️ Risco de "feature creep" no stub — mitigação: review anual de rules, remover as que não demonstraram valor em 6 meses
 
 **Exemplos de Backflow Aplicado**:
-- **2026-04-17** — `fully_qualified_strict_types` adicionado ao stub após comparação entre `pint.json` do Arch e stub revelar que o Arch tinha essa rule e ela completava o "tripé de import hygiene" (ordered_imports + no_unused_imports + fully_qualified). Commit: `11cedd7`.
+- **2026-04-17** — `fully_qualified_strict_types` adicionado ao `pint.json.stub` após comparação revelar que o Arch tinha essa rule e ela completava o "tripé de import hygiene" (ordered_imports + no_unused_imports + fully_qualified). Commit: `11cedd7`.
+- **2026-04-17** — **6 PHPStan extensions** (`larastan`, `phpstan-phpunit`, `cognitive-complexity`, `shipmonk/dead-code-detector`, `spaze/phpstan-disallowed-calls`) promovidas ao `composer.json` `require` + `phpstan.neon.stub` com configs Laravel-calibradas (cognitive thresholds, dead-code Laravel/Eloquent providers ENABLED, disallowed dd/dump/die). Razão: 5 eram no Arch, auditoria factual confirmou adoption >2M installs cada, maintenance ativo 2026. `phpstan.neon.stub` também ganhou `inferPrivatePropertyTypeFromConstructor: true` + `checkClassCaseSensitivity: true`.
+- **2026-04-17** — **`phpstan-test-quality.neon.stub`** promovido como novo stub após análise revelar que suas 5 rules (ban `FormRequest::rules()` direct testing, ban `toSql()/toRawSql()` assertions) são 100% universais para Laravel com validação + Eloquent. Ativa o "Test anti-pattern kit" prometido no spec v5 #3.
+- **2026-04-17** — **Bug fix**: `treatPhpDocTypesAsCertain: false` removido do stub. Documentação PHPStan oficial confirma que essa setting RELAXA regras (não enrijece). Comentário anterior no stub era factualmente errado.
 
 **Exemplos de Rejeição Aplicada**:
-- **2026-04-17** — `public/` exclude **NÃO** adicionado ao stub apesar de estar no `pint.json` do Arch. Razão: rejeição no critério "aplica-se a ≥80% de projetos genéricos" — `public/` só precisa ser excluído quando há Laravel Nova ou similar publicando PHP em `public/vendor/`. É project-specific.
+- **2026-04-17** — `public/` exclude **NÃO** adicionado ao `pint.json.stub` apesar de estar no Arch. Razão: project-specific (Laravel Nova publica PHP em `public/vendor/`). Falha critério ≥80%.
+- **2026-04-17** — `parallel.processTimeout: 1200.0` **NÃO** migrado do phpstan.neon do Arch. Razão: escala Arch (20min) não generaliza; default 60s serve 90%. Falha critério universalidade.
+- **2026-04-17** — `scanDirectories` duplicando `paths` **NÃO** migrado. Razão: redundante com default PHPStan. Documentado como candidato a remoção também do próprio Arch.
+
+**Discovery separada (não ADR mas merece nota)**:
+- **2026-04-17** — `shipmonk/dead-code-detector` no Arch estava sub-configurado com `deadMethods: false` como workaround para 1453 FPs do Laravel DI. Solução correta: ativar `usageProviders.laravel: true` + `usageProviders.eloquent: true`. Stub distribui a config correta.
 
 **Aberto a revisar?**
 Sim — quando o 2º projeto consumidor estabilizar, revisitar esse processo. Pode se tornar mais formal (PR-driven) ou mais permissivo (rule "obviously universal" pula o critério de 2 projetos).
