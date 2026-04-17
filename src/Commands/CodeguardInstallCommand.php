@@ -74,8 +74,14 @@ final class CodeguardInstallCommand extends Command
         $this->line('');
         $this->components->twoColumnDetail('Selected preset', $preset->label());
 
+        $selectedExtensions = $this->selectPhpstanExtensions(
+            phpstanExtSelector: $phpstanExtSelector,
+            phpstanExtStore: $phpstanExtStore,
+            interactive: $interactive,
+        );
+
         $plans = $planRegistry->plansFor($preset);
-        $this->renderGatePlan($plans, $planRegistry);
+        $this->renderGatePlan($plans, $planRegistry, $selectedExtensions);
 
         if (! $this->confirmProceed($interactive)) {
             $this->components->warn('Install aborted.');
@@ -99,11 +105,10 @@ final class CodeguardInstallCommand extends Command
             return self::FAILURE;
         }
 
-        $this->applyPhpstanExtensionChoice(
-            phpstanExtSelector: $phpstanExtSelector,
+        $this->applyPhpstanExtensionsToStub(
+            selectedExtensions: $selectedExtensions,
             phpstanExtStore: $phpstanExtStore,
             phpstanExtApplier: $phpstanExtApplier,
-            interactive: $interactive,
         );
 
         $this->maybeSuggestDeptracLayers(
@@ -189,8 +194,9 @@ final class CodeguardInstallCommand extends Command
 
     /**
      * @param  list<GatePlan>  $plans
+     * @param  list<PhpstanExtension>  $selectedExtensions
      */
-    private function renderGatePlan(array $plans, GatePlanRegistry $registry): void
+    private function renderGatePlan(array $plans, GatePlanRegistry $registry, array $selectedExtensions = []): void
     {
         $this->line('');
         $this->components->info('=== Gates to install ===');
@@ -213,6 +219,19 @@ final class CodeguardInstallCommand extends Command
             );
 
             $this->line($line);
+        }
+
+        if ($selectedExtensions !== []) {
+            $extensionNames = array_map(
+                static fn (PhpstanExtension $ext): string => $ext->displayName(),
+                $selectedExtensions,
+            );
+
+            $this->line('');
+            $this->components->twoColumnDetail(
+                'PHPStan extensions active',
+                '<fg=cyan>'.implode(', ', $extensionNames).'</>',
+            );
         }
 
         $total = $registry->totalConfigMinutes($plans);
@@ -275,11 +294,31 @@ final class CodeguardInstallCommand extends Command
         return false;
     }
 
-    private function applyPhpstanExtensionChoice(
+    /**
+     * @return list<PhpstanExtension>
+     */
+    private function selectPhpstanExtensions(
         PhpstanExtensionSelector $phpstanExtSelector,
         PhpstanExtensionStore $phpstanExtStore,
-        PhpstanExtensionApplier $phpstanExtApplier,
         bool $interactive,
+    ): array {
+        $this->line('');
+        $this->components->info('PHPStan extensions — which to activate in phpstan.neon');
+
+        $saved = $phpstanExtStore->load();
+
+        return $interactive
+            ? $phpstanExtSelector->prompt($saved === [] ? PhpstanExtension::defaultEnabled() : $saved)
+            : $phpstanExtSelector->autoResolve($saved);
+    }
+
+    /**
+     * @param  list<PhpstanExtension>  $selectedExtensions
+     */
+    private function applyPhpstanExtensionsToStub(
+        array $selectedExtensions,
+        PhpstanExtensionStore $phpstanExtStore,
+        PhpstanExtensionApplier $phpstanExtApplier,
     ): void {
         $phpstanPath = $this->laravel->basePath('phpstan.neon');
 
@@ -287,23 +326,15 @@ final class CodeguardInstallCommand extends Command
             return;
         }
 
-        $this->line('');
-        $this->components->info('PHPStan extensions');
-
-        $saved = $phpstanExtStore->load();
-
-        $selected = $interactive
-            ? $phpstanExtSelector->prompt($saved === [] ? PhpstanExtension::defaultEnabled() : $saved)
-            : $phpstanExtSelector->autoResolve($saved);
-
-        $phpstanExtApplier->apply($phpstanPath, $selected);
-        $phpstanExtStore->save($selected);
+        $phpstanExtApplier->apply($phpstanPath, $selectedExtensions);
+        $phpstanExtStore->save($selectedExtensions);
 
         $activeNames = array_map(
             static fn (PhpstanExtension $ext): string => $ext->displayName(),
-            $selected,
+            $selectedExtensions,
         );
 
+        $this->line('');
         $this->components->twoColumnDetail(
             'phpstan.neon extensions active',
             '<fg=green>'.implode(', ', $activeNames).'</>',
