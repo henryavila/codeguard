@@ -79,6 +79,8 @@ final class CodeguardInstallCommand extends Command
         $this->line('');
         $this->components->info('Publishing stubs...');
 
+        $publisher->useOutput($this->output);
+
         $stubs = $registry->stubsFor($preset);
         $results = $publisher->publish($stubs, $forceOverwrite, $interactive);
 

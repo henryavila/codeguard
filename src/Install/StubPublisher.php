@@ -4,18 +4,26 @@ declare(strict_types=1);
 
 namespace Henryavila\Codeguard\Install;
 
+use Illuminate\Console\OutputStyle;
 use Illuminate\Filesystem\Filesystem;
 
 use function Laravel\Prompts\select;
 
 final class StubPublisher
 {
+    private ?OutputStyle $output = null;
+
     public function __construct(
         private readonly Filesystem $filesystem,
         private readonly string $basePath,
         private readonly string $stubsSourcePath,
         private readonly StubDiffer $differ,
     ) {}
+
+    public function useOutput(?OutputStyle $output): void
+    {
+        $this->output = $output;
+    }
 
     /**
      * @param  list<StubDefinition>  $stubs
@@ -121,9 +129,11 @@ final class StubPublisher
         string $targetPath,
         string $diff,
     ): StubPublishResult {
+        $this->writeDiffToOutput($stub, $diff);
+
         /** @var string $choice */
         $choice = select(
-            label: 'After reviewing the diff, what do you want to do?',
+            label: 'After reviewing the diff above, what do you want to do?',
             options: [
                 'keep' => 'Keep existing file',
                 'overwrite' => 'Overwrite with stub',
@@ -142,6 +152,21 @@ final class StubPublisher
             message: 'Kept existing customizations after diff review.',
             diff: $diff,
         );
+    }
+
+    private function writeDiffToOutput(StubDefinition $stub, string $diff): void
+    {
+        if ($this->output === null) {
+            return;
+        }
+
+        $this->output->writeln('');
+        $this->output->writeln("<fg=yellow;options=bold>── Diff for {$stub->targetRelativePath} ──────────────────────────────</>");
+        $this->output->writeln('');
+        $this->output->writeln($this->differ->colorize($diff));
+        $this->output->writeln('');
+        $this->output->writeln('<fg=yellow;options=bold>──────────────────────────────────────────────────────────────────</>');
+        $this->output->writeln('');
     }
 
     private function create(StubDefinition $stub, string $sourcePath, string $targetPath): StubPublishResult
