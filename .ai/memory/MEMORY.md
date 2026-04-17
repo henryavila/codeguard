@@ -6,7 +6,7 @@ Memória persistente do projeto — leia antes de qualquer trabalho substantivo.
 - [User Goals](user-goals.md) — 3 metas reais: replicar padrão multi-projeto, multi-máquinas, controlar dev terceirizado sem IA
 
 ## Architecture Decisions
-- [Architecture Decisions](architecture-decisions.md) — Option A (reusa repo), Node-free, 2 packages, dual-track
+- [Architecture Decisions](architecture-decisions.md) — 9 ADRs: pivot PHP, 2 packages, dual-track, 2 presets, timeline, stub evolution
 - [Pivot Rationale](../../docs/specs/2026-04-16-pivot-npm-to-composer.md) — por que abandonamos Node
 
 ## Design Evolution (ordem cronológica)
@@ -28,12 +28,14 @@ Memória persistente do projeto — leia antes de qualquer trabalho substantivo.
 - npm registry: `@henryavila/codeguard@0.1.1` continua publicado (não deprecated formalmente)
 
 ### Decisões Fixas (não reabrir sem razão forte)
-- Stack: PHP 8.3+ / Laravel 11+ / Composer (sem Node)
+- Stack: PHP 8.3+ / Laravel 11+ / Composer (core PHP-native; preset Full referencia jscpd/Node)
 - 2 packages: `henryavila/codeguard` (Composer) + `henryavila/codeguard-hooks` (Claude plugin bash)
 - Namespace: `Henryavila\Codeguard\*`
 - Commands: `codeguard:*` (install, check, test, prepare, analyze, baseline)
-- Default preset: **Minimal** (Pint + PHPStan only)
+- Presets: **`codeguard`** (default, PHP-native: Pint + PHPStan + Deptrac + Infection + Lefthook) e **`codeguard-full`** (adds jscpd + Insights + TestQualityTest — requires Node, auto-detected)
+- Pre-commit: Lefthook (não Husky)
 - Pattern engine: PHP nativo (symfony/yaml), não Node
+- Stub evolution: dogfood → distill → redistribute (ADR-009)
 
 ### Dependências chave (futuras)
 - `illuminate/console ^11.0|^12.0`

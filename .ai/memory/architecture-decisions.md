@@ -209,3 +209,46 @@ php artisan codeguard:install --refresh-stubs    # update stubs without losing c
 - **Total: ~45-70h focadas = 6-11 dias úteis = 1.5-2.5 semanas calendar**
 
 **Razão**: estimativas anteriores (4-6 semanas) usavam velocidade humana pré-IA. Com Claude Code, código formulaico (extract + stubs + wizard + docs) é 5-10x mais rápido. Human bottleneck permanece em decisões de API, verificação, edge cases — ~30% overhead.
+
+## ADR-009: Dogfood → Distill → Redistribute Stub Evolution (2026-04-17)
+
+**Decisão**: Stubs de configuração (`resources/stubs/*`) evoluem primariamente por **backflow de projetos consumidores reais**, não por decisão especulativa isolada. O ciclo padrão é:
+
+  1. **Dogfood**  — um projeto real (começando por Arch) usa o stub, customiza localmente, descobre regras faltantes ou inadequadas durante uso em produção.
+  2. **Distill** — quando uma customização se repete em 2+ projetos OU tem evidência clara de valor universal (industry adoption, factual bug fix, documented anti-pattern mitigation), ela é **candidata a promoção**.
+  3. **Redistribute** — a regra entra no stub. Todo novo consumidor ganha-a por default; consumidores existentes recebem via `codeguard:install --refresh-stubs` com diff-review idempotente.
+
+**Contexto**:
+- CodeGuard é laboratório do Henry (dev solo). Não há usuário OSS pagando custo de más decisões. Portanto decisões de stub devem vir de evidência empírica do próprio uso, não de best-practices acadêmicas genéricas.
+- ADR-007 já estabeleceu dual-track (Arch consome via path repository). Esta ADR documenta o **loop de retorno** dessa arquitetura.
+- Sem essa disciplina, stubs derivam por duas vias ruins:
+  (a) "bloat por cuidado" — adicionar toda rule interessante que aparece;
+  (b) "drift por negligência" — stub estagnado enquanto projetos reais divergem.
+
+**Critérios para Promoção** (regra entra no stub):
+- ✅ Existe em pelo menos 1 projeto real DO HENRY + razão clara documentada (não "copiado de um exemplo")
+- ✅ Aplica-se a ≥80% de projetos Laravel genéricos (não project-specific como excludes de `public/` por causa de Nova)
+- ✅ Risco operacional documentado (diff size esperado, quebra potencial)
+- ✅ Rationale cabe em uma linha de comentário inline no stub
+
+**Critérios para Rejeição**:
+- ❌ Específico de tooling proprietário do consumidor (Nova, Filament custom)
+- ❌ Matter of taste sem evidência de valor funcional
+- ❌ Requeriria config complexo que usuário precisa entender para usar
+- ❌ Comunidade Laravel larga não adota (sinal de over-engineering)
+
+**Consequências**:
+- ✅ Stub reflete realidade testada, não teoria
+- ✅ Segundo consumidor (2º projeto do Henry) será teste natural — se uma rule do stub não encaixar, revela que a promoção foi prematura
+- ✅ ADRs referenciam commits específicos de backflow para rastreabilidade
+- ⚠️ Dependência inicial em um único projeto (Arch) até 2º consumidor existir — mitigação: promoções só acontecem após discussão explícita
+- ⚠️ Risco de "feature creep" no stub — mitigação: review anual de rules, remover as que não demonstraram valor em 6 meses
+
+**Exemplos de Backflow Aplicado**:
+- **2026-04-17** — `fully_qualified_strict_types` adicionado ao stub após comparação entre `pint.json` do Arch e stub revelar que o Arch tinha essa rule e ela completava o "tripé de import hygiene" (ordered_imports + no_unused_imports + fully_qualified). Commit: `11cedd7`.
+
+**Exemplos de Rejeição Aplicada**:
+- **2026-04-17** — `public/` exclude **NÃO** adicionado ao stub apesar de estar no `pint.json` do Arch. Razão: rejeição no critério "aplica-se a ≥80% de projetos genéricos" — `public/` só precisa ser excluído quando há Laravel Nova ou similar publicando PHP em `public/vendor/`. É project-specific.
+
+**Aberto a revisar?**
+Sim — quando o 2º projeto consumidor estabilizar, revisitar esse processo. Pode se tornar mais formal (PR-driven) ou mais permissivo (rule "obviously universal" pula o critério de 2 projetos).
