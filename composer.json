@@ -24,6 +24,8 @@
     ],
     "require": {
         "php": "^8.3",
+        "captainhook/captainhook": "^5.29",
+        "captainhook/hook-installer": "^1.0",
         "illuminate/console": "^11.0|^12.0",
         "illuminate/support": "^11.0|^12.0",
         "illuminate/filesystem": "^11.0|^12.0",
@@ -40,8 +42,6 @@
         "spaze/phpstan-disallowed-calls": "^3.0|^4.0"
     },
     "require-dev": {
-        "captainhook/captainhook": "^5.29",
-        "captainhook/hook-installer": "^1.0",
         "laravel/pint": "^1.15",
         "mockery/mockery": "^1.6",
         "orchestra/testbench": "^9.0|^10.0",
