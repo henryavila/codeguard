@@ -4,18 +4,20 @@ declare(strict_types=1);
 
 namespace Henryavila\Codeguard\Commands;
 
+use Henryavila\Codeguard\Install\CaptainhookInstaller;
+use Henryavila\Codeguard\Install\CaptainhookInstallResult;
+use Henryavila\Codeguard\Install\CaptainhookInstallStatus;
 use Henryavila\Codeguard\Install\DeptracLayerSuggester;
 use Henryavila\Codeguard\Install\DeptracLayerWizard;
 use Henryavila\Codeguard\Install\EnvironmentDetector;
 use Henryavila\Codeguard\Install\EnvironmentInfo;
 use Henryavila\Codeguard\Install\GatePlan;
 use Henryavila\Codeguard\Install\GatePlanRegistry;
+use Henryavila\Codeguard\Install\InstallSummary;
+use Henryavila\Codeguard\Install\InstallWarning;
 use Henryavila\Codeguard\Install\LayerDecisionStore;
 use Henryavila\Codeguard\Install\LayerOption;
 use Henryavila\Codeguard\Install\LayerSuggestion;
-use Henryavila\Codeguard\Install\CaptainhookInstallResult;
-use Henryavila\Codeguard\Install\CaptainhookInstallStatus;
-use Henryavila\Codeguard\Install\CaptainhookInstaller;
 use Henryavila\Codeguard\Install\NextStepsReporter;
 use Henryavila\Codeguard\Install\PhpstanExtension;
 use Henryavila\Codeguard\Install\PhpstanExtensionApplier;
@@ -26,6 +28,8 @@ use Henryavila\Codeguard\Install\StubPublisher;
 use Henryavila\Codeguard\Install\StubPublishResult;
 use Henryavila\Codeguard\Install\StubPublishStatus;
 use Henryavila\Codeguard\Install\StubRegistry;
+use Henryavila\Codeguard\Install\WarningCode;
+use Henryavila\Codeguard\Install\WarningLevel;
 use Henryavila\Codeguard\Testing\Preset;
 use Illuminate\Console\Command;
 use Illuminate\Filesystem\Filesystem;
@@ -63,10 +67,13 @@ final class CodeguardInstallCommand extends Command
         $skipWizard = (bool) $this->option('no-deptrac-wizard');
         $presetFlag = $this->option('preset');
 
+        $summary = new InstallSummary;
+
         $this->renderHeader();
 
         $environment = $detector->detect();
         $this->renderEnvironment($environment);
+        $this->checkPhpVersion($environment, $summary);
 
         $recommended = $presetSelector->autoSelect($environment);
         $this->renderRecommendation($recommended, $environment);
@@ -74,6 +81,15 @@ final class CodeguardInstallCommand extends Command
         $preset = $this->resolvePreset($environment, $presetSelector, $presetFlag, $interactive);
         $this->line('');
         $this->components->twoColumnDetail('Selected preset', $preset->label());
+
+        if ($preset->requiresNode() && ! $environment->hasNode()) {
+            $summary->warn(new InstallWarning(
+                level: WarningLevel::Warning,
+                code: WarningCode::NodeMissingForFullPreset,
+                message: 'Preset codeguard-full requires Node.js but none was detected.',
+                remediation: 'Install Node.js 18+ (jscpd + Insights depend on it) or switch to --preset=default.',
+            ));
+        }
 
         $selectedExtensions = $this->selectPhpstanExtensions(
             phpstanExtSelector: $phpstanExtSelector,
@@ -121,7 +137,9 @@ final class CodeguardInstallCommand extends Command
             $interactive,
             $skipWizard,
         );
-        $this->maybeInstallCaptainhook($preset, $environment, $captainhookInstaller);
+        $this->maybeInstallCaptainhook($preset, $environment, $captainhookInstaller, $summary);
+
+        $this->renderSummary($summary);
 
         $this->line('');
         $this->components->info('Next steps:');
@@ -131,6 +149,43 @@ final class CodeguardInstallCommand extends Command
         $this->components->twoColumnDetail('Docs', $reporter->documentationUrl());
 
         return self::SUCCESS;
+    }
+
+    private function checkPhpVersion(EnvironmentInfo $env, InstallSummary $summary): void
+    {
+        if (version_compare($env->phpVersion, '8.3.0', '>=')) {
+            return;
+        }
+
+        $summary->warn(new InstallWarning(
+            level: WarningLevel::Error,
+            code: WarningCode::PhpVersionTooLow,
+            message: "PHP {$env->phpVersion} detected — CodeGuard requires 8.3 or newer.",
+            remediation: 'Upgrade PHP to 8.3+ (some gates — readonly classes, match expressions — will fail at runtime otherwise).',
+        ));
+    }
+
+    private function renderSummary(InstallSummary $summary): void
+    {
+        if ($summary->isEmpty()) {
+            return;
+        }
+
+        $this->line('');
+        $this->components->info('Install summary — pendencies to address');
+
+        foreach ($summary->warnings() as $warning) {
+            $label = match ($warning->level) {
+                WarningLevel::Error => '<fg=red>✘ error</>',
+                WarningLevel::Warning => '<fg=yellow>⚠ warning</>',
+            };
+
+            $this->components->twoColumnDetail(
+                "  {$label}  <fg=gray>{$warning->code->value}</>",
+                $warning->message,
+            );
+            $this->line('    <fg=cyan>→</> '.$warning->remediation);
+        }
     }
 
     private function renderHeader(): void
@@ -536,12 +591,44 @@ final class CodeguardInstallCommand extends Command
         Preset $preset,
         EnvironmentInfo $env,
         CaptainhookInstaller $installer,
+        InstallSummary $summary,
     ): void {
         $this->line('');
         $this->components->info('CaptainHook setup');
 
         $result = $installer->install($env);
         $this->renderCaptainhookResult($result);
+        $this->recordCaptainhookOutcome($result, $summary);
+    }
+
+    private function recordCaptainhookOutcome(CaptainhookInstallResult $result, InstallSummary $summary): void
+    {
+        $firstLine = static function (?string $message): string {
+            if ($message === null || $message === '') {
+                return 'no stderr captured.';
+            }
+
+            $line = explode("\n", $message, 2)[0];
+
+            return $line !== '' ? $line : 'no stderr captured.';
+        };
+
+        match ($result->status) {
+            CaptainhookInstallStatus::BinaryMissing => $summary->warn(new InstallWarning(
+                level: WarningLevel::Warning,
+                code: WarningCode::CaptainhookBinaryMissing,
+                message: 'CaptainHook binary not found at vendor/bin/captainhook.',
+                remediation: 'Run `composer install`; if the plugin is blocked, run `composer config allow-plugins.captainhook/hook-installer true` first.',
+            )),
+            CaptainhookInstallStatus::Failed => $summary->warn(new InstallWarning(
+                level: WarningLevel::Error,
+                code: WarningCode::CaptainhookInstallFailed,
+                message: 'CaptainHook install exited non-zero: '.$firstLine($result->message),
+                remediation: 'Re-run `vendor/bin/captainhook install --force --only-enabled` manually to see full output.',
+            )),
+            CaptainhookInstallStatus::Installed,
+            CaptainhookInstallStatus::Skipped => null,
+        };
     }
 
     private function renderCaptainhookResult(CaptainhookInstallResult $result): void
