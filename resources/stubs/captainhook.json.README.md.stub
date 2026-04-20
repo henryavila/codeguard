@@ -1,0 +1,85 @@
+# captainhook.json — what each action does
+
+CaptainHook is the Git-hooks manager CodeGuard installs by default
+(ADR-010, replacing Lefthook). JSON does not support inline comments,
+so this adjacent README documents each action. Edit both files in
+sync: if you change the config, update the explanation here.
+
+- Docs: https://php.captainhook.info
+- Run manually: `vendor/bin/captainhook hook:pre-commit` (or any hook)
+- Disable temporarily: `CAPTAINHOOK_SKIP=1 git commit ...`
+
+## commit-msg
+
+Empty by default. Add actions here for:
+- Conventional Commits enforcement (`\\CaptainHook\\App\\Hook\\Message\\Action\\Regex` or similar)
+- Jira/Linear issue-key requirement
+- Signed-off-by check (`SignedOff`)
+
+## pre-commit
+
+Runs on every `git commit`, against the files you staged.
+
+### pint --dirty
+
+Laravel Pint (PHP-CS-Fixer wrapper with Laravel preset). `--dirty`
+limits formatting to the files Git already considers modified, so
+the hook is fast even in large repos. If Pint rewrites a file,
+you'll need to `git add` it again before re-running the commit
+(CaptainHook has no built-in equivalent of Lefthook's `stage_fixed:
+true` yet — tracked as a follow-up PHP Action).
+
+Condition `FileStaged\\OfType(php)` skips this action when no PHP
+files are staged (for example, a commit that only touches README).
+
+### StagedPhpFilesRunner (PHPStan)
+
+This is a PHP Action shipped by CodeGuard. It reads the currently
+staged `*.php` files from Git and passes ONLY those paths to
+`vendor/bin/phpstan analyse` — matching what Lefthook's
+`{staged_files}` template used to do.
+
+Without this runner, a plain `vendor/bin/phpstan analyse` shell
+action would re-scan the entire `paths:` block in `phpstan.neon`
+on every commit (minutes on large codebases). With it, pre-commit
+stays in the seconds range.
+
+Options you can tune inline:
+- `binary`: which analyser to run (default `vendor/bin/phpstan`)
+- `flags`: prefix flags passed before the staged file list. Use
+  this to change memory limit, configuration file, or to switch
+  to `--level=max`.
+
+Same `FileStaged\\OfType(php)` condition applies — no staged PHP,
+no invocation.
+
+## pre-push
+
+Runs on `git push`, before anything hits the remote. This is where
+the heavier gates live so the commit loop stays fast.
+
+### pest --bail
+
+Full Pest test suite with `--bail` (stop on first failure). If any
+test fails, the push is aborted — push logs show the failing test
+and you fix it locally before re-pushing.
+
+If your suite is slow enough that pre-push friction becomes a
+problem, consider:
+- Running only unit tests here: `vendor/bin/pest --testsuite=Unit --bail`
+- Moving the full suite to CI and keeping pre-push focused on the
+  fast tier.
+
+## Extending
+
+The power of CaptainHook (vs a shell-only runner) is PHP Actions.
+CodeGuard's own `StagedPhpFilesRunner` is a tiny example — you
+can write your own in `app/Hooks/` or ship them via a dependency,
+reference them by fully-qualified class name in this config, and
+they get full access to `Repository`, `Config`, `Options`, and IO.
+
+Typical custom actions teams add:
+- Block commits to `main`/`master` directly
+- Forbid `dd()` / `dump()` / `var_dump()` in staged files
+- Assert every new PHP file has `declare(strict_types=1)`
+- Require a migration file whenever a model changes
