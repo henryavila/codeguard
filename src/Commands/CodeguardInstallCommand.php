@@ -36,6 +36,7 @@ use Henryavila\Codeguard\Install\WarningLevel;
 use Henryavila\Codeguard\Testing\Preset;
 use Illuminate\Console\Command;
 use Illuminate\Filesystem\Filesystem;
+use Symfony\Component\Console\Formatter\OutputFormatter;
 
 use function Laravel\Prompts\confirm;
 use function Laravel\Prompts\select;
@@ -248,11 +249,18 @@ final class CodeguardInstallCommand extends Command
                 WarningLevel::Warning => '<fg=yellow>⚠ warning</>',
             };
 
+            // Messages and remediations may one day come from disk (file
+            // paths, plugin names, composer.json keys). Escape Symfony
+            // Console markup so a stray `</>` from hostile or mis-encoded
+            // input cannot corrupt the output pane.
+            $message = OutputFormatter::escape($warning->message);
+            $remediation = OutputFormatter::escape($warning->remediation);
+
             $this->components->twoColumnDetail(
                 "  {$label}  <fg=gray>{$warning->code->value}</>",
-                $warning->message,
+                $message,
             );
-            $this->line('    <fg=cyan>→</> '.$warning->remediation);
+            $this->line('    <fg=cyan>→</> '.$remediation);
         }
     }
 

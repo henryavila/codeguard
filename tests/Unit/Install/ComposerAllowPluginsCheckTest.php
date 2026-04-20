@@ -206,3 +206,41 @@ it('allow() returns false when composer.json does not exist', function (): void 
     $check = new ComposerAllowPluginsCheck(new Filesystem, $path);
     expect($check->allow('captainhook/hook-installer'))->toBeFalse();
 });
+
+it('allow() refuses to overwrite allow-plugins:false (deny-all shorthand)', function (): void {
+    $path = allowPluginsTempPath();
+    file_put_contents($path, json_encode([
+        'name' => 'vendor/project',
+        'config' => [
+            'allow-plugins' => false,
+        ],
+    ], JSON_PRETTY_PRINT));
+
+    $before = file_get_contents($path);
+
+    try {
+        $check = new ComposerAllowPluginsCheck(new Filesystem, $path);
+        $result = $check->allow('captainhook/hook-installer');
+
+        expect($result)->toBeFalse();
+        expect(file_get_contents($path))->toBe($before);
+    } finally {
+        @unlink($path);
+    }
+});
+
+it('allow() preserves file permissions when rewriting composer.json', function (): void {
+    $path = allowPluginsTempPath();
+    writeComposerJson($path, ['name' => 'vendor/project']);
+    chmod($path, 0o640);
+
+    try {
+        $check = new ComposerAllowPluginsCheck(new Filesystem, $path);
+        expect($check->allow('captainhook/hook-installer'))->toBeTrue();
+
+        $perms = fileperms($path) & 0o777;
+        expect($perms)->toBe(0o640);
+    } finally {
+        @unlink($path);
+    }
+});

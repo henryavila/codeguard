@@ -67,6 +67,16 @@ class ComposerAllowPluginsCheck
             return false;
         }
 
+        // Refuse to overwrite `allow-plugins: false` — Composer's shorthand
+        // for "block ALL plugins". Silently expanding it to a map would
+        // destroy the project's deny-all policy. The user must flip the
+        // value explicitly; we only help when allow-plugins is already a
+        // map (or absent).
+        $existingAllowPlugins = $json['config']['allow-plugins'] ?? null;
+        if ($existingAllowPlugins !== null && ! is_array($existingAllowPlugins)) {
+            return false;
+        }
+
         if (! isset($json['config']) || ! is_array($json['config'])) {
             $json['config'] = [];
         }
@@ -86,7 +96,43 @@ class ComposerAllowPluginsCheck
             return false;
         }
 
-        $this->filesystem->put($this->composerJsonPath, $encoded."\n");
+        return $this->writeAtomic($encoded."\n");
+    }
+
+    /**
+     * Write via temp file + rename so a SIGINT / power loss mid-write
+     * cannot leave composer.json truncated. Composer itself does this
+     * for the same reason.
+     */
+    private function writeAtomic(string $content): bool
+    {
+        $dir = dirname($this->composerJsonPath);
+        $temp = tempnam($dir, '.composer-');
+
+        if ($temp === false) {
+            return false;
+        }
+
+        if (file_put_contents($temp, $content) === false) {
+            @unlink($temp);
+
+            return false;
+        }
+
+        // Preserve the existing file's permissions when possible so we
+        // don't unexpectedly widen access on the consumer's composer.json.
+        if (file_exists($this->composerJsonPath)) {
+            $perms = fileperms($this->composerJsonPath);
+            if ($perms !== false) {
+                @chmod($temp, $perms & 0o777);
+            }
+        }
+
+        if (! @rename($temp, $this->composerJsonPath)) {
+            @unlink($temp);
+
+            return false;
+        }
 
         return true;
     }
