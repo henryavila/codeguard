@@ -15,7 +15,7 @@ function makeEnvInfo(
         nodeVersion: $nodeVersion,
         hasPackageJson: $hasPackageJson,
         hasNodeModules: $hasNodeModules,
-        hasLefthookBinary: false,
+        hasCaptainhookBinary: false,
     );
 }
 

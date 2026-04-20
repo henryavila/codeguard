@@ -24,7 +24,9 @@ class EnvironmentDetector
             nodeVersion: $this->detectBinaryVersion('node', ['--version']),
             hasPackageJson: $this->filesystem->exists($this->basePath.'/package.json'),
             hasNodeModules: $this->filesystem->isDirectory($this->basePath.'/node_modules'),
-            hasLefthookBinary: $this->detectBinaryVersion('lefthook', ['version']) !== null,
+            hasCaptainhookBinary: $this->filesystem->exists(
+                $this->basePath.DIRECTORY_SEPARATOR.'vendor'.DIRECTORY_SEPARATOR.'bin'.DIRECTORY_SEPARATOR.'captainhook',
+            ),
         );
     }
 

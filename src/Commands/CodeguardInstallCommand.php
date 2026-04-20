@@ -13,9 +13,9 @@ use Henryavila\Codeguard\Install\GatePlanRegistry;
 use Henryavila\Codeguard\Install\LayerDecisionStore;
 use Henryavila\Codeguard\Install\LayerOption;
 use Henryavila\Codeguard\Install\LayerSuggestion;
-use Henryavila\Codeguard\Install\LefthookInstallResult;
-use Henryavila\Codeguard\Install\LefthookInstallStatus;
-use Henryavila\Codeguard\Install\LefthookInstaller;
+use Henryavila\Codeguard\Install\CaptainhookInstallResult;
+use Henryavila\Codeguard\Install\CaptainhookInstallStatus;
+use Henryavila\Codeguard\Install\CaptainhookInstaller;
 use Henryavila\Codeguard\Install\NextStepsReporter;
 use Henryavila\Codeguard\Install\PhpstanExtension;
 use Henryavila\Codeguard\Install\PhpstanExtensionApplier;
@@ -40,7 +40,7 @@ final class CodeguardInstallCommand extends Command
         {--refresh-stubs : Overwrite existing stubs after diff review.}
         {--no-deptrac-wizard : Skip the guided layer-classification wizard (use heuristic only).}';
 
-    protected $description = 'Guided install — detects environment, selects preset, publishes stubs with diff-aware re-run, suggests Deptrac layers, installs Lefthook, prints next-steps.';
+    protected $description = 'Guided install — detects environment, selects preset, publishes stubs with diff-aware re-run, suggests Deptrac layers, verifies CaptainHook, prints next-steps.';
 
     public function handle(
         EnvironmentDetector $detector,
@@ -51,7 +51,7 @@ final class CodeguardInstallCommand extends Command
         DeptracLayerSuggester $deptracSuggester,
         DeptracLayerWizard $deptracWizard,
         LayerDecisionStore $layerDecisionStore,
-        LefthookInstaller $lefthookInstaller,
+        CaptainhookInstaller $captainhookInstaller,
         PhpstanExtensionSelector $phpstanExtSelector,
         PhpstanExtensionStore $phpstanExtStore,
         PhpstanExtensionApplier $phpstanExtApplier,
@@ -121,7 +121,7 @@ final class CodeguardInstallCommand extends Command
             $interactive,
             $skipWizard,
         );
-        $this->maybeInstallLefthook($preset, $environment, $lefthookInstaller);
+        $this->maybeInstallCaptainhook($preset, $environment, $captainhookInstaller);
 
         $this->line('');
         $this->components->info('Next steps:');
@@ -154,8 +154,8 @@ final class CodeguardInstallCommand extends Command
             $env->hasPackageJson ? 'found' : '<fg=gray>not found</>',
         );
         $this->components->twoColumnDetail(
-            'Lefthook binary',
-            $env->hasLefthookBinary ? 'available' : '<fg=gray>not installed</>',
+            'CaptainHook binary',
+            $env->hasCaptainhookBinary ? 'available' : '<fg=gray>not installed</>',
         );
     }
 
@@ -532,28 +532,28 @@ final class CodeguardInstallCommand extends Command
         }
     }
 
-    private function maybeInstallLefthook(
+    private function maybeInstallCaptainhook(
         Preset $preset,
         EnvironmentInfo $env,
-        LefthookInstaller $installer,
+        CaptainhookInstaller $installer,
     ): void {
         $this->line('');
-        $this->components->info('Lefthook setup');
+        $this->components->info('CaptainHook setup');
 
         $result = $installer->install($env);
-        $this->renderLefthookResult($result);
+        $this->renderCaptainhookResult($result);
     }
 
-    private function renderLefthookResult(LefthookInstallResult $result): void
+    private function renderCaptainhookResult(CaptainhookInstallResult $result): void
     {
         $status = match ($result->status) {
-            LefthookInstallStatus::Installed => '<fg=green>installed (.git/hooks registered)</>',
-            LefthookInstallStatus::BinaryMissing => '<fg=yellow>binary missing</>',
-            LefthookInstallStatus::Skipped => '<fg=gray>skipped</>',
-            LefthookInstallStatus::Failed => '<fg=red>failed</>',
+            CaptainhookInstallStatus::Installed => '<fg=green>installed (.git/hooks registered)</>',
+            CaptainhookInstallStatus::BinaryMissing => '<fg=yellow>binary missing</>',
+            CaptainhookInstallStatus::Skipped => '<fg=gray>skipped</>',
+            CaptainhookInstallStatus::Failed => '<fg=red>failed</>',
         };
 
-        $this->components->twoColumnDetail('lefthook install', $status);
+        $this->components->twoColumnDetail('captainhook install', $status);
 
         if ($result->message !== null && $result->message !== '') {
             foreach (explode("\n", $result->message) as $line) {

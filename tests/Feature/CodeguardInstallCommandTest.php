@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
+use Henryavila\Codeguard\Install\CaptainhookInstallResult;
+use Henryavila\Codeguard\Install\CaptainhookInstallStatus;
+use Henryavila\Codeguard\Install\CaptainhookInstaller;
 use Henryavila\Codeguard\Install\EnvironmentDetector;
 use Henryavila\Codeguard\Install\EnvironmentInfo;
-use Henryavila\Codeguard\Install\LefthookInstallResult;
-use Henryavila\Codeguard\Install\LefthookInstallStatus;
-use Henryavila\Codeguard\Install\LefthookInstaller;
 use Henryavila\Codeguard\Install\StubPublisher;
 use Illuminate\Filesystem\Filesystem;
 
@@ -15,14 +15,14 @@ beforeEach(function (): void {
     mkdir($this->tempApp, 0o755, true);
 
     // Stub out EnvironmentDetector so we don't depend on the host machine
-    // having node/composer/lefthook available or in any particular version.
+    // having node/composer/captainhook available or in any particular version.
     $fakeEnv = new EnvironmentInfo(
         phpVersion: '8.3.0',
         composerVersion: '2.7.0',
         nodeVersion: null,
         hasPackageJson: false,
         hasNodeModules: false,
-        hasLefthookBinary: false,
+        hasCaptainhookBinary: false,
     );
 
     $this->app->singleton(EnvironmentDetector::class, function () use ($fakeEnv): EnvironmentDetector {
@@ -39,13 +39,13 @@ beforeEach(function (): void {
         };
     });
 
-    // Prevent Lefthook from shelling out.
-    $this->app->singleton(LefthookInstaller::class, function (): LefthookInstaller {
-        return new class(sys_get_temp_dir()) extends LefthookInstaller {
-            public function install(EnvironmentInfo $env): LefthookInstallResult
+    // Prevent CaptainHook from shelling out.
+    $this->app->singleton(CaptainhookInstaller::class, function (): CaptainhookInstaller {
+        return new class(sys_get_temp_dir()) extends CaptainhookInstaller {
+            public function install(EnvironmentInfo $env): CaptainhookInstallResult
             {
-                return new LefthookInstallResult(
-                    status: LefthookInstallStatus::BinaryMissing,
+                return new CaptainhookInstallResult(
+                    status: CaptainhookInstallStatus::BinaryMissing,
                     message: 'stubbed for test',
                 );
             }

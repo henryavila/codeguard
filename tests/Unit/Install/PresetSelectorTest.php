@@ -14,7 +14,7 @@ function selectorEnv(bool $hasPackageJson = false, bool $hasNodeModules = false)
         nodeVersion: $hasPackageJson || $hasNodeModules ? '20.0.0' : null,
         hasPackageJson: $hasPackageJson,
         hasNodeModules: $hasNodeModules,
-        hasLefthookBinary: false,
+        hasCaptainhookBinary: false,
     );
 }
 

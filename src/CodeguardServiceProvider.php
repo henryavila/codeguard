@@ -10,7 +10,7 @@ use Henryavila\Codeguard\Install\DeptracLayerWizard;
 use Henryavila\Codeguard\Install\EnvironmentDetector;
 use Henryavila\Codeguard\Install\GatePlanRegistry;
 use Henryavila\Codeguard\Install\LayerDecisionStore;
-use Henryavila\Codeguard\Install\LefthookInstaller;
+use Henryavila\Codeguard\Install\CaptainhookInstaller;
 use Henryavila\Codeguard\Install\NextStepsReporter;
 use Henryavila\Codeguard\Install\PhpstanExtensionApplier;
 use Henryavila\Codeguard\Install\PhpstanExtensionSelector;
@@ -78,8 +78,8 @@ final class CodeguardServiceProvider extends ServiceProvider
             );
         });
 
-        $this->app->singleton(LefthookInstaller::class, function (Application $app): LefthookInstaller {
-            return new LefthookInstaller(basePath: $app->basePath());
+        $this->app->singleton(CaptainhookInstaller::class, function (Application $app): CaptainhookInstaller {
+            return new CaptainhookInstaller(basePath: $app->basePath());
         });
 
         $this->app->singleton(PhpstanExtensionSelector::class);
