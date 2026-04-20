@@ -6,11 +6,12 @@ Memória persistente do projeto — leia antes de qualquer trabalho substantivo.
 - [User Goals](user-goals.md) — 3 metas reais: replicar padrão multi-projeto, multi-máquinas, controlar dev terceirizado sem IA
 
 ## Architecture Decisions
-- [Architecture Decisions](architecture-decisions.md) — 9 ADRs: pivot PHP, 2 packages, dual-track, 2 presets, timeline, stub evolution
+- [Architecture Decisions](architecture-decisions.md) — 10 ADRs: pivot PHP, 2 packages, dual-track, 2 presets, timeline, stub evolution, hook runner (Lefthook→CaptainHook)
 - [Pivot Rationale](../../docs/specs/2026-04-16-pivot-npm-to-composer.md) — por que abandonamos Node
 
 ## Design Evolution (ordem cronológica)
 - [Design Doc v5 ACTIVE](../../docs/specs/2026-04-16-codeguard-v2-architecture.md) — **canonical spec** (2 packages, codeguard/codeguard-full presets, Lefthook, install híbrido)
+- [Spec 2026-04-17 CaptainHook + Telemetry](../../docs/specs/2026-04-17-captainhook-migration-and-telemetry.md) — migração Lefthook→CaptainHook + install UX + telemetria local 7-camadas (draft aguardando aprovação)
 - [CodeGuard v2 Internal Design](codeguard-v2-design.md) — decisões consolidadas (pré-preset redesign)
 - [Reviews Consolidated](reviews-consolidated.md) — 10 agentes (6 adversariais + 4 steelman)
 - [Preset Design Evolution](preset-design-evolution.md) — jornada 3 presets → 2 presets + Node auto-detect + install híbrido (sessão 2, 2026-04-16)
@@ -32,8 +33,8 @@ Memória persistente do projeto — leia antes de qualquer trabalho substantivo.
 - 2 packages: `henryavila/codeguard` (Composer) + `henryavila/codeguard-hooks` (Claude plugin bash)
 - Namespace: `Henryavila\Codeguard\*`
 - Commands: `codeguard:*` (install, check, test, prepare, analyze, baseline)
-- Presets: **`codeguard`** (default, PHP-native: Pint + PHPStan + Deptrac + Infection + Lefthook) e **`codeguard-full`** (adds jscpd + Insights + TestQualityTest — requires Node, auto-detected)
-- Pre-commit: Lefthook (não Husky)
+- Presets: **`codeguard`** (default, PHP-native: Pint + PHPStan + Deptrac + Infection + CaptainHook) e **`codeguard-full`** (adds jscpd + Insights + TestQualityTest — requires Node, auto-detected)
+- Pre-commit: **CaptainHook** (PHP puro + Composer-native) — ADR-010 reverteu decisão inicial de Lefthook
 - Pattern engine: PHP nativo (symfony/yaml), não Node
 - Stub evolution: dogfood → distill → redistribute (ADR-009)
 

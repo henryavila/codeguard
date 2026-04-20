@@ -255,8 +255,63 @@ php artisan codeguard:install --refresh-stubs    # update stubs without losing c
 - **2026-04-17** — `parallel.processTimeout: 1200.0` **NÃO** migrado do phpstan.neon do Arch. Razão: escala Arch (20min) não generaliza; default 60s serve 90%. Falha critério universalidade.
 - **2026-04-17** — `scanDirectories` duplicando `paths` **NÃO** migrado. Razão: redundante com default PHPStan. Documentado como candidato a remoção também do próprio Arch.
 
-**Discovery separada (não ADR mas merece nota)**:
-- **2026-04-17** — `shipmonk/dead-code-detector` no Arch estava sub-configurado com `deadMethods: false` como workaround para 1453 FPs do Laravel DI. Solução correta: ativar `usageProviders.laravel: true` + `usageProviders.eloquent: true`. Stub distribui a config correta.
-
 **Aberto a revisar?**
 Sim — quando o 2º projeto consumidor estabilizar, revisitar esse processo. Pode se tornar mais formal (PR-driven) ou mais permissivo (rule "obviously universal" pula o critério de 2 projetos).
+
+## ADR-010: Hook Runner — Lefthook → CaptainHook (2026-04-17)
+
+**Decisão**: Trocar Lefthook (Go binary) por CaptainHook (PHP puro, Composer-native) como hook runner default do CodeGuard. **Reverte Q7b** (resolvida em 2026-04-16).
+
+**Contexto**:
+- Lefthook foi escolhido em 2026-04-16 (Q7b) por 4 razões: execução paralela, cold start, zero runtime dep, config YAML clara.
+- Descoberta posterior (2026-04-17): `evilmartians/lefthook` **não existe no Packagist**. Install requer brew/apt/npm ou binário OS-dependente. Isso reintroduz exatamente a fricção Node que ADR-001 eliminou (`npm i -g lefthook` é o caminho "universal" sugerido).
+- Usuário real (terceirizado sem IA, em máquina desconhecida) vai travar na instalação do binário Lefthook em ~30% das vezes. Contradiz meta primária "controlar dev terceirizado sem IA".
+- **CaptainHook** (captainhook/captainhook): PHP puro, `composer require --dev` funciona, plugin `captainhook/hook-installer` ativa `.git/hooks/*` automaticamente — onboarding = `composer install` e pronto.
+
+**Análise comparativa profunda (abr/2026)** — 4 dimensões:
+
+1. **Amplitude** (built-ins de quality):
+   - CaptainHook: 8 validators nativos (secret scanner `captainhook/secrets`, commit message conventional-commits, branch name policy, block direct-to-main, merge conflict markers, max file size, GPG signing, message regex).
+   - Lefthook: apenas shell runner. Cada check = script custom.
+
+2. **Profundidade** (extensibilidade):
+   - CaptainHook: **PHP Action classes** implementando `CaptainHook\App\Hook\Action`. Um único boot PHP executa N actions com acesso programático a Repository/IndexOperator/StagedFiles.
+   - Lefthook: só CLI externo. N checks = N binários shell + N boots PHP (~40-80ms cada).
+
+3. **Eficácia como plataforma CodeGuard**:
+   - CaptainHook permite CodeGuard shippar checks Laravel-específicos (migration sem `down()`, Model sem `$fillable`, FormRequest sem regras, N+1 em Controllers via AST) como PHP Actions distribuídas via Composer.
+   - Lefthook limita CodeGuard a ser "config generator de Pint/PHPStan/Deptrac".
+   - Isso é a diferença entre CodeGuard ser **runner framework** ou **quality platform**.
+
+4. **Performance**:
+   - Lefthook vence em pre-commit paralelo (~5-15s vs CaptainHook ~15-40s em projeto Arch-size).
+   - Mas em checks PHP-nativos múltiplos (ex: 10 actions CodeGuard), CaptainHook é superior (1 boot vs 10 boots). Cancela parcialmente o gap.
+   - Gap real só aparece em pre-commit com 5+ gates pesados. Aceito como tradeoff.
+
+**Tradeoffs aceitos** (documentados, não ignorados):
+- ⚠️ **Performance**: pre-commit 2-3× mais lento em projetos grandes (15-40s vs 5-15s). Trigger de revisão: se um consumidor reclamar >30s e começar a usar `--no-verify`.
+- ⚠️ **Bus factor**: CaptainHook é solo-maintained (sebastianfeldmann + GitHub Sponsors) vs corporate-backed (Evil Martians). Mitigação: projeto tem 10 anos, 7M downloads, release cadence ativa (2026-03-25). Trigger: sem release por 6+ meses OU CVE unpatched → avaliar migração.
+- ⚠️ **`stage_fixed`**: Lefthook tem `stage_fixed: true` (Pint formata + auto-git-add). CaptainHook requer `pint --dirty` e dev faz `git add` manual ou outra Action PHP pode automatizar. Não bloqueante.
+
+**Consequências**:
+- ✅ Onboarding zero-fricção: `composer install` ativa hooks automaticamente via `captainhook/hook-installer`.
+- ✅ Coerência com ADR-001 (no Node, no OS-specific install).
+- ✅ CodeGuard pode crescer em amplitude de quality checks PHP-nativos como diferencial do pacote.
+- ❌ Código atual (`src/Install/LefthookInstaller.php`, `resources/stubs/lefthook.yml.stub`) precisa refactor para equivalentes CaptainHook.
+- ❌ Documentação e GatePlan mencionam "Lefthook" em vários lugares — rename global.
+- 📊 **Open question**: medir eficácia real em produção via telemetria local (ver Q13).
+
+**Dependências novas**:
+- `captainhook/captainhook ^5.29`
+- `captainhook/hook-installer ^1.0` (plugin Composer que ativa hooks em `composer install` sem `vendor/bin/captainhook install` manual)
+
+**Migração preservando ADR-001**:
+- Lefthook é removido do stack. Lefthook como **alternativa documentada** permanece válido (user pode trocar manualmente).
+- Nenhum binário Go/npm é requerido. 100% Composer.
+
+**Aberto a revisar?**
+Sim, via Q13 — se telemetria local mostrar pre-commit >30s regularmente OU solo-maintainer ficar inativo, reavaliar (custo de reverter é ~1 arquivo yaml + installer).
+
+## Discovery separada (não ADR mas merece nota)
+- **2026-04-17** — `shipmonk/dead-code-detector` no Arch estava sub-configurado com `deadMethods: false` como workaround para 1453 FPs do Laravel DI. Solução correta: ativar `usageProviders.laravel: true` + `usageProviders.eloquent: true`. Stub distribui a config correta.
+- **2026-04-17** — `evilmartians/lefthook` não existe no Packagist (pesquisa direta retornou 404 na Packagist API). Install fora do Composer era requisito oculto não documentado na ADR original. Motivou ADR-010.
