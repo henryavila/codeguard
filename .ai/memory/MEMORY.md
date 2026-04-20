@@ -11,7 +11,7 @@ Memória persistente do projeto — leia antes de qualquer trabalho substantivo.
 
 ## Design Evolution (ordem cronológica)
 - [Design Doc v5 ACTIVE](../../docs/specs/2026-04-16-codeguard-v2-architecture.md) — **canonical spec** (2 packages, codeguard/codeguard-full presets, Lefthook, install híbrido)
-- [Spec 2026-04-17 CaptainHook + Telemetry](../../docs/specs/2026-04-17-captainhook-migration-and-telemetry.md) — migração Lefthook→CaptainHook + install UX + telemetria local 7-camadas (draft aguardando aprovação)
+- [Spec 2026-04-17 CaptainHook + Telemetry](../../docs/specs/2026-04-17-captainhook-migration-and-telemetry.md) — Phase A β **COMPLETA** 2026-04-20; Phase C + B pendentes (ver handoff)
 - [CodeGuard v2 Internal Design](codeguard-v2-design.md) — decisões consolidadas (pré-preset redesign)
 - [Reviews Consolidated](reviews-consolidated.md) — 10 agentes (6 adversariais + 4 steelman)
 - [Preset Design Evolution](preset-design-evolution.md) — jornada 3 presets → 2 presets + Node auto-detect + install híbrido (sessão 2, 2026-04-16)
