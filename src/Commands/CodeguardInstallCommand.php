@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Henryavila\Codeguard\Commands;
 
+use Henryavila\Codeguard\Install\AllowPluginsStatus;
 use Henryavila\Codeguard\Install\CaptainhookInstaller;
 use Henryavila\Codeguard\Install\CaptainhookInstallResult;
 use Henryavila\Codeguard\Install\CaptainhookInstallStatus;
+use Henryavila\Codeguard\Install\ComposerAllowPluginsCheck;
 use Henryavila\Codeguard\Install\DeptracLayerSuggester;
 use Henryavila\Codeguard\Install\DeptracLayerWizard;
 use Henryavila\Codeguard\Install\EnvironmentDetector;
@@ -34,6 +36,7 @@ use Henryavila\Codeguard\Testing\Preset;
 use Illuminate\Console\Command;
 use Illuminate\Filesystem\Filesystem;
 
+use function Laravel\Prompts\confirm;
 use function Laravel\Prompts\select;
 
 final class CodeguardInstallCommand extends Command
@@ -61,6 +64,7 @@ final class CodeguardInstallCommand extends Command
         PhpstanExtensionApplier $phpstanExtApplier,
         NextStepsReporter $reporter,
         Filesystem $filesystem,
+        ComposerAllowPluginsCheck $allowPluginsCheck,
     ): int {
         $interactive = ! $this->option('no-interactive');
         $forceOverwrite = (bool) $this->option('refresh-stubs');
@@ -90,6 +94,8 @@ final class CodeguardInstallCommand extends Command
                 remediation: 'Install Node.js 18+ (jscpd + Insights depend on it) or switch to --preset=default.',
             ));
         }
+
+        $this->ensureCaptainhookPluginAllowed($allowPluginsCheck, $summary, $interactive);
 
         $selectedExtensions = $this->selectPhpstanExtensions(
             phpstanExtSelector: $phpstanExtSelector,
@@ -148,7 +154,61 @@ final class CodeguardInstallCommand extends Command
         $this->line('');
         $this->components->twoColumnDetail('Docs', $reporter->documentationUrl());
 
-        return self::SUCCESS;
+        return $this->resolveExitCode($summary);
+    }
+
+    private function resolveExitCode(InstallSummary $summary): int
+    {
+        if (! $summary->hasIssues()) {
+            return self::SUCCESS;
+        }
+
+        // Exit 2 (not SUCCESS=0, not FAILURE=1) so scripts can tell
+        // "setup incomplete but non-fatal" apart from hard errors like
+        // stub publish failures which already return FAILURE above.
+        return 2;
+    }
+
+    private function ensureCaptainhookPluginAllowed(
+        ComposerAllowPluginsCheck $check,
+        InstallSummary $summary,
+        bool $interactive,
+    ): void {
+        $plugin = 'captainhook/hook-installer';
+        $status = $check->check($plugin);
+
+        if ($status === AllowPluginsStatus::Allowed || $status === AllowPluginsStatus::Unknown) {
+            return;
+        }
+
+        if ($interactive) {
+            $this->line('');
+            $this->components->warn(
+                "Composer plugin {$plugin} is blocked in composer.json — CaptainHook cannot auto-wire hooks until it's allowed.",
+            );
+
+            $approved = confirm(
+                label: "Add {$plugin} to config.allow-plugins now?",
+                default: true,
+                hint: 'Writes a single key to composer.json; reversible by hand.',
+            );
+
+            if ($approved && $check->allow($plugin)) {
+                $this->components->twoColumnDetail(
+                    "composer.json → config.allow-plugins.{$plugin}",
+                    '<fg=green>true (auto-added)</>',
+                );
+
+                return;
+            }
+        }
+
+        $summary->warn(new InstallWarning(
+            level: WarningLevel::Warning,
+            code: WarningCode::CaptainhookPluginBlocked,
+            message: "Composer plugin {$plugin} is not listed in config.allow-plugins — hooks will not auto-install.",
+            remediation: "Run: composer config allow-plugins.{$plugin} true",
+        ));
     }
 
     private function checkPhpVersion(EnvironmentInfo $env, InstallSummary $summary): void

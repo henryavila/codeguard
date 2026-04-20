@@ -2,11 +2,14 @@
 
 declare(strict_types=1);
 
+use Henryavila\Codeguard\Install\AllowPluginsStatus;
+use Henryavila\Codeguard\Install\CaptainhookInstaller;
 use Henryavila\Codeguard\Install\CaptainhookInstallResult;
 use Henryavila\Codeguard\Install\CaptainhookInstallStatus;
-use Henryavila\Codeguard\Install\CaptainhookInstaller;
+use Henryavila\Codeguard\Install\ComposerAllowPluginsCheck;
 use Henryavila\Codeguard\Install\EnvironmentDetector;
 use Henryavila\Codeguard\Install\EnvironmentInfo;
+use Henryavila\Codeguard\Install\StubDiffer;
 use Henryavila\Codeguard\Install\StubPublisher;
 use Illuminate\Filesystem\Filesystem;
 
@@ -26,10 +29,11 @@ beforeEach(function (): void {
     );
 
     $this->app->singleton(EnvironmentDetector::class, function () use ($fakeEnv): EnvironmentDetector {
-        return new class($fakeEnv) extends EnvironmentDetector {
+        return new class($fakeEnv) extends EnvironmentDetector
+        {
             public function __construct(private readonly EnvironmentInfo $env)
             {
-                parent::__construct(new Filesystem(), sys_get_temp_dir());
+                parent::__construct(new Filesystem, sys_get_temp_dir());
             }
 
             public function detect(): EnvironmentInfo
@@ -39,15 +43,35 @@ beforeEach(function (): void {
         };
     });
 
-    // Prevent CaptainHook from shelling out.
+    // Prevent CaptainHook from shelling out. Default to a happy-path
+    // Installed result so the suite exercises the "no pendencies → exit 0"
+    // branch; per-test overrides flip this when they want to exercise the
+    // summary+exit-2 path.
     $this->app->singleton(CaptainhookInstaller::class, function (): CaptainhookInstaller {
-        return new class(sys_get_temp_dir()) extends CaptainhookInstaller {
+        return new class(sys_get_temp_dir()) extends CaptainhookInstaller
+        {
             public function install(EnvironmentInfo $env): CaptainhookInstallResult
             {
                 return new CaptainhookInstallResult(
-                    status: CaptainhookInstallStatus::BinaryMissing,
-                    message: 'stubbed for test',
+                    status: CaptainhookInstallStatus::Installed,
+                    message: 'stubbed — hooks installed',
                 );
+            }
+        };
+    });
+
+    // Default stub: the consumer already allows captainhook/hook-installer.
+    $this->app->singleton(ComposerAllowPluginsCheck::class, function (): ComposerAllowPluginsCheck {
+        return new class(new Filesystem, sys_get_temp_dir().'/unused.json') extends ComposerAllowPluginsCheck
+        {
+            public function check(string $plugin): AllowPluginsStatus
+            {
+                return AllowPluginsStatus::Allowed;
+            }
+
+            public function allow(string $plugin): bool
+            {
+                return true;
             }
         };
     });
@@ -62,7 +86,7 @@ beforeEach(function (): void {
             filesystem: $app->make(Filesystem::class),
             basePath: $this->tempApp,
             stubsSourcePath: $stubsSourcePath,
-            differ: $app->make(\Henryavila\Codeguard\Install\StubDiffer::class),
+            differ: $app->make(StubDiffer::class),
         );
     });
 });
@@ -116,4 +140,64 @@ it('writes a recognisable stub payload (pint.json) to the target path', function
     $pint = file_get_contents($this->tempApp.'/pint.json');
 
     expect($pint)->toBeString()->not->toBeEmpty();
+});
+
+it('exits with code 2 when a pendency is recorded (captainhook binary missing)', function (): void {
+    // Override the default happy-path installer with one that reports
+    // BinaryMissing — this triggers an InstallSummary warning and the
+    // "setup incomplete" branch of resolveExitCode().
+    $this->app->singleton(CaptainhookInstaller::class, function (): CaptainhookInstaller {
+        return new class(sys_get_temp_dir()) extends CaptainhookInstaller
+        {
+            public function install(EnvironmentInfo $env): CaptainhookInstallResult
+            {
+                return new CaptainhookInstallResult(
+                    status: CaptainhookInstallStatus::BinaryMissing,
+                    message: 'stubbed — binary missing',
+                );
+            }
+        };
+    });
+
+    $exitCode = $this->artisan('codeguard:install', [
+        '--no-interactive' => true,
+        '--preset' => 'default',
+    ])->run();
+
+    expect($exitCode)->toBe(2);
+});
+
+it('exits with code 2 when the captainhook plugin is blocked in composer.json (non-interactive)', function (): void {
+    // Override the allow-plugins check with one that reports NotAllowed
+    // and asserts that allow() was NOT called (non-interactive mode must
+    // not mutate composer.json silently — only record a warning).
+    $this->app->singleton(ComposerAllowPluginsCheck::class, function (): ComposerAllowPluginsCheck {
+        return new class(new Filesystem, sys_get_temp_dir().'/unused.json') extends ComposerAllowPluginsCheck
+        {
+            public int $allowCalls = 0;
+
+            public function check(string $plugin): AllowPluginsStatus
+            {
+                return AllowPluginsStatus::NotAllowed;
+            }
+
+            public function allow(string $plugin): bool
+            {
+                $this->allowCalls++;
+
+                return true;
+            }
+        };
+    });
+
+    $exitCode = $this->artisan('codeguard:install', [
+        '--no-interactive' => true,
+        '--preset' => 'default',
+    ])->run();
+
+    expect($exitCode)->toBe(2);
+
+    /** @var object{allowCalls:int} $check */
+    $check = app(ComposerAllowPluginsCheck::class);
+    expect($check->allowCalls)->toBe(0);
 });

@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace Henryavila\Codeguard;
 
 use Henryavila\Codeguard\Commands\CodeguardInstallCommand;
+use Henryavila\Codeguard\Install\CaptainhookInstaller;
+use Henryavila\Codeguard\Install\ComposerAllowPluginsCheck;
 use Henryavila\Codeguard\Install\DeptracLayerSuggester;
 use Henryavila\Codeguard\Install\DeptracLayerWizard;
 use Henryavila\Codeguard\Install\EnvironmentDetector;
 use Henryavila\Codeguard\Install\GatePlanRegistry;
 use Henryavila\Codeguard\Install\LayerDecisionStore;
-use Henryavila\Codeguard\Install\CaptainhookInstaller;
 use Henryavila\Codeguard\Install\NextStepsReporter;
 use Henryavila\Codeguard\Install\PhpstanExtensionApplier;
 use Henryavila\Codeguard\Install\PhpstanExtensionSelector;
@@ -80,6 +81,16 @@ final class CodeguardServiceProvider extends ServiceProvider
 
         $this->app->singleton(CaptainhookInstaller::class, function (Application $app): CaptainhookInstaller {
             return new CaptainhookInstaller(basePath: $app->basePath());
+        });
+
+        $this->app->singleton(ComposerAllowPluginsCheck::class, function (Application $app): ComposerAllowPluginsCheck {
+            /** @var Filesystem $filesystem */
+            $filesystem = $app->make(Filesystem::class);
+
+            return new ComposerAllowPluginsCheck(
+                filesystem: $filesystem,
+                composerJsonPath: $app->basePath('composer.json'),
+            );
         });
 
         $this->app->singleton(PhpstanExtensionSelector::class);
