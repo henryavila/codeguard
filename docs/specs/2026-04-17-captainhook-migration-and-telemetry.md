@@ -122,6 +122,8 @@ $ git commit
 | tests/Unit/Install/PresetSelectorTest.php | Edit | renomear |
 | tests/Unit/Install/EnvironmentInfoTest.php | Edit | `hasLefthookBinary` → `hasCaptainhookBinary` |
 | tests/Unit/Install/CaptainhookInstallerTest.php | **Create** | novo teste substituindo LefthookInstallerTest (não existente ainda; novo) |
+| `src/Hooks/StagedPhpFilesRunner.php` | **Create** | PHP Action classe que implementa `CaptainHook\App\Hook\Action`. Lê `$repo->getIndexOperator()->getStagedFiles('php')`, monta argv com `binary + flags + stagedFiles`, roda via `symfony/process`. Opções configuráveis via `$action->getOptions()`. ~70 LOC. **Diferencial CodeGuard: primeira PHP Action shippada.** |
+| `tests/Unit/Hooks/StagedPhpFilesRunnerTest.php` | **Create** | Mock de `Repository` + `IndexOperator`, asserts: (a) comando montado com staged files apenas, (b) no-op quando nada staged, (c) ActionFailed em exit non-zero, (d) respeita options.binary/flags. ~60 LOC. |
 
 ### 3.2. New Files (Phase C)
 
@@ -171,19 +173,19 @@ $ git commit
 
 ### 3.4. Total LOC Estimado
 
-- Phase A: ~300 LOC alterados/movidos (maior parte rename + regen de stubs) + 1 commit de tag
+- Phase A: ~430 LOC (300 rename/edit + 130 novos com StagedPhpFilesRunner + test) + 1 commit de tag
 - Phase C: ~260 LOC novos + ~50 LOC edits no install command (inclui CodeguardDirectoryInitializer + test)
 - Phase B: ~1.100 LOC novos (600 produção + 500 testes)
 
-Granular total: **~1.700 LOC**. Alto mas inclui 550 LOC de testes (~32%) e 650 LOC de produção dividido em 13 classes pequenas (~50 LOC média cada — cohesivo, não monolítico).
+Granular total: **~1.830 LOC**. 32% tests (610 LOC) + 720 LOC de produção em 14 classes pequenas.
 
 ---
 
 ## 4. CaptainHook Mapping (tradução 1:1 do lefthook.yml.stub)
 
-### 4.1. captainhook.json.stub — versão proposta
+### 4.1. captainhook.json.stub — versão proposta (opção β aprovada 2026-04-19)
 
-**Mudança crítica vs Lefthook original**: PHPStan sai do pre-commit e vai para pre-push. Razão: Lefthook passava `{staged_files}` (segundos); CaptainHook sem PHP Action custom roda PHPStan no repo inteiro (minutos em projetos grandes → violaria H1). Pint usa `--dirty` que já opera só sobre staged files, então fica no pre-commit. Esse rearranjo preserva pre-commit rápido SEM criar PHP Action imediatamente; PHP Action `StagedPhpFilesRunner` é trabalho futuro (§4.3) que devolverá PHPStan ao pre-commit quando existir.
+**Paridade funcional com Lefthook via PHP Action**: o stub usa `StagedPhpFilesRunner` (nova classe shippada em Phase A) para rodar PHPStan apenas em arquivos `*.php` staged. Mesmo tempo de wall-clock que o Lefthook com `{staged_files}` entregava (~3-8s típico). O stub separa pré-commit (rápido, staged-only) de pre-push (defesa em profundidade, full suite).
 
 ```json
 {
@@ -202,15 +204,25 @@ Granular total: **~1.700 LOC**. Alto mas inclui 550 LOC de testes (~32%) e 650 L
             "args": ["php"]
           }
         ]
+      },
+      {
+        "action": "\\Henryavila\\Codeguard\\Hooks\\StagedPhpFilesRunner",
+        "options": {
+          "binary": "vendor/bin/phpstan",
+          "flags": ["analyse", "--no-progress", "--memory-limit=1G"]
+        },
+        "conditions": [
+          {
+            "exec": "\\CaptainHook\\App\\Hook\\Condition\\FileStaged\\OfType",
+            "args": ["php"]
+          }
+        ]
       }
     ]
   },
   "pre-push": {
     "enabled": true,
     "actions": [
-      {
-        "action": "vendor/bin/phpstan analyse --no-progress --memory-limit=1G"
-      },
       {
         "action": "vendor/bin/pest --bail"
       }
@@ -219,7 +231,9 @@ Granular total: **~1.700 LOC**. Alto mas inclui 550 LOC de testes (~32%) e 650 L
 }
 ```
 
-**Consequência operacional**: commit que passa pre-commit pode ainda ser barrado pelo pre-push. Isso já vale hoje para testes (pest só no pre-push). É aceitável e preserva rapidez do commit loop; erros de tipo viram red no `git push`, não ficam soterrados até CI.
+**Valor estratégico do β**: `StagedPhpFilesRunner` é a primeira PHP Action diferencial do CodeGuard. Serve dois propósitos:
+1. Feature-parity com Lefthook no pre-commit.
+2. Prova de conceito que valida o argumento central do ADR-010 ("CaptainHook é plataforma, não só runner"). Q13-H4 começa respondida desde o dia 1 de CaptainHook em produção.
 
 ### 4.2. Stub será documentado com comentários adjacentes
 
@@ -229,15 +243,15 @@ Como JSON não aceita comentários nativos, CodeGuard publica lado a lado um arq
 
 Revisão futura: se a complexidade do stub crescer (condições dinâmicas, lógica condicional por preset), migrar para `captainhook.php`. Não é prioridade agora.
 
-### 4.3. Gaps vs Lefthook (aceitos para Phase A, roadmap para futuro)
+### 4.3. Gaps vs Lefthook (Phase A pós-β)
 
-| Feature Lefthook | Substituto CaptainHook Phase A | Futuro (pós-B) |
+| Feature Lefthook | Estado em Phase A | Roadmap futuro |
 |---|---|---|
 | `parallel: true` | sequencial | issue #249 upstream; aceitar limitação |
-| `{staged_files}` templating | `--dirty` do Pint funciona; PHPStan roda no repo todo | PHP Action `StagedPhpFilesRunner` que expande staged files + roda qualquer CLI |
-| `stage_fixed: true` | dev faz `git add` manual após Pint reformatar | PHP Action `AutoStageAfterFormatter` (shippada por CodeGuard) |
-| `skip: [merge, rebase]` | builtin via `conditions.IsMergeCommit` já disponível | ok |
-| `LEFTHOOK=0` env skip | `CAPTAINHOOK_SKIP=1` equivalente | ok |
+| `{staged_files}` templating | **Resolvido via PHP Action `StagedPhpFilesRunner`** (Phase A inclui) | — |
+| `stage_fixed: true` | dev faz `git add` manual após Pint reformatar | PHP Action `AutoStageAfterFormatter` (pós-B) |
+| `skip: [merge, rebase]` | builtin via `conditions.IsMergeCommit` já disponível | — |
+| `LEFTHOOK=0` env skip | `CAPTAINHOOK_SKIP=1` equivalente | — |
 
 ---
 
@@ -320,35 +334,36 @@ Justificativa:
 
 ### 6.2. Sequência de implementação (commits granulares)
 
-**Phase A — 7 commits**:
+**Phase A — 8 commits** (β: inclui PHP Action):
 0. `chore(git): tag v0-last-lefthook before migration` — cria tag pre-migration para rollback documentado em §8.2
-1. `refactor(hooks): rename LefthookInstaller → CaptainhookInstaller`
-2. `feat(hooks): add captainhook.json.stub translating lefthook config 1:1`
-3. `refactor(composer): add captainhook/captainhook + hook-installer deps`
-4. `refactor(install): wire CaptainhookInstaller into install command`
-5. `refactor(config): rename lefthook refs in config/codeguard.php + preset descriptions`
-6. `test(install): update all 5 tests referencing Lefthook + new CaptainhookInstallerTest`
+1. `refactor(composer): add captainhook/captainhook + hook-installer deps` — roda `composer install` para ter vendor/bin disponível nos passos seguintes
+2. `feat(hooks): add StagedPhpFilesRunner PHP Action + test` — primeira PHP Action shippada pelo CodeGuard (Q13-H4 proof-of-concept)
+3. `refactor(hooks): rename LefthookInstaller → CaptainhookInstaller`
+4. `feat(hooks): add captainhook.json.stub + captainhook.json.README.md.stub (wires StagedPhpFilesRunner)`
+5. `refactor(install): wire CaptainhookInstaller into install command`
+6. `refactor(config): rename lefthook refs in config/codeguard.php + preset descriptions`
+7. `test(install): update all 5 tests referencing Lefthook + new CaptainhookInstallerTest`
 
 **Phase C — 3 commits**:
-7. `feat(install): add InstallSummary warning aggregator + final report block`
-8. `feat(install): exit code 2 when setup is incomplete, colored per-gate status`
-9. `feat(install): CodeguardDirectoryInitializer generates .codeguard/.gitignore`
+8. `feat(install): add InstallSummary warning aggregator + final report block`
+9. `feat(install): exit code 2 when setup is incomplete, colored per-gate status`
+10. `feat(install): CodeguardDirectoryInitializer generates .codeguard/.gitignore`
 
 **Phase B — 5 commits**:
-10. `feat(telemetry): Event, EventName, EventStatus, FieldAllowlist value objects with tests`
-11. `feat(telemetry): Recorder + ConfigGate + Rotator + JsonlWriter with tests`
-12. `feat(telemetry): StopwatchScope + MeasuredAction decorator with tests`
-13. `feat(telemetry): 3 Artisan commands (enable/disable/clear) + privacy E2E test`
-14. `feat(telemetry): instrument install/gates/hooks/test/analyze/prepare layers`
+11. `feat(telemetry): Event, EventName, EventStatus, FieldAllowlist value objects with tests`
+12. `feat(telemetry): Recorder + ConfigGate + Rotator + JsonlWriter with tests`
+13. `feat(telemetry): StopwatchScope + MeasuredAction decorator with tests`
+14. `feat(telemetry): 3 Artisan commands (enable/disable/clear) + privacy E2E test`
+15. `feat(telemetry): instrument install/gates/hooks/test/analyze/prepare layers`
 
-Cada commit passa `pest` + não quebra arch. Total: **15 commits** (A=7 incluindo tag, C=3, B=5), cada um < 250 LOC.
+Cada commit passa `pest` + não quebra arch. Total: **16 commits** (A=8 incluindo tag + StagedPhpFilesRunner, C=3, B=5), cada um < 250 LOC.
 
 ### 6.3. Testing checkpoints
 
-- Após #6: `vendor/bin/pest` verde + `cd /home/henry/arch && php artisan codeguard:install --no-interactive` funciona (hooks Git CaptainHook ativos).
-- Após #8: saída do install com warning destacado em cor + exit 2 quando falta algo.
-- Após #9 (Phase C): `.codeguard/.gitignore` gerado automaticamente; `git status` mostra que telemetria e demais arquivos locais ficam ignorados.
-- Após #14 (Phase B): `telemetry.jsonl` populado após ciclo install+check+commit no Arch; privacy test verde.
+- Após #7 (fim Phase A): `vendor/bin/pest` verde + `cd /home/henry/arch && php artisan codeguard:install --no-interactive` funciona (hooks Git CaptainHook ativos, pre-commit executa Pint + PHPStan-staged em segundos).
+- Após #9 (Phase C): saída do install com warning destacado em cor + exit 2 quando falta algo.
+- Após #10 (fim Phase C): `.codeguard/.gitignore` gerado automaticamente; `git status` mostra que telemetria e demais arquivos locais ficam ignorados.
+- Após #15 (fim Phase B): `telemetry.jsonl` populado após ciclo install+check+commit no Arch; privacy test verde.
 
 ---
 
@@ -362,7 +377,7 @@ Cada commit passa `pest` + não quebra arch. Total: **15 commits** (A=7 incluind
 
 ### 7.2. Integration — End-to-end no Arch
 
-Cenários a validar manualmente nos 3 checkpoints (após commit #6 da Phase A, após #8 da C, após #13 da B):
+Cenários a validar manualmente nos 3 checkpoints (após commit #7 da Phase A, após #10 da C, após #15 da B):
 
 1. **Fresh Arch install** (rm `vendor/ .codeguard/` → `composer install`): hooks pre-commit ativos sem `vendor/bin/captainhook install` manual.
 2. **Install wizard interativo**: prompts de telemetria aparecem; opt-in default N; escolha persiste em `config/codeguard.php`.
@@ -394,11 +409,11 @@ Cenários a validar manualmente nos 3 checkpoints (após commit #6 da Phase A, a
 
 ### 8.2. Rollback strategy
 
-**Phase A rollback**: `git checkout v0-last-lefthook` (tag criada no commit #0 da fase) OU `git revert` dos commits 1-6. Impacto: 1 comando git.
+**Phase A rollback**: `git checkout v0-last-lefthook` (tag criada no commit #0 da fase) OU `git revert` dos commits 1-7. Impacto: 1 comando git.
 
-**Phase C rollback**: revert commits 7-9. Baixo risco (só altera renderers + adiciona gitignore).
+**Phase C rollback**: revert commits 8-10. Baixo risco (só altera renderers + adiciona gitignore).
 
-**Phase B rollback**: `php artisan codeguard:telemetry:disable` resolve em runtime sem deploy. Remoção de código: revert commits 10-14.
+**Phase B rollback**: `php artisan codeguard:telemetry:disable` resolve em runtime sem deploy. Remoção de código: revert commits 11-15.
 
 ### 8.3. ADR-010 re-evaluation triggers (duplicado do ADR para visibilidade)
 
@@ -415,10 +430,10 @@ Revert de Phase A pra Lefthook se:
 
 | Phase | Low (P20) | Expected (P50) | High (P80) |
 |---|---|---|---|
-| A — CaptainHook migration | 2h | **3h** | 5h |
+| A — CaptainHook migration (β com StagedPhpFilesRunner) | 3h | **4h** | 6h |
 | C — Install UX | 45min | **1h 15min** | 2h |
 | B — Telemetry (7 camadas) | 4h | **6h** | 9h |
-| **Total** | 6h 45min | **10h 15min** | 16h |
+| **Total** | 7h 45min | **11h 15min** | 17h |
 
 Incerteza high é maior em B porque:
 - Primeira implementação do FieldAllowlist pode pegar edge cases que exigem iteração.
