@@ -91,7 +91,7 @@ it('preserves existing ruleset entries for built-in layers after merging', funct
     $result = new WizardResult(
         decisions: [
             LayerDecision::assign('App\\Upgrades', 'Domain'),
-            LayerDecision::assign('App\\Integrations', 'Persistence'),
+            LayerDecision::assign('App\\Integrations', 'Infrastructure'),
         ],
         customLayers: [],
     );

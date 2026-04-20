@@ -10,17 +10,81 @@ use Symfony\Component\Yaml\Yaml;
 
 final class DeptracLayerSuggester
 {
+    /**
+     * Namespace keyword → layer mapping.
+     *
+     * Matching is case-insensitive. Exact match wins over substring match.
+     *
+     * Layers:
+     *   Domain         → pure business rules, value objects, policies
+     *   Application    → services, jobs, events, listeners, notifications
+     *   Presentation   → HTTP, Livewire, Filament, Nova, Console, Views
+     *   Infrastructure → Eloquent models, repositories, external adapters
+     *   __skip__       → bootstrap/cross-cutting (Providers, Traits, …)
+     */
     private const LAYER_HEURISTICS = [
-        'Domain' => ['Domain', 'Entities', 'Policies', 'ValueObjects'],
-        'Application' => ['Services', 'Http', 'Controllers', 'Console', 'Jobs', 'Actions', 'UseCases'],
-        'Persistence' => ['Models', 'Infrastructure', 'Repositories', 'Eloquent'],
+        'Domain' => [
+            'Domain', 'Entities', 'Entity',
+            'ValueObjects', 'ValueObject',
+            'Policies', 'Policy',
+            'Rules', 'Rule',
+            'Enums', 'Enum',
+            'Contracts', 'Contract',
+            'Interfaces', 'Interface',
+            'Abstracts', 'Abstract',
+        ],
+        'Application' => [
+            'Services', 'Service',
+            'UseCases', 'UseCase',
+            'Actions', 'Action',
+            'Jobs', 'Job',
+            'Events', 'Event',
+            'Listeners', 'Listener',
+            'Observers', 'Observer',
+            'Notifications', 'Notification',
+            'Mail', 'Mails', 'Mailables',
+            'Pipes', 'Pipe',
+            'Features', 'Feature',
+            'DTOs', 'DTO', 'Dto', 'Dtos',
+            'Exports', 'Export',
+            'Commands', 'Queries',
+        ],
+        'Presentation' => [
+            'Http', 'Controllers', 'Controller',
+            'Livewire', 'Filament', 'Nova',
+            'Console',
+            'Forms', 'Form',
+            'View', 'Views',
+            'Presenters', 'Presenter',
+        ],
+        'Infrastructure' => [
+            'Models', 'Model',
+            'Repositories', 'Repository',
+            'Eloquent', 'Infrastructure',
+            'ExternalApi', 'ExternalApis',
+            'Integrations', 'Integration',
+            'Adapters', 'Adapter',
+            'Configurators', 'Configurator',
+            'Upgrades', 'Upgrade',
+            'Overwrites', 'Overwrite',
+        ],
+        '__skip__' => [
+            'Providers', 'Provider',
+            'Exceptions', 'Exception',
+            'Traits', 'Trait',
+            'Helpers', 'Helper',
+            'Objects', 'Object',
+        ],
     ];
 
     private const DEFAULT_RULESET = [
         'Domain' => [],
         'Application' => ['Domain'],
-        'Persistence' => ['Domain'],
+        'Infrastructure' => ['Domain'],
+        'Presentation' => ['Application', 'Domain'],
     ];
+
+    private const BUILT_IN_LAYERS = ['Domain', 'Application', 'Presentation', 'Infrastructure'];
 
     public function __construct(
         private readonly Filesystem $filesystem,
@@ -50,9 +114,8 @@ final class DeptracLayerSuggester
     /**
      * Apply wizard decisions to produce an enriched LayerSuggestion including
      * any custom layers the user introduced. Built-in layer defaults
-     * (Application → Domain, Persistence → Domain) are preserved; custom
-     * layers start with no outbound dependencies and can be tightened by
-     * editing deptrac.yaml manually.
+     * (Application → Domain, etc.) are preserved; custom layers start with
+     * no outbound dependencies and can be tightened by editing deptrac.yaml.
      */
     public function withDecisions(LayerSuggestion $original, WizardResult $result): LayerSuggestion
     {
@@ -160,11 +223,31 @@ final class DeptracLayerSuggester
         return $finder->count();
     }
 
+    /**
+     * Case-insensitive match. Exact match is prioritised so that `Providers`
+     * maps to `__skip__` even if a keyword `Provider` is somehow reused in
+     * another layer. Falls back to substring match for compound names.
+     *
+     * Returns:
+     *   - a layer name (Domain/Application/Presentation/Infrastructure)
+     *   - LayerOption::Skip->value (`__skip__`) for skip-suggested namespaces
+     *   - null for unclassified (wizard will ask the user)
+     */
     private function mapToLayer(string $namespaceName): ?string
     {
+        $lowered = strtolower($namespaceName);
+
         foreach (self::LAYER_HEURISTICS as $layer => $keywords) {
             foreach ($keywords as $keyword) {
-                if (str_contains($namespaceName, $keyword)) {
+                if ($lowered === strtolower($keyword)) {
+                    return $layer;
+                }
+            }
+        }
+
+        foreach (self::LAYER_HEURISTICS as $layer => $keywords) {
+            foreach ($keywords as $keyword) {
+                if (str_contains($lowered, strtolower($keyword))) {
                     return $layer;
                 }
             }
@@ -183,6 +266,10 @@ final class DeptracLayerSuggester
 
         foreach ($detected as $namespace) {
             if ($namespace->suggestedLayer === null) {
+                continue;
+            }
+
+            if ($namespace->suggestedLayer === LayerOption::Skip->value) {
                 continue;
             }
 
@@ -215,6 +302,10 @@ final class DeptracLayerSuggester
 
         foreach ($original->detectedNamespaces as $namespace) {
             if ($namespace->suggestedLayer === null) {
+                continue;
+            }
+
+            if ($namespace->suggestedLayer === LayerOption::Skip->value) {
                 continue;
             }
 
@@ -312,5 +403,16 @@ final class DeptracLayerSuggester
         }
 
         return $ruleset;
+    }
+
+    /**
+     * Exposes built-in layer names for callers that need to check
+     * (wizard uses this to detect custom-layer names).
+     *
+     * @return list<string>
+     */
+    public static function builtInLayers(): array
+    {
+        return self::BUILT_IN_LAYERS;
     }
 }

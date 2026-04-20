@@ -11,6 +11,7 @@ use Henryavila\Codeguard\Install\EnvironmentInfo;
 use Henryavila\Codeguard\Install\GatePlan;
 use Henryavila\Codeguard\Install\GatePlanRegistry;
 use Henryavila\Codeguard\Install\LayerDecisionStore;
+use Henryavila\Codeguard\Install\LayerOption;
 use Henryavila\Codeguard\Install\LayerSuggestion;
 use Henryavila\Codeguard\Install\LefthookInstallResult;
 use Henryavila\Codeguard\Install\LefthookInstallStatus;
@@ -469,9 +470,13 @@ final class CodeguardInstallCommand extends Command
     private function renderLayerSuggestion(LayerSuggestion $suggestion): void
     {
         foreach ($suggestion->detectedNamespaces as $namespace) {
-            $layer = $namespace->suggestedLayer ?? '<fg=gray>(unclassified)</>';
+            $layer = match ($namespace->suggestedLayer) {
+                null => '<fg=gray>(unclassified — wizard will ask)</>',
+                LayerOption::Skip->value => '<fg=yellow>Skip (auto — cross-cutting)</>',
+                default => '<fg=cyan>'.$namespace->suggestedLayer.'</>',
+            };
             $this->line(sprintf(
-                '  %s  <fg=gray>(%d files)</>  → <fg=cyan>%s</>',
+                '  %s  <fg=gray>(%d files)</>  → %s',
                 $namespace->relativePath,
                 $namespace->fileCount,
                 $layer,

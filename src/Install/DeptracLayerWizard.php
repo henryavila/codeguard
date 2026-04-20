@@ -16,9 +16,9 @@ final class DeptracLayerWizard
     private const MIN_FILES_FOR_BATCH_SKIP = 3;
 
     /**
-     * Interactively classify unclassified namespaces from a LayerSuggestion.
+     * Interactively classify unclassified (and auto-skip-suggested) namespaces.
      *
-     * Returns a list of decisions (one per previously-unclassified namespace),
+     * Returns a list of decisions (one per namespace surfaced to the user),
      * plus any custom layer names the user introduced along the way.
      *
      * @param  array<string, string>  $savedDecisions  namespace => layerName (null → skip) from prior run
@@ -28,7 +28,7 @@ final class DeptracLayerWizard
         array $savedDecisions = [],
         ?OutputStyle $output = null,
     ): WizardResult {
-        $unclassified = $this->extractUnclassified($suggestion);
+        $unclassified = $this->extractPromptable($suggestion);
 
         if ($unclassified === []) {
             return new WizardResult(decisions: [], customLayers: []);
@@ -56,8 +56,9 @@ final class DeptracLayerWizard
             $decision = $this->promptForNamespace($namespace, $customLayers);
             $decisions[] = $decision;
 
-            if ($decision->layerName !== null && ! in_array($decision->layerName, $customLayers, strict: true)
-                && ! in_array($decision->layerName, ['Domain', 'Application', 'Persistence'], strict: true)) {
+            if ($decision->layerName !== null
+                && ! in_array($decision->layerName, $customLayers, strict: true)
+                && ! in_array($decision->layerName, DeptracLayerSuggester::builtInLayers(), strict: true)) {
                 $customLayers[] = $decision->layerName;
             }
         }
@@ -90,13 +91,21 @@ final class DeptracLayerWizard
     }
 
     /**
+     * Namespaces the wizard should prompt for:
+     *   - completely unclassified (null)
+     *   - auto-suggested Skip (so the user confirms and sees why)
+     *
+     * Namespaces auto-classified to a concrete layer are NOT prompted —
+     * they appear in the review screen only.
+     *
      * @return list<DetectedNamespace>
      */
-    private function extractUnclassified(LayerSuggestion $suggestion): array
+    private function extractPromptable(LayerSuggestion $suggestion): array
     {
         return array_values(array_filter(
             $suggestion->detectedNamespaces,
-            static fn (DetectedNamespace $ns): bool => $ns->suggestedLayer === null,
+            static fn (DetectedNamespace $ns): bool => $ns->suggestedLayer === null
+                || $ns->suggestedLayer === LayerOption::Skip->value,
         ));
     }
 
@@ -107,13 +116,17 @@ final class DeptracLayerWizard
     {
         $count = count($unclassified);
         $lines = array_map(
-            static fn (DetectedNamespace $ns): string => sprintf('  • %s (%d files)', $ns->relativePath, $ns->fileCount),
+            static function (DetectedNamespace $ns): string {
+                $marker = $ns->suggestedLayer === LayerOption::Skip->value ? '  (auto: Skip)' : '';
+
+                return sprintf('  • %s (%d files)%s', $ns->relativePath, $ns->fileCount, $marker);
+            },
             $unclassified,
         );
 
         note(
             sprintf(
-                "Deptrac wizard — %d namespace%s need a layer assignment.\n\n%s\n\nYou will be asked one at a time. Use arrow keys + enter to choose.",
+                "Deptrac wizard — %d namespace%s need confirmation.\n\n%s\n\nUse ↑/↓ + Enter to choose. Auto-suggested choices are pre-selected.",
                 $count,
                 $count === 1 ? '' : 's',
                 implode("\n", $lines),
@@ -131,7 +144,8 @@ final class DeptracLayerWizard
     {
         $tiny = array_values(array_filter(
             $unclassified,
-            static fn (DetectedNamespace $ns): bool => $ns->fileCount < self::MIN_FILES_FOR_BATCH_SKIP,
+            static fn (DetectedNamespace $ns): bool => $ns->fileCount < self::MIN_FILES_FOR_BATCH_SKIP
+                && $ns->suggestedLayer !== LayerOption::Skip->value,
         ));
 
         if (count($tiny) < 3) {
@@ -227,13 +241,15 @@ final class DeptracLayerWizard
     private function promptForNamespace(DetectedNamespace $namespace, array $customLayersSoFar): LayerDecision
     {
         $options = $this->buildOptions($customLayersSoFar);
+        $default = $this->defaultChoiceFor($namespace);
+        $hint = $this->hintFor($namespace);
 
         /** @var string $choice */
         $choice = select(
             label: sprintf('%s (%d files) — which layer?', $namespace->relativePath, $namespace->fileCount),
             options: $options,
-            default: LayerOption::Application->value,
-            hint: 'Use ↑/↓ to navigate · Enter to select',
+            default: $default,
+            hint: $hint,
         );
 
         if ($choice === LayerOption::Skip->value) {
@@ -257,7 +273,7 @@ final class DeptracLayerWizard
     {
         $options = [];
 
-        foreach ([LayerOption::Domain, LayerOption::Application, LayerOption::Persistence] as $builtIn) {
+        foreach (LayerOption::concreteLayers() as $builtIn) {
             $options[$builtIn->value] = sprintf(
                 '%s — %s · ex: %s',
                 $builtIn->value,
@@ -286,6 +302,44 @@ final class DeptracLayerWizard
     }
 
     /**
+     * Pre-select the heuristic's suggestion as the default, otherwise
+     * Application (safe default for unclassified namespaces).
+     */
+    private function defaultChoiceFor(DetectedNamespace $namespace): string
+    {
+        if ($namespace->suggestedLayer === LayerOption::Skip->value) {
+            return LayerOption::Skip->value;
+        }
+
+        if ($namespace->suggestedLayer !== null) {
+            return $namespace->suggestedLayer;
+        }
+
+        return LayerOption::Application->value;
+    }
+
+    /**
+     * Educational hint rendered below the prompt. For Skip-auto namespaces,
+     * shows the full "when to Skip" explanation so the user understands why.
+     */
+    private function hintFor(DetectedNamespace $namespace): string
+    {
+        if ($namespace->suggestedLayer === LayerOption::Skip->value) {
+            return LayerOption::skipGuidance();
+        }
+
+        if ($namespace->suggestedLayer !== null) {
+            $layer = LayerOption::tryFrom($namespace->suggestedLayer);
+
+            if ($layer !== null) {
+                return $layer->typicalHint($namespace->namespace).'  Press Enter to accept.';
+            }
+        }
+
+        return 'Use ↑/↓ to navigate · Enter to select · pick Skip only for cross-cutting code.';
+    }
+
+    /**
      * @param  list<string>  $existingCustom
      */
     private function promptCustomLayerName(array $existingCustom): string
@@ -293,7 +347,7 @@ final class DeptracLayerWizard
         while (true) {
             /** @var string $name */
             $name = text(
-                label: 'New layer name (e.g., Integration, Console, Jobs)',
+                label: 'New layer name (e.g., Integration, Reporting, Jobs)',
                 placeholder: 'Integration',
                 required: true,
                 validate: static function (string $value): ?string {
@@ -309,12 +363,12 @@ final class DeptracLayerWizard
 
                     return null;
                 },
-                hint: 'Must be PascalCase. Examples: Integration, Console, Jobs.',
+                hint: 'Must be PascalCase. Examples: Integration, Reporting, Jobs.',
             );
 
             $name = trim($name);
 
-            if (in_array($name, ['Domain', 'Application', 'Persistence'], strict: true)) {
+            if (in_array($name, DeptracLayerSuggester::builtInLayers(), strict: true)) {
                 note("'{$name}' is already a built-in layer — use the built-in option from the previous prompt.");
 
                 continue;
@@ -339,6 +393,7 @@ final class DeptracLayerWizard
 
     /**
      * @param  list<LayerDecision>  $decisions
+     * @return list<string>
      */
     private function collectCustomLayerNames(array $decisions): array
     {
@@ -349,7 +404,7 @@ final class DeptracLayerWizard
                 continue;
             }
 
-            if (in_array($decision->layerName, ['Domain', 'Application', 'Persistence'], strict: true)) {
+            if (in_array($decision->layerName, DeptracLayerSuggester::builtInLayers(), strict: true)) {
                 continue;
             }
 
@@ -397,11 +452,13 @@ final class DeptracLayerWizard
         $grouped = [
             'Domain' => [],
             'Application' => [],
-            'Persistence' => [],
+            'Presentation' => [],
+            'Infrastructure' => [],
         ];
 
         foreach ($suggestion->detectedNamespaces as $namespace) {
-            if ($namespace->suggestedLayer !== null) {
+            if ($namespace->suggestedLayer !== null
+                && $namespace->suggestedLayer !== LayerOption::Skip->value) {
                 $grouped[$namespace->suggestedLayer][] = $namespace->relativePath;
             }
         }

@@ -1,20 +1,17 @@
 # ==============================================================================
-# Deptrac configuration for CodeGuard
+# Deptrac configuration for CodeGuard (Laravel 4-layer architecture)
 # ------------------------------------------------------------------------------
-# Deptrac enforces architectural boundaries: "Domain must never depend on
-# Persistence", "Controllers cannot bypass Application services", etc. It
-# detects ruleset violations at static-analysis time, before they ship.
+# Deptrac enforces architectural boundaries at static-analysis time.
 #
-# Core concepts (read in this order):
-#   - Layers      : named buckets of classes (Domain, Application, ...)
-#   - Collectors  : rules that decide which classes go in which layer
-#                   (by regex, namespace, class name, interface, attribute)
-#   - Ruleset     : which layers are ALLOWED to depend on which other layers.
-#                   Anything NOT listed = forbidden = violation.
+# Core concepts:
+#   - Layers     : named buckets of classes (Domain, Application, ...)
+#   - Collectors : rules that match classes to layers (regex, attribute, ...)
+#   - Ruleset    : which layers are ALLOWED to depend on which other layers.
+#                  Anything NOT listed = forbidden = violation.
 #
-# Docs: https://deptrac.github.io/deptrac/latest/
-# Collectors reference: https://deptrac.github.io/deptrac/latest/collectors/
-# Run: vendor/bin/deptrac analyse
+# Docs:       https://deptrac.github.io/deptrac/latest/
+# Collectors: https://deptrac.github.io/deptrac/latest/collectors/
+# Run:        vendor/bin/deptrac analyse
 # ==============================================================================
 
 deptrac:
@@ -23,58 +20,114 @@ deptrac:
         - ./app
 
     # Files excluded from analysis. PCRE regex delimited by '#'.
-    # '#.*test.*#i' = case-insensitive match on any path containing "test".
     exclude_files:
         - '#.*test.*#i'
+        - '#.*[Dd]atabase/(Migrations|Factories|Seeders).*#'
 
     # --------------------------------------------------------------------------
-    # LAYERS — define architectural buckets.
-    # Each layer uses `collectors` to match classes by namespace regex.
-    # The `classLike` collector matches class / interface / trait full names.
+    # LAYERS — what goes where, and what does NOT.
+    #
+    # Mental model for a Laravel app:
+    #
+    #   [Presentation]  HTTP / Livewire / Filament / Console
+    #        ↓ depends on
+    #   [Application]   Services / Jobs / Events / Notifications
+    #        ↓ depends on
+    #   [Domain]        Entities / Value Objects / Policies (pure PHP)
+    #        ↑ implemented by
+    #   [Infrastructure] Eloquent Models / Repositories / API clients
     # --------------------------------------------------------------------------
     layers:
-        # Domain = pure business logic. Entities, Value Objects, domain services.
-        # No framework, no DB, no HTTP. This is the innermost ring of the onion.
+        # ----------------------------------------------------------------------
+        # DOMAIN — pure business rules.
+        # IN : App\Domain, App\ValueObjects, App\Policies, App\Enums,
+        #      App\Contracts, App\Interfaces, App\Rules, App\Abstracts
+        # OUT: Models (they are Eloquent adapters → Infrastructure),
+        #      Controllers, Services, Framework-bound code.
+        # ----------------------------------------------------------------------
         - name: Domain
           collectors:
               - type: classLike
-                value: ^App\\(Domain|Models)\\.*
+                regex: ^App\\(Domain|ValueObjects|Policies|Enums|Contracts|Interfaces|Rules|Abstracts)\\.*
 
-        # Application = orchestration layer. Use-cases, application services,
-        # controllers, console commands. It talks to Domain and Persistence.
+        # ----------------------------------------------------------------------
+        # APPLICATION — orchestration. Runs use-cases, coordinates Domain.
+        # IN : App\Services, App\Jobs, App\Events, App\Listeners,
+        #      App\Observers, App\Notifications, App\Mail, App\Actions,
+        #      App\UseCases, App\Exports, App\DTOs, App\Dto, App\Pipes,
+        #      App\Features
+        # OUT: Controllers / Livewire (transports, not orchestration).
+        # ----------------------------------------------------------------------
         - name: Application
           collectors:
               - type: classLike
-                value: ^App\\(Services|Http|Console)\\.*
+                regex: ^App\\(Services|Jobs|Events|Listeners|Observers|Notifications|Mail|Actions|UseCases|Exports|DTOs|Dto|Pipes|Features)\\.*
 
-        # Persistence = infrastructure adapters. Repositories, DB access,
-        # external API clients. Implements interfaces defined in Domain.
-        - name: Persistence
+        # ----------------------------------------------------------------------
+        # PRESENTATION — entry points / transports.
+        # IN : App\Http (Controllers, Middleware, Requests, Resources),
+        #      App\Livewire, App\Filament, App\Nova, App\Console (CLI),
+        #      App\Forms, App\View, App\Presenters
+        # OUT: Business logic — those go in Application/Domain and are
+        #      CALLED from here.
+        # ----------------------------------------------------------------------
+        - name: Presentation
           collectors:
               - type: classLike
-                value: ^App\\Infrastructure\\.*
+                regex: ^App\\(Http|Livewire|Filament|Nova|Console|Forms|View|Presenters)\\.*
+
+        # ----------------------------------------------------------------------
+        # INFRASTRUCTURE — adapters to external systems.
+        # IN : App\Models (Eloquent), App\Repositories, App\Eloquent,
+        #      App\Infrastructure, App\Adapters
+        # OUT: Business rules (Eloquent model methods should be thin —
+        #      push rules into Domain/Application).
+        # ----------------------------------------------------------------------
+        - name: Infrastructure
+          collectors:
+              - type: classLike
+                regex: ^App\\(Models|Repositories|Eloquent|Infrastructure|Adapters)\\.*
+
+    # --------------------------------------------------------------------------
+    # NOT IN ANY LAYER (intentional) — cross-cutting / bootstrap.
+    #
+    # These live under app/ but are legitimately called by every layer, so
+    # classifying them triggers many false-positive violations:
+    #
+    #   • App\Providers\*   → framework bootstrap (routes, policies, bindings)
+    #   • App\Exceptions\*  → throw/catch cross layer boundaries
+    #   • App\Traits\*      → mixins reused by models, services, controllers
+    #   • App\Helpers\*     → global utilities
+    #
+    # The CodeGuard wizard auto-suggests "Skip" for these. If your project
+    # has others (e.g. App\Objects), the wizard will prompt you case by case.
+    # --------------------------------------------------------------------------
 
     # --------------------------------------------------------------------------
     # RULESET — allowed dependencies between layers.
-    # Syntax: <LayerName>: [<allowed dependency>, ...]
     # '~' (tilde) = null = "this layer may depend on NOTHING in our ruleset".
     # Any dependency not listed here triggers a violation.
     # --------------------------------------------------------------------------
     ruleset:
-        # Domain is sacred — zero outbound dependencies on our other layers.
-        # (It can still use vendor code, PHP stdlib, etc. — Deptrac only
-        #  enforces rules between layers you define here.)
+        # Domain is sacred — zero outbound dependencies on our layers.
+        # (Can still use PHP stdlib, Carbon, etc. — only OUR layers are enforced.)
         Domain: ~
 
-        # Application orchestrates Domain. It must not reach into Persistence
-        # directly; instead it depends on Domain interfaces that Persistence
-        # implements (dependency inversion principle).
+        # Application orchestrates Domain. It must NOT reach Presentation
+        # or Infrastructure directly; depend on Domain contracts instead.
         Application:
             - Domain
 
-        # Persistence implements Domain contracts. It knows about Domain
-        # types, but Domain must never know about Persistence.
-        Persistence:
+        # Infrastructure implements Domain contracts (Eloquent, repos, adapters).
+        # It knows Domain, but Domain must never know Infrastructure.
+        Infrastructure:
+            - Domain
+
+        # Presentation is the outermost ring — may call Application and
+        # read Domain types, but NEVER touches Infrastructure directly
+        # (no Eloquent queries in controllers; go through a Service).
+        Presentation:
+            - Application
             - Domain
 
     # --------------------------------------------------------------------------
