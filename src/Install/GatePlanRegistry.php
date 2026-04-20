@@ -18,7 +18,7 @@ final class GatePlanRegistry
             new GatePlan('PHPStan',   'type safety',         configMinutes: 15, ciCostSeconds:  30),
             new GatePlan('Deptrac',   'architecture',        configMinutes: 30, ciCostSeconds:  15),
             new GatePlan('Infection', 'test quality',        configMinutes: 20, ciCostSeconds: 180),
-            new GatePlan('Lefthook',  'pre-commit enforce',  configMinutes: 10, ciCostSeconds:   0),
+            new GatePlan('CaptainHook', 'pre-commit enforce', configMinutes: 10, ciCostSeconds:   0),
         ];
 
         if ($preset === Preset::Default) {

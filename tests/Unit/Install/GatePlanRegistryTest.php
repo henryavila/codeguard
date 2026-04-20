@@ -12,7 +12,7 @@ it('plansFor(Default) returns the 5 PHP-native gates', function (): void {
     expect($plans)->toHaveCount(5);
 
     $names = array_map(static fn (GatePlan $p): string => $p->gateName, $plans);
-    expect($names)->toBe(['Pint', 'PHPStan', 'Deptrac', 'Infection', 'Lefthook']);
+    expect($names)->toBe(['Pint', 'PHPStan', 'Deptrac', 'Infection', 'CaptainHook']);
 });
 
 it('plansFor(Full) returns the 8 extended gates', function (): void {
@@ -22,7 +22,7 @@ it('plansFor(Full) returns the 8 extended gates', function (): void {
 
     $names = array_map(static fn (GatePlan $p): string => $p->gateName, $plans);
     expect($names)->toBe([
-        'Pint', 'PHPStan', 'Deptrac', 'Infection', 'Lefthook',
+        'Pint', 'PHPStan', 'Deptrac', 'Infection', 'CaptainHook',
         'jscpd', 'Insights', 'TestQualityTest',
     ]);
 });

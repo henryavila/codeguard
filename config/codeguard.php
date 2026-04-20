@@ -26,7 +26,7 @@ return [
     | Which quality gate preset is active. Auto-selected by `codeguard:install`
     | based on Node.js presence, but can be overridden here.
     |
-    | - "codeguard"       Pint + PHPStan + Deptrac + Infection + Lefthook
+    | - "codeguard"       Pint + PHPStan + Deptrac + Infection + CaptainHook
     |                     (PHP-native, no Node required)
     |
     | - "codeguard-full"  + jscpd + Insights + TestQualityTest
@@ -165,7 +165,7 @@ return [
         'infection.json5',
         'phpunit.xml',
         '.jscpd.json',
-        'lefthook.yml',
+        'captainhook.json',
     ],
 
     /*

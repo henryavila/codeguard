@@ -29,7 +29,7 @@ it('configTimeLabel combines hours and minutes when remainder is non-zero', func
 });
 
 it('ciCostLabel returns "0" for zero seconds', function (): void {
-    $plan = new GatePlan('Lefthook', 'pre-commit', configMinutes: 0, ciCostSeconds: 0);
+    $plan = new GatePlan('CaptainHook', 'pre-commit', configMinutes: 0, ciCostSeconds: 0);
 
     expect($plan->ciCostLabel())->toBe('0');
 });

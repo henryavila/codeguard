@@ -2,7 +2,7 @@
 
 > **Laravel quality gates that survive your AI agent.**
 
-Consolidated install for Pint, PHPStan, Deptrac, Infection, and Lefthook — with AI review where AST can't reach, multi-database schema dump, and honest best-effort Claude hooks.
+Consolidated install for Pint, PHPStan, Deptrac, Infection, and CaptainHook — with AI review where AST can't reach, multi-database schema dump, and honest best-effort Claude hooks.
 
 **Status**: v1.0 in active development. Installs and runs on Laravel 11/12 via `composer path repository` today. First Packagist tag (`1.0.0-alpha.1`) expected mid-2026-04.
 
@@ -14,7 +14,7 @@ You have a Laravel project. You want:
 - **PHPStan** catching type bugs
 - **Deptrac** enforcing architecture boundaries
 - **Infection** detecting `assertTrue(true)` type tests written by a contractor who doesn't use AI
-- **Lefthook** blocking bad commits before they hit CI
+- **CaptainHook** blocking bad commits before they hit CI (PHP-native, auto-activated by `composer install`)
 - The same setup replicated across **every project** you own
 - Easy upgrade path (`composer update`) to evolve the standard over time
 
@@ -31,7 +31,7 @@ composer require --dev henryavila/codeguard
 php artisan codeguard:install
 ```
 
-The installer auto-detects your environment, recommends a preset, shows you exactly what will be installed (with honest config-time estimates), asks Deptrac layer questions scanned from your `app/` directory, and sets up Lefthook hooks.
+The installer auto-detects your environment, recommends a preset, shows you exactly what will be installed (with honest config-time estimates), asks Deptrac layer questions scanned from your `app/` directory, and verifies CaptainHook is active (Composer's `hook-installer` plugin does the actual `.git/hooks/*` wiring).
 
 ```
 CodeGuard — Laravel quality gates installer
@@ -41,7 +41,7 @@ Detecting environment...
   Composer              2.7.0
   Node.js               20.10.0
   package.json          found
-  Lefthook binary       available
+  CaptainHook binary    available
 
 Recommended preset ... codeguard-full ⭐
   • Project uses Node.js (package.json or node_modules detected).
@@ -51,7 +51,7 @@ Recommended preset ... codeguard-full ⭐
   ✓ PHPStan          type safety          config: 15min     CI: ~30s
   ✓ Deptrac          architecture         config: 30min     CI: ~15s
   ✓ Infection        test quality         config: 20min     CI: +3min
-  ✓ Lefthook         pre-commit enforce   config: 10min     CI: 0
+  ✓ CaptainHook      pre-commit enforce   config: 10min     CI: 0
   ✓ jscpd            duplication          config: 5min      CI: ~10s
   ✓ Insights         metrics              config: 0         CI: ~20s
   ✓ TestQualityTest  meta-quality         config: 15min     CI: ~5s
@@ -65,7 +65,8 @@ Publishing stubs...
   phpstan.neon                              created
   deptrac.yaml                              created
   infection.json5                           created
-  lefthook.yml                              created
+  captainhook.json                          created
+  captainhook.json.README.md                created
   .jscpd.json                               created
   tests/Arch/TestQualityTest.php            created
 
@@ -86,8 +87,8 @@ Deptrac layer detection
 
   deptrac.yaml written with suggested layers
 
-Lefthook setup
-  lefthook install      installed (.git/hooks registered)
+CaptainHook setup
+  captainhook install   installed (.git/hooks registered)
 
 Next steps:
   PHPStan     Review level in phpstan.neon (currently 5).
@@ -105,7 +106,7 @@ Two presets, auto-selected by the installer based on Node.js presence in your pr
 
 | Preset | Tools | Requires Node? | Auto-selected when |
 |--------|-------|:---:|--------------------|
-| **`codeguard`** (default) | Pint + PHPStan + Deptrac + Infection + Lefthook | ❌ | No `package.json` or `node_modules/` |
+| **`codeguard`** (default) | Pint + PHPStan + Deptrac + Infection + CaptainHook | ❌ | No `package.json` or `node_modules/` |
 | **`codeguard-full`** | + jscpd + Insights + TestQualityTest | ✅ | `package.json` or `node_modules/` present |
 
 **Philosophy**: no "Minimal" starter preset that gives false comfort. Both presets enforce the gates you actually need for a team project. The only real decision axis is whether you already have Node.js (and you probably do if you're running Vite/Vue).
@@ -125,7 +126,7 @@ php artisan codeguard:install --refresh-stubs       # update stubs (diff-aware)
 
 ### ✅ Available today (v1.0.0-alpha WIP)
 
-- **Guided hybrid install** — smart stubs with inline educational comments, auto-detection, Deptrac layer suggestion from your `app/` namespaces, Lefthook binary check and install
+- **Guided hybrid install** — smart stubs with inline educational comments, auto-detection, Deptrac layer suggestion from your `app/` namespaces, CaptainHook auto-activated via Composer plugin
 - **Idempotent re-run** — `--refresh-stubs` diffs existing files and lets you `keep`, `overwrite`, or review full diff before choosing. No silent customization loss.
 - **Auto-detect Node** — installer picks the right preset for your project without asking
 - **Honest estimates** — per-gate config time and CI cost shown before you commit
@@ -166,7 +167,7 @@ php artisan codeguard:install --refresh-stubs       # update stubs (diff-aware)
 
 Optional:
 - Node.js **18+** (only if using `codeguard-full` preset)
-- Lefthook binary (installer suggests install commands if missing)
+- CaptainHook: installed automatically as a Composer dev dependency (no separate binary required)
 
 ---
 
@@ -184,7 +185,7 @@ codeguard:install      ◄── guided setup (this package)
      ├─► phpstan.neon           ──► phpstan/phpstan (type safety)
      ├─► deptrac.yaml           ──► qossmic/deptrac (architecture)
      ├─► infection.json5        ──► infection/infection (test quality)
-     ├─► lefthook.yml           ──► lefthook binary (pre-commit)
+     ├─► captainhook.json       ──► captainhook/captainhook (pre-commit, PHP-native)
      ├─► .jscpd.json            ──► jscpd (duplication, Full only)
      ├─► tests/Arch/*.php       ──► Pest architecture tests
      └─► config/codeguard.php   ──► Artisan orchestrator (codeguard:check, :test)

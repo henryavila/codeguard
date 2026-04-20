@@ -30,9 +30,9 @@ final class NextStepsReporter
                 'command' => './vendor/bin/infection --initial-tests-only',
             ],
             [
-                'gate' => 'Lefthook',
-                'action' => 'Install hooks and test with an empty commit.',
-                'command' => 'lefthook install && git commit --allow-empty -m test',
+                'gate' => 'CaptainHook',
+                'action' => 'Hooks auto-activated by composer install. Test with an empty commit.',
+                'command' => 'git commit --allow-empty -m test',
             ],
             [
                 'gate' => 'Pint',
