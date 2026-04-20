@@ -9,6 +9,27 @@ sync: if you change the config, update the explanation here.
 - Run manually: `vendor/bin/captainhook hook:pre-commit` (or any hook)
 - Disable temporarily: `CAPTAINHOOK_SKIP=1 git commit ...`
 
+## Where the installed hook scripts actually live
+
+Run `git config --get core.hooksPath` in your project. If it prints
+a path (typical for repos migrating from Husky, which sets
+`core.hooksPath=.husky/_`), Git will invoke hooks from THERE — not
+from `.git/hooks/`. CaptainHook honours the setting: `vendor/bin/
+captainhook install` will write its hook shims into whichever path
+Git is pointing at. This is expected behaviour; the hooks still run
+on every commit/push.
+
+To confirm which path hosts the active hooks on your machine:
+
+```
+git config --get core.hooksPath   # empty → .git/hooks ; else → that path
+ls -la "$(git config --get core.hooksPath || echo .git/hooks)/pre-commit"
+```
+
+If you want Git to use the default `.git/hooks/` again, clear the
+override with `git config --unset core.hooksPath` and re-run
+`vendor/bin/captainhook install --force --only-enabled`.
+
 ## commit-msg
 
 Empty by default. Add actions here for:

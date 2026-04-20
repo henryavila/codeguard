@@ -6,6 +6,7 @@ use Henryavila\Codeguard\Install\AllowPluginsStatus;
 use Henryavila\Codeguard\Install\CaptainhookInstaller;
 use Henryavila\Codeguard\Install\CaptainhookInstallResult;
 use Henryavila\Codeguard\Install\CaptainhookInstallStatus;
+use Henryavila\Codeguard\Install\CodeguardDirectoryInitializer;
 use Henryavila\Codeguard\Install\ComposerAllowPluginsCheck;
 use Henryavila\Codeguard\Install\EnvironmentDetector;
 use Henryavila\Codeguard\Install\EnvironmentInfo;
@@ -76,6 +77,13 @@ beforeEach(function (): void {
         };
     });
 
+    // Point the directory initializer at the same tempApp so .codeguard/
+    // lands there (and not inside Testbench's fixture basepath).
+    $tempApp = $this->tempApp;
+    $this->app->singleton(CodeguardDirectoryInitializer::class, function () use ($tempApp): CodeguardDirectoryInitializer {
+        return new CodeguardDirectoryInitializer(new Filesystem, $tempApp);
+    });
+
     // Repoint StubPublisher at a writable temp directory instead of
     // Testbench's read-only fixture base path.
     $stubsSourcePath = realpath(__DIR__.'/../../resources/stubs')
@@ -129,6 +137,21 @@ it('runs codeguard:install non-interactively with --preset=default and exits 0',
     // into the temp base path.
     expect(file_exists($this->tempApp.'/pint.json'))->toBeTrue()
         ->and(file_exists($this->tempApp.'/phpstan.neon'))->toBeTrue();
+});
+
+it('creates .codeguard/.gitignore with canonical entries before stub publish', function (): void {
+    $this->artisan('codeguard:install', [
+        '--no-interactive' => true,
+        '--preset' => 'default',
+    ])->assertExitCode(0);
+
+    $gitignore = $this->tempApp.'/.codeguard/.gitignore';
+    expect(file_exists($gitignore))->toBeTrue();
+
+    $content = file_get_contents($gitignore);
+    foreach (CodeguardDirectoryInitializer::requiredEntries() as $entry) {
+        expect($content)->toContain($entry);
+    }
 });
 
 it('writes a recognisable stub payload (pint.json) to the target path', function (): void {

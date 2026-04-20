@@ -6,6 +6,7 @@ namespace Henryavila\Codeguard;
 
 use Henryavila\Codeguard\Commands\CodeguardInstallCommand;
 use Henryavila\Codeguard\Install\CaptainhookInstaller;
+use Henryavila\Codeguard\Install\CodeguardDirectoryInitializer;
 use Henryavila\Codeguard\Install\ComposerAllowPluginsCheck;
 use Henryavila\Codeguard\Install\DeptracLayerSuggester;
 use Henryavila\Codeguard\Install\DeptracLayerWizard;
@@ -90,6 +91,16 @@ final class CodeguardServiceProvider extends ServiceProvider
             return new ComposerAllowPluginsCheck(
                 filesystem: $filesystem,
                 composerJsonPath: $app->basePath('composer.json'),
+            );
+        });
+
+        $this->app->singleton(CodeguardDirectoryInitializer::class, function (Application $app): CodeguardDirectoryInitializer {
+            /** @var Filesystem $filesystem */
+            $filesystem = $app->make(Filesystem::class);
+
+            return new CodeguardDirectoryInitializer(
+                filesystem: $filesystem,
+                basePath: $app->basePath(),
             );
         });
 

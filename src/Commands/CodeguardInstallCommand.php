@@ -8,6 +8,7 @@ use Henryavila\Codeguard\Install\AllowPluginsStatus;
 use Henryavila\Codeguard\Install\CaptainhookInstaller;
 use Henryavila\Codeguard\Install\CaptainhookInstallResult;
 use Henryavila\Codeguard\Install\CaptainhookInstallStatus;
+use Henryavila\Codeguard\Install\CodeguardDirectoryInitializer;
 use Henryavila\Codeguard\Install\ComposerAllowPluginsCheck;
 use Henryavila\Codeguard\Install\DeptracLayerSuggester;
 use Henryavila\Codeguard\Install\DeptracLayerWizard;
@@ -65,6 +66,7 @@ final class CodeguardInstallCommand extends Command
         NextStepsReporter $reporter,
         Filesystem $filesystem,
         ComposerAllowPluginsCheck $allowPluginsCheck,
+        CodeguardDirectoryInitializer $directoryInitializer,
     ): int {
         $interactive = ! $this->option('no-interactive');
         $forceOverwrite = (bool) $this->option('refresh-stubs');
@@ -111,6 +113,12 @@ final class CodeguardInstallCommand extends Command
 
             return self::SUCCESS;
         }
+
+        // Ensure .codeguard/.gitignore exists BEFORE any stub publish or
+        // Phase B telemetry writer lands a file in the directory — this
+        // prevents telemetry.jsonl / baseline.json from leaking into git
+        // on fresh installs.
+        $directoryInitializer->initialize();
 
         $this->line('');
         $this->components->info('Publishing stubs...');
