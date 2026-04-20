@@ -56,7 +56,17 @@ class CaptainhookInstaller
 
         $binary = $this->basePath.DIRECTORY_SEPARATOR.'vendor'.DIRECTORY_SEPARATOR.'bin'.DIRECTORY_SEPARATOR.'captainhook';
 
-        $process = new Process([$binary, 'install', '--no-interaction'], $this->basePath);
+        // --force: activate every hook non-interactively. Without it,
+        //   `install --no-interaction` silently skips all hooks (treats
+        //   every unanswered "activate this hook?" prompt as "no"). We
+        //   always want codeguard to end with hooks actually installed,
+        //   not half-configured.
+        // --only-enabled: respect the `enabled: true/false` flags in
+        //   captainhook.json. Our stub leaves commit-msg enabled but
+        //   empty; post-* hooks aren't declared at all. --only-enabled
+        //   filters the "hook X is not configured — skipping" noise we
+        //   saw during the first Arch install.
+        $process = new Process([$binary, 'install', '--force', '--only-enabled'], $this->basePath);
         $process->setTimeout(30);
 
         try {
