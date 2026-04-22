@@ -6,35 +6,38 @@ type: project
 
 # Conversation Handoff
 
-**Última atualização**: 2026-04-20 (sessão 4 — Phase C completa + reviewed)
+**Última atualização**: 2026-04-22 (sessão 5 — Phase B completa + reviewed)
 
 **Sessões**:
 - Sessão 1: Pivot Node→PHP, 10 reviews, consolidação memória
 - Sessão 2 (2026-04-16/17): Redesign de presets (3→2), Onda 1/2/3, ADR-009, expansão PHPStan ecosystem, Deptrac wizard 4 camadas
 - Sessão 3 (2026-04-19/20): ADR-010 Lefthook→CaptainHook + spec 2026-04-17 + Phase A β implementada end-to-end
 - Sessão 4 (2026-04-20): Phase C β completa em 4 commits + code-reviewer adversarial pass + review fixes aplicados
+- Sessão 5 (2026-04-22): Phase B β completa em 5 commits + dual review gate (code-reviewer + security-reviewer) + 1 review-fix commit
 
 ---
 
-## Estado Atual (2026-04-20)
+## Estado Atual (2026-04-22)
 
 ### Working tree
-Branch `main`, limpo. Últimos commits:
+Branch `main`, limpo. Últimos commits (Phase B):
 ```
-9faf0c2 fix(install): address Phase C review — allow-plugins:false guard, atomic write, escape summary markup
-fc2425f feat(install): CodeguardDirectoryInitializer generates .codeguard/.gitignore
-40d0586 feat(install): exit code 2 when setup is incomplete + auto-config allow-plugins
-af33d04 feat(install): add InstallSummary warning aggregator + final report block
-3d2a0ca docs(memory): handoff for Phase A β completion + Phase C/B roadmap
+3aa3e42 fix(telemetry): address Phase B review findings — Composer 3, strict default, atomic state write, abort exit
+e3ebde2 feat(telemetry): instrument install command + split Captainhook classes
+4f28c76 feat(telemetry): 3 Artisan commands (enable/disable/clear) + privacy E2E test
+94ef8c8 feat(telemetry): StopwatchScope + MeasuredAction decorator with tests
+594e575 feat(telemetry): Recorder + ConfigGate + Rotator + JsonlWriter with tests
+1f5a6e6 feat(telemetry): Event, EventName, EventStatus, FieldAllowlist value objects with tests
+7e0326c docs(memory): handoff for Phase C β completion + Phase B roadmap
 ```
 
-26 commits ahead de `origin/main` (aguarda `git push`).
+33 commits ahead de `origin/main` (aguarda `git push`).
 
 ### Tag de rollback
 `v0-last-lefthook` continua válida (pre-Phase-A).
 
 ### Suite de testes
-**144 testes / 353 assertions, todos verdes.**
+**271 testes / 668 assertions, todos verdes.**
 ```bash
 cd /home/henry/codeguard && vendor/bin/pest --colors=never
 ```
@@ -53,8 +56,8 @@ Phase A validada em `/home/henry/arch` anteriormente (composer install → hooks
 | Phase | Status | Commits |
 |---|---|---|
 | A — CaptainHook migration | ✅ COMPLETA (2026-04-20, sessão 3) | 9 commits + 1 tag |
-| C — Install UX | ✅ **COMPLETA** (2026-04-20, sessão 4) | 3 commits + 1 review-fix commit |
-| B — Telemetry 7-camadas | 🔜 **PRÓXIMO** | 5 commits planejados |
+| C — Install UX | ✅ COMPLETA (2026-04-20, sessão 4) | 3 commits + 1 review-fix commit |
+| B — Telemetry (install layer) | ✅ **COMPLETA** (2026-04-22, sessão 5) | 5 commits + 1 review-fix commit |
 
 ---
 
@@ -93,7 +96,57 @@ Phase A validada em `/home/henry/arch` anteriormente (composer install → hooks
 
 ---
 
-## Próximo Passo Concreto: Phase B
+## Phase B — O que entrou (sessão 5)
+
+**Namespace novo**: `Henryavila\Codeguard\Telemetry\`
+
+**Arquivos prod (11 novos + 3 splits)**:
+- `Telemetry/Event.php` — readonly VO com `toArray()` de ordem estável
+- `Telemetry/EventName.php` — enum 20 casos (spec §5.2)
+- `Telemetry/EventStatus.php` — enum Ok|Fail|Skip
+- `Telemetry/FieldAllowlist.php` — gate central com SCHEMA por evento; `validate()` e `rejectFreeformStrings()`; `target_event`/`stub_outcome`/`activation_status` renomeados para evitar colisão com top-level keys
+- `Telemetry/ConfigGate.php` — single-decision gate
+- `Telemetry/JsonlWriter.php` — append com flock EX
+- `Telemetry/Rotator.php` — rotação > 10MB, retenção mtime-desc dos 5 mais recentes, second-collision guard
+- `Telemetry/Recorder.php` — entry-point com loop guard + scope guard para `telemetry.dropped_field`
+- `Telemetry/StopwatchScope.php` — hrtime helper para single ended event
+- `Telemetry/MeasuredAction.php` — decorator CaptainHook Action → gate.started/gate.ended
+- `Telemetry/TelemetryStateStore.php` — `.codeguard/telemetry-state.json` atomic write (temp+rename)
+- `Commands/Telemetry/{Enable,Disable,Clear}Command.php` — 3 artisan
+- `Install/InstallTelemetry.php` — façade com mapping typed → enum
+- `Install/CaptainhookInstall{Result,Status}.php` — split de CaptainhookInstaller.php para satisfazer PSR-4 autoloading
+
+**Arquivos editados**:
+- `Commands/CodeguardInstallCommand.php` — injeção de InstallTelemetry, 7 pontos de emissão, maybeInstallCaptainhook retorna Result, renderNextSteps retorna count
+- `CodeguardServiceProvider.php` — registra 7 singletons + 3 commands
+- `config/codeguard.php` — seção `telemetry` (enabled/strict_mode/path/rotate_bytes/retain_archives); strict_mode **default false em prod** (review fix)
+
+**Tests** (~870 LOC, 133 tests novos):
+- `tests/Unit/Telemetry/*` — 8 arquivos (88 tests)
+- `tests/Feature/Telemetry/*` — 2 arquivos (12 tests) incluindo `TelemetryPrivacyTest` com regex sweep (/home/, /Users/, C:\\, emails, SHA-1, URLs)
+- `tests/Unit/Install/InstallTelemetryTest.php` — 20 tests com mapping completo
+- `tests/Feature/CodeguardInstallCommandTest.php` — 1 smoke test novo
+
+**Review gate (sessão 5)**:
+Spawnou em paralelo code-reviewer + security-reviewer.
+
+- **security-reviewer**: 0 CRITICAL, 0 HIGH, 1 MEDIUM, 3 LOW. Confirmou end-to-end: (a) todo `Recorder::record` passa por `FieldAllowlist::validate`, (b) nenhum path/email/SHA/URL chega ao jsonl, (c) `strict_mode=true` default no VO e nos tests. MEDIUM foi Rotator race (deferred). LOWs: rejectFreeformStrings docstring, MeasuredAction stringly-typed params (deferred), TelemetryStateStore atomic write (**aplicado em 3aa3e42**).
+- **code-reviewer**: 0 CRITICAL, 1 HIGH, 3 MEDIUM, 3 LOW. HIGH foi `composerMajor` silenciando Composer 3 como 2 → **aplicado** (schema `[1, 3]`, clamping ≥4 e <1). MEDIUM CODEGUARD_TELEMETRY_STRICT default → **aplicado** (prod agora default false). MEDIUM memoization + MEDIUM TODO comments no EventName deferred. LOW ClearCommand abort exit → **aplicado** (SUCCESS). LOWs readonly class markers + ts timezone assertion deferred.
+
+Tudo que foi aplicado está em `3aa3e42 fix(telemetry): address Phase B review findings`.
+
+### Próximo Passo Concreto: follow-up telemetry instrumentation (não-urgente)
+
+Phase B cobriu apenas o install command (Layer 1 + Layer 2 do spec §5.2). As outras camadas ficam para quando seus comandos existirem:
+- Layer 3 (gate.started/ended) — precisa do `codeguard:check` command
+- Layer 4 (hook.triggered/completed) — precisa do hook-bootstrap mechanism para Laravel container rodar dentro de captainhook processes
+- Layer 5 (test.started/ended) — precisa do `codeguard:test` command
+- Layer 6 (analyze.ended/baseline.ended) — precisam dos respectivos commands
+- Layer 7 (prepare.step.ended) — precisa do `codeguard:prepare` command
+
+`MeasuredAction` já existe e está testado; é só wrap em captainhook.json stub quando houver bootstrap. Três casos de `EventName` (InstallStubProcessed, InstallDeptracDetected, InstallDeptracWizardDecision) estão declarados no schema mas ainda não têm método no `InstallTelemetry` — instrumentar em follow-up (o reviewer sugeriu TODO comment, mas decidi não poluir os enums; está aqui documentado).
+
+### (Histórico — Phase B planning, já cumprido)
 
 ### Dependência satisfeita
 `.codeguard/.gitignore` já é gerado automaticamente pelo `CodeguardDirectoryInitializer`. Telemetria pode escrever `telemetry.jsonl` em `.codeguard/` sem risco de vazar pro git.
