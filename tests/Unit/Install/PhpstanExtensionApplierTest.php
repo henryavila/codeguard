@@ -94,3 +94,61 @@ NEON);
     expect($contents)->toContain('    cognitive_complexity:')
         ->and($contents)->toContain('        class: 50');
 });
+
+it('preserves sentinel # prefix on :start and :end markers when enabling a block', function (): void {
+    file_put_contents($this->path, <<<'NEON'
+parameters:
+    # @codeguard:ext=cognitive-complexity:params:start
+    # cognitive_complexity:
+    #     class: 50
+    # @codeguard:ext=cognitive-complexity:params:end
+NEON);
+
+    $this->applier->apply($this->path, [PhpstanExtension::CognitiveComplexity]);
+
+    $contents = file_get_contents($this->path);
+
+    expect($contents)->toContain('# @codeguard:ext=cognitive-complexity:params:start')
+        ->and($contents)->toContain('# @codeguard:ext=cognitive-complexity:params:end')
+        ->and($contents)->not->toMatch('/^\s*@codeguard:ext=cognitive-complexity:params:end\s*$/m')
+        ->and($contents)->not->toMatch('/^\s*@codeguard:ext=cognitive-complexity:params:start\s*$/m');
+});
+
+it('preserves sentinel # prefix on :start and :end markers when disabling a block', function (): void {
+    file_put_contents($this->path, <<<'NEON'
+parameters:
+    # @codeguard:ext=cognitive-complexity:params:start
+    cognitive_complexity:
+        class: 50
+    # @codeguard:ext=cognitive-complexity:params:end
+NEON);
+
+    $this->applier->apply($this->path, []);
+
+    $contents = file_get_contents($this->path);
+
+    expect($contents)->toContain('# @codeguard:ext=cognitive-complexity:params:start')
+        ->and($contents)->toContain('# @codeguard:ext=cognitive-complexity:params:end')
+        ->and($contents)->not->toMatch('/^\s*@codeguard:ext=cognitive-complexity:params:end\s*$/m')
+        ->and($contents)->not->toMatch('/^\s*@codeguard:ext=cognitive-complexity:params:start\s*$/m');
+});
+
+it('preserves sentinels across repeated apply() calls (idempotent)', function (): void {
+    file_put_contents($this->path, <<<'NEON'
+parameters:
+    # @codeguard:ext=dead-code:params:start
+    shipmonkDeadCode:
+        enabled: true
+    # @codeguard:ext=dead-code:params:end
+NEON);
+
+    // Disable, re-enable, disable — each pass must keep sentinels intact.
+    $this->applier->apply($this->path, []);
+    $this->applier->apply($this->path, [PhpstanExtension::DeadCode]);
+    $this->applier->apply($this->path, []);
+
+    $contents = file_get_contents($this->path);
+
+    expect($contents)->toContain('# @codeguard:ext=dead-code:params:start')
+        ->and($contents)->toContain('# @codeguard:ext=dead-code:params:end');
+});
