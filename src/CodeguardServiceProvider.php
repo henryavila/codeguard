@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Henryavila\Codeguard;
 
 use Henryavila\Codeguard\Commands\CodeguardInstallCommand;
+use Henryavila\Codeguard\Commands\Telemetry\ClearCommand as TelemetryClearCommand;
+use Henryavila\Codeguard\Commands\Telemetry\DisableCommand as TelemetryDisableCommand;
+use Henryavila\Codeguard\Commands\Telemetry\EnableCommand as TelemetryEnableCommand;
 use Henryavila\Codeguard\Install\CaptainhookInstaller;
 use Henryavila\Codeguard\Install\CodeguardDirectoryInitializer;
 use Henryavila\Codeguard\Install\ComposerAllowPluginsCheck;
@@ -27,6 +30,7 @@ use Henryavila\Codeguard\Telemetry\JsonlWriter;
 use Henryavila\Codeguard\Telemetry\Recorder;
 use Henryavila\Codeguard\Telemetry\Rotator;
 use Henryavila\Codeguard\Telemetry\StopwatchScope;
+use Henryavila\Codeguard\Telemetry\TelemetryStateStore;
 use Henryavila\Codeguard\Testing\CodeguardConfig;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Filesystem\Filesystem;
@@ -165,9 +169,18 @@ final class CodeguardServiceProvider extends ServiceProvider
 
     private function registerTelemetryServices(): void
     {
+        $this->app->singleton(TelemetryStateStore::class, static function (Application $app): TelemetryStateStore {
+            return new TelemetryStateStore(
+                stateFilePath: $app->basePath('.codeguard'.DIRECTORY_SEPARATOR.'telemetry-state.json'),
+            );
+        });
+
         $this->app->singleton(ConfigGate::class, static function (Application $app): ConfigGate {
-            /** @var bool $enabled */
-            $enabled = (bool) $app['config']->get('codeguard.telemetry.enabled', false);
+            /** @var TelemetryStateStore $store */
+            $store = $app->make(TelemetryStateStore::class);
+            $persisted = $store->read();
+
+            $enabled = $persisted ?? (bool) $app['config']->get('codeguard.telemetry.enabled', false);
 
             return new ConfigGate(enabled: $enabled);
         });
@@ -219,6 +232,9 @@ final class CodeguardServiceProvider extends ServiceProvider
     {
         $this->commands([
             CodeguardInstallCommand::class,
+            TelemetryEnableCommand::class,
+            TelemetryDisableCommand::class,
+            TelemetryClearCommand::class,
         ]);
 
         $this->publishes([
