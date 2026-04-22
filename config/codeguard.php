@@ -60,7 +60,9 @@ return [
         ],
         'phpstan' => [
             'enabled' => true,
-            'command' => './vendor/bin/phpstan analyse --no-progress',
+            // --memory-limit=2G keeps larger Laravel apps from OOM'ing
+            // mid-analysis. Arch-sized projects (40k+ LOC) need at least 2G.
+            'command' => './vendor/bin/phpstan analyse --memory-limit=2G --no-progress',
             'description' => 'PHPStan static analysis',
         ],
         'deptrac' => [
@@ -70,7 +72,10 @@ return [
         ],
         'infection' => [
             'enabled' => true,
-            'command' => './vendor/bin/infection --min-msi=60 --min-covered-msi=70 --show-mutations=false',
+            // --show-mutations accepts integer or 'max'; it does not accept
+            // 'false'. Omitting the flag entirely is how you keep the output
+            // concise (no per-mutant detail).
+            'command' => './vendor/bin/infection --min-msi=60 --min-covered-msi=70 --no-progress',
             'description' => 'Infection mutation testing',
         ],
         'jscpd' => [
