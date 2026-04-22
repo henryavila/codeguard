@@ -237,6 +237,6 @@ it('toYaml emits deptrac layers, collectors and ruleset for detected namespaces'
         ->and($yaml)->toContain('name: Domain')
         ->and($yaml)->toContain('name: Application')
         ->and($yaml)->toContain('classLike')
-        ->and($yaml)->toContain('regex:')
+        ->and($yaml)->toContain('value:')  // Deptrac 2.x classLike key (NOT 'regex:'; misleading error message)
         ->and($yaml)->toContain('ruleset:');
 });

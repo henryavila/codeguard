@@ -149,7 +149,11 @@ final class DeptracLayerSuggester
             foreach ($patterns as $pattern) {
                 $collectors[] = [
                     'type' => 'classLike',
-                    'regex' => $pattern,
+                    // Deptrac 2.x reads $config['value'] for classLike — error
+                    // message says "needs the regex configuration" but the
+                    // actual key is 'value'. See vendor source:
+                    // deptrac/deptrac/src/Core/Layer/Collector/AbstractTypeCollector.php
+                    'value' => $pattern,
                 ];
             }
 

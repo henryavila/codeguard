@@ -48,7 +48,7 @@ deptrac:
         - name: Domain
           collectors:
               - type: classLike
-                regex: ^App\\(Domain|ValueObjects|Policies|Enums|Contracts|Interfaces|Rules|Abstracts)\\.*
+                value: ^App\\(Domain|ValueObjects|Policies|Enums|Contracts|Interfaces|Rules|Abstracts)\\.*
 
         # ----------------------------------------------------------------------
         # APPLICATION — orchestration. Runs use-cases, coordinates Domain.
@@ -61,7 +61,7 @@ deptrac:
         - name: Application
           collectors:
               - type: classLike
-                regex: ^App\\(Services|Jobs|Events|Listeners|Observers|Notifications|Mail|Actions|UseCases|Exports|DTOs|Dto|Pipes|Features)\\.*
+                value: ^App\\(Services|Jobs|Events|Listeners|Observers|Notifications|Mail|Actions|UseCases|Exports|DTOs|Dto|Pipes|Features)\\.*
 
         # ----------------------------------------------------------------------
         # PRESENTATION — entry points / transports.
@@ -74,7 +74,7 @@ deptrac:
         - name: Presentation
           collectors:
               - type: classLike
-                regex: ^App\\(Http|Livewire|Filament|Nova|Console|Forms|View|Presenters)\\.*
+                value: ^App\\(Http|Livewire|Filament|Nova|Console|Forms|View|Presenters)\\.*
 
         # ----------------------------------------------------------------------
         # INFRASTRUCTURE — adapters to external systems.
@@ -86,7 +86,7 @@ deptrac:
         - name: Infrastructure
           collectors:
               - type: classLike
-                regex: ^App\\(Models|Repositories|Eloquent|Infrastructure|Adapters)\\.*
+                value: ^App\\(Models|Repositories|Eloquent|Infrastructure|Adapters)\\.*
 
     # --------------------------------------------------------------------------
     # NOT IN ANY LAYER (intentional) — cross-cutting / bootstrap.
