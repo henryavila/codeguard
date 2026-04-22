@@ -20,8 +20,10 @@ Memória persistente do projeto — leia antes de qualquer trabalho substantivo.
 - [Preset Design Evolution](preset-design-evolution.md) — jornada 3 presets → 2 presets + Node auto-detect + install híbrido (sessão 2, 2026-04-16)
 
 ## State & Handoff
-- [Conversation Handoff](conversation-handoff.md) — onde paramos, próximo passo concreto (atualizado fim sessão 6)
-- [Session 7 Prompt](SESSION-7-PROMPT.md) — **prompt self-contained pra colar no início da próxima sessão**
+- [Conversation Handoff](conversation-handoff.md) — onde paramos, próximo passo concreto (atualizado fim sessão 7)
+- [Session 8 Prompt](SESSION-8-PROMPT.md) — **prompt self-contained pra próxima sessão (TestSuiteRunner extract)**
+- [Session 8 Arch Test Script](SESSION-8-ARCH-TEST.md) — roteiro de validação no Arch (usado no teste interativo da sessão 7)
+- [Session 7 Prompt](SESSION-7-PROMPT.md) — (arquivo, sessão 7 já executada)
 - [Open Questions](open-questions.md) — decisões pendentes
 - [Legacy npm v0](../../docs/legacy/npm-v0-README.md) — estado do repo Node preservado
 

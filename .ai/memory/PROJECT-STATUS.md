@@ -8,30 +8,32 @@ type: project
 
 > **Para Claude**: Este é o documento vivo de estado. Leia na primeira ferramenta-call de toda sessão substantiva. Atualize ao completar qualquer commit que mude escopo, ou ao mudar de sprint/foco. Em caso de conflito com outro arquivo de memória, este ganha (pra resolver drift, corrija o outro arquivo, não aqui).
 
-**Última atualização**: 2026-04-22 (sessão 7 — overwrite-mecanismos + validação interativa no Arch + 2 design gaps fechados)
-**HEAD**: `e9c1269` fix(install): PhpstanExtensionApplier respects stub-overrides.yaml
-**Branch**: `main`, 53 commits ahead de `origin/main` (working tree limpo)
+**Última atualização**: 2026-04-22 (sessão 7 fim — 2 bugs infection config + Arch consumidor commitado em 2 grupos semânticos)
+**HEAD**: `fc1e777` fix(stubs): infection testFramework phpunit (pest only valid with infection/pest-plugin)
+**Branch**: `main`, 55 commits ahead de `origin/main` (working tree limpo)
 **Suite**: 325 tests / 787 assertions (todos verdes)
 **Lint/Static**: Pint clean; PHPStan level 0 clean
 **Release publicado**: nenhum (dev @ v0.x)
 
 ---
 
-## 🎯 Sprint Atual: Sessão 8 — TestSuiteRunner extract OU Opção C Deptrac ruleset
+## 🎯 Sprint Atual: Sessão 8 — TestSuiteRunner extract (Opção A, caminho crítico pro release alpha)
 
-**Sessão 7 (2026-04-22) fechou**: todos os 8 itens do backlog + validação **interativa** no Arch + 2 bugs pré-existentes do stub (Pint `_rule_docs`, shipmonk usageProviders) + **2 design gaps** descobertos e fixados (wizard Deptrac e applier PHPStan modificavam arquivos sem consultar `StubOverrides`). Arch consome package via path repo, install interativo valida 4ª opção "Keep + remember", Pint/PHPStan/Deptrac rodam (Deptrac 5804/0).
+**Sessão 7 (2026-04-22) fechou completamente**: 8 tasks do backlog + validação **interativa** no Arch + 2 bugs pré-existentes de stub + 2 design gaps descobertos/fixados + 2 bugs de config de check (infection `--show-mutations`, `testFramework pest`). Arch consome package via path repo e tem 2 commits semanticamente agrupados (`4108daff chore(codeguard)` + `addeab5c style(pint)`). Quality gates rodando.
 
-**Meta sessão 8** (escolher um):
-- **Opção A** — retomar sprint Option A: extrair `TestSuiteRunner` (770 LOC do Arch) → `src/Testing/*` + `codeguard:test` (estimativa ~6-8h).
-- **Opção C** — DDD-pragmatic Deptrac ruleset (~2h15min): novo `LayerOption`, `DEFAULT_RULESET` com Application→Infrastructure permitido, copy do wizard, ADR-011.
+**Meta sessão 8 — Opção A**: extrair `TestSuiteRunner` + 7 arquivos do namespace `App\Services\Testing\*` de `/home/henry/arch/app/Services/Testing/` → `Henryavila\Codeguard\Testing\*`; generalizar stages hardcoded → consumir `StageConfig[]` via `CodeguardConfig`; novo comando `codeguard:test`; instrumentar com telemetria Layer 5.
+
+**Estimativa**: ~6-8h (passa de sprint único — pode ir em 2 sessões).
+
+**Ver `.ai/memory/SESSION-8-PROMPT.md` para prompt self-contained da sessão 8.**
 
 ### Próxima ação concreta (sessão 8 inicia AQUI)
 
-🔜 **Decisão pendente**: qual opção começar? Opção A é o item mais valioso (destrava M1 e release alpha); Opção C desbloqueia uso de Deptrac sem Override manual. Recomendação do agente: Opção A primeiro.
+🔜 **[NEXT]** Ler SESSION-8-PROMPT.md e começar bloco 1 (inventário + port dos executors primitivos: CommandExecutor/AsyncCommandExecutor/ProcessCommandExecutor/RunningCommand/ProcessRunningCommand). Esses são os blocos-base, sem lógica Arch-específica — port direto.
 
 ### Itens arrastados da sessão 7 para backlog pós-alpha
 
-Nenhum item ficou pendente de sessão 7 — todos os 8 tasks + validação + 2 design gaps foram cumpridos.
+Nenhum item do backlog original ficou pendente — os 8 tasks + validação end-to-end + 2 design gaps + 2 bugs de config foram todos fechados. Sessão 7 rodou substancialmente além do planejado (13 commits no total vs 8 previstos) por causa dos descobrimentos na validação interativa.
 
 **Padrão "design gap" confirmado e fechado**: componentes que mutam arquivos sob raiz do projeto precisam consultar `StubOverrides` antes de gravar (`--refresh-stubs` como escape hatch). Sessão 7 fechou 2 ocorrências desse padrão:
 
@@ -40,9 +42,15 @@ Nenhum item ficou pendente de sessão 7 — todos os 8 tasks + validação + 2 d
 
 Para futuros componentes similares: seguir o shape desses 2 fixes (check `contains($path)` → short-circuit com mensagem explicativa; force flag ignora lista).
 
-**Papercut menor anotado**: `NextStepsReporter` tem string hardcoded `"Review level in phpstan.neon (currently 5)"` — não lê level real do arquivo. Cosmetic; vai pra pós-alpha.
+**Bugs de config de check (fixados na validação interativa)**:
 
-**Papercut menor #2**: `StubOverrides::save()` sobrescreve arquivo com header canônico — perde comentários per-entry que o user possa ter escrito. Considerar preservar linhas de comentário ao re-gravar.
+- `41ec10c` — infection `--show-mutations=false` é inválido; aceita integer ou "max". Flag removida, `--no-progress` substituindo. PHPStan também ganhou `--memory-limit=2G` (projetos >20k LOC OOMam sem).
+- `fc1e777` — infection `testFramework: pest` é rejeitado em 0.32 (aceita phpunit/phpspec/codeception). Mudado pra `phpunit` (Pest instala binário compatível); comment no stub explica que `pest` requer infection/pest-plugin separado.
+
+**Papercuts menores anotados para pós-alpha**:
+- `NextStepsReporter` tem string hardcoded `"Review level in phpstan.neon (currently 5)"` — não lê level real do arquivo. Cosmetic.
+- `StubOverrides::save()` sobrescreve arquivo com header canônico — perde comentários per-entry que o user escreva manualmente.
+- `codeguard:install:override --detect` sub-comando: compara diff vs stub e sugere paths candidatos a override. UX friction real — usuário esqueceu `tests/Arch/TestQualityTest.php` no pre-seed da primeira iteração.
 
 ### Validação na sessão 7 (o que rodou onde)
 
