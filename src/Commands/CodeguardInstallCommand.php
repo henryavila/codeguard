@@ -165,6 +165,8 @@ final class CodeguardInstallCommand extends Command
             selectedExtensions: $selectedExtensions,
             phpstanExtStore: $phpstanExtStore,
             phpstanExtApplier: $phpstanExtApplier,
+            stubOverrides: $stubOverrides,
+            forceOverwrite: $forceOverwrite,
         );
 
         $this->maybeSuggestDeptracLayers(
@@ -571,10 +573,28 @@ final class CodeguardInstallCommand extends Command
         array $selectedExtensions,
         PhpstanExtensionStore $phpstanExtStore,
         PhpstanExtensionApplier $phpstanExtApplier,
+        StubOverrides $stubOverrides,
+        bool $forceOverwrite,
     ): void {
         $phpstanPath = $this->laravel->basePath('phpstan.neon');
 
         if (! file_exists($phpstanPath)) {
+            return;
+        }
+
+        // Mirror StubPublisher / Deptrac wizard semantics: when phpstan.neon
+        // is marked as permanently customized, the applier must not touch
+        // its sentinels — even if PHPStan extension selection changed. The
+        // user's tuning wins; --refresh-stubs is the explicit escape hatch.
+        if (! $forceOverwrite && $stubOverrides->contains('phpstan.neon')) {
+            $phpstanExtStore->save($selectedExtensions);
+
+            $this->line('');
+            $this->components->twoColumnDetail(
+                'phpstan.neon',
+                '<fg=cyan>kept custom (remembered) — extension sentinels not re-applied</>',
+            );
+
             return;
         }
 

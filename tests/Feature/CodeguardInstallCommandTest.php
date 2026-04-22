@@ -337,6 +337,48 @@ it('bypasses stub-overrides.yaml when --refresh-stubs is passed (force flag)', f
     expect(file_exists($this->tempApp.'/phpstan.neon'))->toBeTrue();
 });
 
+it('phpstan extension applier respects stub-overrides.yaml', function (): void {
+    // Pre-seed a customized phpstan.neon that would be corrupted if the
+    // applier ran its sentinel toggles over it. The override list protects
+    // the file; save() still records the user's extension selection so
+    // subsequent runs remember it, even though nothing was written to disk.
+    mkdir($this->tempApp.'/.codeguard', 0o755, recursive: true);
+    file_put_contents(
+        $this->tempApp.'/.codeguard/stub-overrides.yaml',
+        "overrides:\n  - phpstan.neon\n",
+    );
+    $customContent = "# ARCH-CUSTOMIZED-SENTINEL\nparameters:\n  level: 10\n";
+    file_put_contents($this->tempApp.'/phpstan.neon', $customContent);
+
+    $this->artisan('codeguard:install', [
+        '--no-interactive' => true,
+        '--preset' => 'default',
+    ])->assertExitCode(0);
+
+    // File contents must be byte-identical — applier didn't touch sentinels.
+    expect(file_get_contents($this->tempApp.'/phpstan.neon'))->toBe($customContent);
+});
+
+it('phpstan extension applier bypasses stub-overrides with --refresh-stubs', function (): void {
+    mkdir($this->tempApp.'/.codeguard', 0o755, recursive: true);
+    file_put_contents(
+        $this->tempApp.'/.codeguard/stub-overrides.yaml',
+        "overrides:\n  - phpstan.neon\n",
+    );
+    // phpstan.neon will be recreated from stub (override bypassed) → applier
+    // then runs on the fresh stub — must not error.
+
+    $this->artisan('codeguard:install', [
+        '--no-interactive' => true,
+        '--preset' => 'default',
+        '--refresh-stubs' => true,
+    ])->assertExitCode(0);
+
+    // The published stub contains the sentinel markers the applier relies on.
+    expect(file_get_contents($this->tempApp.'/phpstan.neon'))
+        ->toContain('@codeguard:ext=');
+});
+
 it('deptrac wizard respects stub-overrides.yaml (deptrac.yaml not overwritten)', function (): void {
     // Seed overrides protecting deptrac.yaml + a pre-existing file we want
     // to survive. Without this fix, the wizard would rewrite it.
