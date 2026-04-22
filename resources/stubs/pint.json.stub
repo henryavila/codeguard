@@ -23,7 +23,10 @@
             "concat_space": "Forces `'a' . 'b'` with spaces around the dot — readability",
             "array_syntax": "Enforces `[]` over `array()` — modern PHP 5.4+ syntax",
             "method_argument_space": "Normalizes spacing in multi-line method signatures",
-            "fully_qualified_strict_types": "Uses short class names from `use` imports instead of re-typing FQN in parameters / return types — closes the import-hygiene tripod with ordered_imports + no_unused_imports"
+            "fully_qualified_strict_types": "Uses short class names from `use` imports instead of re-typing FQN in parameters / return types — closes the import-hygiene tripod with ordered_imports + no_unused_imports",
+            "combine_consecutive_unsets": "Merges consecutive unset() calls into a single statement — one syscall-shaped line instead of a stack",
+            "combine_consecutive_issets": "Merges consecutive isset() checks with && into a single isset($a, $b) — less visual noise, identical semantics",
+            "explicit_string_variable": "Wraps interpolated variables in braces (\"{$name}\") so '$name2' never gets mis-parsed as a different variable name"
         },
         "declare_strict_types": true,
         "strict_comparison": true,
@@ -46,6 +49,9 @@
         "method_argument_space": {
             "on_multiline": "ensure_fully_multiline"
         },
-        "fully_qualified_strict_types": true
+        "fully_qualified_strict_types": true,
+        "combine_consecutive_unsets": true,
+        "combine_consecutive_issets": true,
+        "explicit_string_variable": true
     }
 }
