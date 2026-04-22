@@ -26,6 +26,7 @@ use Henryavila\Codeguard\Telemetry\FieldAllowlist;
 use Henryavila\Codeguard\Telemetry\JsonlWriter;
 use Henryavila\Codeguard\Telemetry\Recorder;
 use Henryavila\Codeguard\Telemetry\Rotator;
+use Henryavila\Codeguard\Telemetry\StopwatchScope;
 use Henryavila\Codeguard\Testing\CodeguardConfig;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Filesystem\Filesystem;
@@ -207,6 +208,10 @@ final class CodeguardServiceProvider extends ServiceProvider
                 writer: $app->make(JsonlWriter::class),
                 activePath: $activePath,
             );
+        });
+
+        $this->app->singleton(StopwatchScope::class, static function (Application $app): StopwatchScope {
+            return new StopwatchScope(recorder: $app->make(Recorder::class));
         });
     }
 
