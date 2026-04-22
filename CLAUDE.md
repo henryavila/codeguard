@@ -2,11 +2,20 @@
 
 Você está no repositório do CodeGuard. Antes de fazer qualquer coisa substantiva:
 
+## ⭐ Fonte canônica de estado
+
+**LEIA PRIMEIRO**: [`.ai/memory/PROJECT-STATUS.md`](.ai/memory/PROJECT-STATUS.md) — snapshot sincrônico do projeto (sprint atual, próxima ação concreta, scorecard, riscos). **Atualize esse arquivo ao terminar qualquer commit que mude escopo.** Protocolo de update está no rodapé do próprio arquivo.
+
+Em caso de conflito entre `PROJECT-STATUS.md` e outro arquivo de memória, **o status ganha**. Corrija o outro arquivo pra alinhar; não edite o status pra "concordar com" dado stale.
+
 ## Context Loading Obrigatório
 
-1. **Leia `.ai/memory/MEMORY.md`** — índice de toda memória acumulada (goals do usuário, decisões, reviews, problemas)
-2. **Leia `docs/specs/2026-04-16-codeguard-v2-architecture.md`** — design atual (v4 pós-10 reviews)
-3. **Leia `docs/specs/2026-04-16-pivot-npm-to-composer.md`** — por que abandonamos Node e pivotamos para PHP/Composer
+Depois de ler o status, carregar conforme necessidade:
+
+1. **`.ai/memory/MEMORY.md`** — índice de toda memória acumulada (goals, decisões, reviews, problemas)
+2. **`docs/specs/2026-04-16-codeguard-v2-architecture.md`** — design arquitetural v5 (canônico)
+3. **`docs/specs/2026-04-16-pivot-npm-to-composer.md`** — por que abandonamos Node e pivotamos para PHP/Composer
+4. **`docs/specs/2026-04-17-captainhook-migration-and-telemetry.md`** — Phases A/B/C + schema telemetria (para trabalho de hooks/telemetry)
 
 ## Contexto Resumido
 
@@ -46,9 +55,6 @@ Você está no repositório do CodeGuard. Antes de fazer qualquer coisa substant
 
 ## Quando continuar a conversa
 
-Após carregar o contexto, o próximo passo lógico é:
-1. Criar `composer.json` inicial
-2. Criar `src/CodeguardServiceProvider.php` esqueleto
-3. Começar extract do Arch (TestSuiteRunner primeiro)
+**Próxima ação sempre vem de `.ai/memory/PROJECT-STATUS.md` → seção "Próxima ação concreta".** Esse é o campo autoritativo — não tente re-derivar do spec ou do handoff.
 
-Veja `.ai/memory/conversation-handoff.md` para onde paramos especificamente.
+Complementos narrativos: `.ai/memory/conversation-handoff.md` (log cronológico por sessão).

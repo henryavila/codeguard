@@ -2,6 +2,9 @@
 
 Memória persistente do projeto — leia antes de qualquer trabalho substantivo.
 
+## ⭐ Status (canonical, always-on)
+- **[PROJECT-STATUS.md](PROJECT-STATUS.md)** — snapshot único do estado (sprint atual, próxima ação, scorecard, riscos). **Ler primeiro, atualizar ao fim de cada commit de escopo.**
+
 ## User & Goals
 - [User Goals](user-goals.md) — 3 metas reais: replicar padrão multi-projeto, multi-máquinas, controlar dev terceirizado sem IA
 
