@@ -1,9 +1,25 @@
 {
-    "_comment": "Laravel Pint config for CodeGuard. Pint is an opinionated PHP-CS-Fixer wrapper. JSON does not support inline comments, so read this _comment block and the Pint docs at https://laravel.com/docs/11.x/pint to learn each rule. Run: vendor/bin/pint (fix) or vendor/bin/pint --test (CI-safe check).",
+    "_comment": "Laravel Pint config for CodeGuard. Pint is an opinionated PHP-CS-Fixer wrapper. JSON does not support inline comments, so read the `_rule_docs` block below and the Pint docs at https://laravel.com/docs/11.x/pint to learn each rule. Run: vendor/bin/pint (fix) or vendor/bin/pint --test (CI-safe check).",
     "_docs": {
         "pint": "https://laravel.com/docs/11.x/pint",
         "php-cs-fixer-rules": "https://cs.symfony.com/doc/rules/index.html",
         "presets": "laravel | psr12 | symfony | per | per-cs — 'laravel' follows Taylor's style conventions"
+    },
+    "_rule_docs": {
+        "declare_strict_types": "Adds `declare(strict_types=1);` at top of every PHP file — catches silent type coercion bugs",
+        "strict_comparison": "Forces === and !== instead of == and != — avoids JS-style truthy surprises",
+        "strict_param": "Replaces loose params like in_array($x, $y) with in_array($x, $y, true) — prevents type juggling",
+        "ordered_imports": "Sorts `use` statements alphabetically — reduces merge conflicts",
+        "no_unused_imports": "Strips unused `use` statements — keeps file head clean",
+        "no_superfluous_phpdoc_tags": "Removes @param/@return docs that duplicate native types — signal over noise",
+        "single_quote": "Prefers 'single quotes' when no interpolation is needed — marginal perf + convention",
+        "concat_space": "Forces `'a' . 'b'` with spaces around the dot — readability",
+        "array_syntax": "Enforces `[]` over `array()` — modern PHP 5.4+ syntax",
+        "method_argument_space": "Normalizes spacing in multi-line method signatures",
+        "fully_qualified_strict_types": "Uses short class names from `use` imports instead of re-typing FQN in parameters / return types — closes the import-hygiene tripod with ordered_imports + no_unused_imports",
+        "combine_consecutive_unsets": "Merges consecutive unset() calls into a single statement — one syscall-shaped line instead of a stack",
+        "combine_consecutive_issets": "Merges consecutive isset() checks with && into a single isset($a, $b) — less visual noise, identical semantics",
+        "explicit_string_variable": "Wraps interpolated variables in braces (\"{$name}\") so '$name2' never gets mis-parsed as a different variable name"
     },
     "preset": "laravel",
     "exclude": [
@@ -12,22 +28,6 @@
         "vendor"
     ],
     "rules": {
-        "_rule_docs": {
-            "declare_strict_types": "Adds `declare(strict_types=1);` at top of every PHP file — catches silent type coercion bugs",
-            "strict_comparison": "Forces === and !== instead of == and != — avoids JS-style truthy surprises",
-            "strict_param": "Replaces loose params like in_array($x, $y) with in_array($x, $y, true) — prevents type juggling",
-            "ordered_imports": "Sorts `use` statements alphabetically — reduces merge conflicts",
-            "no_unused_imports": "Strips unused `use` statements — keeps file head clean",
-            "no_superfluous_phpdoc_tags": "Removes @param/@return docs that duplicate native types — signal over noise",
-            "single_quote": "Prefers 'single quotes' when no interpolation is needed — marginal perf + convention",
-            "concat_space": "Forces `'a' . 'b'` with spaces around the dot — readability",
-            "array_syntax": "Enforces `[]` over `array()` — modern PHP 5.4+ syntax",
-            "method_argument_space": "Normalizes spacing in multi-line method signatures",
-            "fully_qualified_strict_types": "Uses short class names from `use` imports instead of re-typing FQN in parameters / return types — closes the import-hygiene tripod with ordered_imports + no_unused_imports",
-            "combine_consecutive_unsets": "Merges consecutive unset() calls into a single statement — one syscall-shaped line instead of a stack",
-            "combine_consecutive_issets": "Merges consecutive isset() checks with && into a single isset($a, $b) — less visual noise, identical semantics",
-            "explicit_string_variable": "Wraps interpolated variables in braces (\"{$name}\") so '$name2' never gets mis-parsed as a different variable name"
-        },
         "declare_strict_types": true,
         "strict_comparison": true,
         "strict_param": true,
