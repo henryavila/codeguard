@@ -121,6 +121,7 @@ final class CodeguardInstallCommand extends Command
             phpstanExtSelector: $phpstanExtSelector,
             phpstanExtStore: $phpstanExtStore,
             interactive: $interactive,
+            pestDetected: $environment->usesPest,
         );
         $telemetry->phpstanExtensionsSelected($selectedExtensions);
 
@@ -544,6 +545,7 @@ final class CodeguardInstallCommand extends Command
         PhpstanExtensionSelector $phpstanExtSelector,
         PhpstanExtensionStore $phpstanExtStore,
         bool $interactive,
+        bool $pestDetected = false,
     ): array {
         $this->line('');
         $this->components->info('PHPStan extensions — which to activate in phpstan.neon');
@@ -551,8 +553,11 @@ final class CodeguardInstallCommand extends Command
         $saved = $phpstanExtStore->load();
 
         return $interactive
-            ? $phpstanExtSelector->prompt($saved === [] ? PhpstanExtension::defaultEnabled() : $saved)
-            : $phpstanExtSelector->autoResolve($saved);
+            ? $phpstanExtSelector->prompt(
+                preselected: $saved === [] ? PhpstanExtension::defaultEnabled() : $saved,
+                pestDetected: $pestDetected,
+            )
+            : $phpstanExtSelector->autoResolve($saved, $pestDetected);
     }
 
     /**

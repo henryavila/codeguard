@@ -11,13 +11,18 @@ final class PhpstanExtensionSelector
     /**
      * Interactive multiselect — returns the set of PhpstanExtension cases the
      * user wants active. TestQuality auto-enables DisallowedCalls since it
-     * depends on it.
+     * depends on it. Peststan is preselected when Pest is detected so users
+     * don't have to know what it does to benefit.
      *
      * @param  list<PhpstanExtension>  $preselected
      * @return list<PhpstanExtension>
      */
-    public function prompt(array $preselected): array
+    public function prompt(array $preselected, bool $pestDetected = false): array
     {
+        if ($pestDetected && ! in_array(PhpstanExtension::Peststan, $preselected, strict: true)) {
+            $preselected[] = PhpstanExtension::Peststan;
+        }
+
         $options = [];
         foreach (PhpstanExtension::all() as $extension) {
             $options[$extension->value] = sprintf(
@@ -49,16 +54,25 @@ final class PhpstanExtensionSelector
     }
 
     /**
-     * Non-interactive resolver: respects saved choice or falls back to all on.
+     * Non-interactive resolver: respects saved choice or falls back to the
+     * default set. Adds Peststan when Pest is detected, regardless of the
+     * branch taken — so CI runs on Pest projects get it without a prior
+     * interactive install.
      *
      * @param  list<PhpstanExtension>  $saved
      * @return list<PhpstanExtension>
      */
-    public function autoResolve(array $saved): array
+    public function autoResolve(array $saved, bool $pestDetected = false): array
     {
-        return $saved === []
+        $base = $saved === []
             ? PhpstanExtension::defaultEnabled()
-            : $this->resolveDependencies($saved);
+            : $saved;
+
+        if ($pestDetected && ! in_array(PhpstanExtension::Peststan, $base, strict: true)) {
+            $base[] = PhpstanExtension::Peststan;
+        }
+
+        return $this->resolveDependencies($base);
     }
 
     /**

@@ -23,6 +23,15 @@ it('other extensions have no dependency', function (): void {
         ->and(PhpstanExtension::DisallowedCalls->isDependOn())->toBeNull();
 });
 
-it('defaultEnabled returns all cases (opinionated all-on)', function (): void {
-    expect(PhpstanExtension::defaultEnabled())->toBe(PhpstanExtension::cases());
+it('defaultEnabled excludes Peststan (opt-in via Pest auto-detect)', function (): void {
+    $defaults = PhpstanExtension::defaultEnabled();
+
+    expect($defaults)->not->toContain(PhpstanExtension::Peststan);
+    // Every other case should still be enabled by default.
+    foreach (PhpstanExtension::cases() as $case) {
+        if ($case === PhpstanExtension::Peststan) {
+            continue;
+        }
+        expect($defaults)->toContain($case);
+    }
 });

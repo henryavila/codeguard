@@ -27,7 +27,41 @@ class EnvironmentDetector
             hasCaptainhookBinary: $this->filesystem->exists(
                 $this->basePath.DIRECTORY_SEPARATOR.'vendor'.DIRECTORY_SEPARATOR.'bin'.DIRECTORY_SEPARATOR.'captainhook',
             ),
+            usesPest: $this->detectPestUsage(),
         );
+    }
+
+    /**
+     * Parses the consumer's composer.json looking for pestphp/pest in
+     * require/require-dev. Returns false when the file is absent or malformed
+     * so missing/corrupt composer.json never causes a false positive.
+     */
+    public function detectPestUsage(): bool
+    {
+        $composerJson = $this->basePath.DIRECTORY_SEPARATOR.'composer.json';
+
+        if (! $this->filesystem->exists($composerJson)) {
+            return false;
+        }
+
+        try {
+            /** @var mixed $decoded */
+            $decoded = json_decode($this->filesystem->get($composerJson), associative: true);
+        } catch (\Throwable) {
+            return false;
+        }
+
+        if (! is_array($decoded)) {
+            return false;
+        }
+
+        foreach (['require', 'require-dev'] as $key) {
+            if (isset($decoded[$key]) && is_array($decoded[$key]) && array_key_exists('pestphp/pest', $decoded[$key])) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function detectComposerVersion(): string

@@ -46,3 +46,38 @@ it('autoResolve does not duplicate DisallowedCalls if already present', function
 
     expect($disallowedCount)->toBe(1);
 });
+
+it('autoResolve adds Peststan when Pest is detected and saved is empty', function (): void {
+    $result = $this->selector->autoResolve([], pestDetected: true);
+
+    expect($result)->toContain(PhpstanExtension::Peststan);
+});
+
+it('autoResolve adds Peststan to saved choice when Pest is detected', function (): void {
+    $result = $this->selector->autoResolve(
+        [PhpstanExtension::Larastan],
+        pestDetected: true,
+    );
+
+    expect($result)->toContain(PhpstanExtension::Larastan)
+        ->and($result)->toContain(PhpstanExtension::Peststan);
+});
+
+it('autoResolve omits Peststan when Pest is not detected', function (): void {
+    $result = $this->selector->autoResolve([], pestDetected: false);
+
+    expect($result)->not->toContain(PhpstanExtension::Peststan);
+});
+
+it('autoResolve does not duplicate Peststan when already saved and pest detected', function (): void {
+    $saved = [PhpstanExtension::Peststan, PhpstanExtension::Larastan];
+
+    $result = $this->selector->autoResolve($saved, pestDetected: true);
+
+    $peststanCount = count(array_filter(
+        $result,
+        fn (PhpstanExtension $ext): bool => $ext === PhpstanExtension::Peststan,
+    ));
+
+    expect($peststanCount)->toBe(1);
+});

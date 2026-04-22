@@ -19,6 +19,10 @@ includes:
     - vendor/phpstan/phpstan-phpunit/extension.neon  # @codeguard:ext=phpunit
     - vendor/phpstan/phpstan-phpunit/rules.neon  # @codeguard:ext=phpunit
 
+    # Peststan — teaches PHPStan about $this inside Pest closures.
+    # Opt-in: auto-selected when pestphp/pest is in the consumer's composer.json.
+    - vendor/mrpunyapal/peststan/extension.neon  # @codeguard:ext=peststan
+
     # Cognitive complexity — Sonar-style metric measuring reader mental overhead
     - vendor/tomasvotruba/cognitive-complexity/config/extension.neon  # @codeguard:ext=cognitive-complexity
 
@@ -83,6 +87,15 @@ parameters:
     # ignoreErrors lets you silence specific patterns. Prefer baseline over
     # this list when possible — baselines are auto-managed.
     ignoreErrors: []
+
+    # --------------------------------------------------------------------------
+    # Peststan — Pest-aware typing. Set testCaseClass to the project's Pest
+    # base case (Tests\TestCase by default in a standard Laravel Pest layout).
+    # --------------------------------------------------------------------------
+    # @codeguard:ext=peststan:params:start
+    peststan:
+        testCaseClass: Tests\TestCase
+    # @codeguard:ext=peststan:params:end
 
     # --------------------------------------------------------------------------
     # Cognitive Complexity thresholds (Laravel-calibrated defaults)

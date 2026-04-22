@@ -13,6 +13,7 @@ final readonly class EnvironmentInfo
         public bool $hasPackageJson,
         public bool $hasNodeModules,
         public bool $hasCaptainhookBinary,
+        public bool $usesPest = false,
     ) {}
 
     public function hasNode(): bool
