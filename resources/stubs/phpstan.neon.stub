@@ -10,6 +10,11 @@
 includes:
     - vendor/larastan/larastan/extension.neon  # @codeguard:ext=larastan
 
+    # Carbon-aware static analysis — types Carbon::macro() returns + DatePeriod
+    # Bundled with nesbot/carbon (transitive dep in every Laravel project), so
+    # there is zero install cost. Always on — not toggleable via the wizard.
+    - vendor/nesbot/carbon/extension.neon
+
     # PHPStan-PHPUnit — required for Pest (runs on top of PHPUnit)
     - vendor/phpstan/phpstan-phpunit/extension.neon  # @codeguard:ext=phpunit
     - vendor/phpstan/phpstan-phpunit/rules.neon  # @codeguard:ext=phpunit
