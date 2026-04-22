@@ -57,8 +57,12 @@
     "minMsi": 60,
     "minCoveredMsi": 70,
 
-    // Test framework integration. Pest uses PHPUnit under the hood, so "pest" works.
-    "testFramework": "pest",
+    // Test framework integration. Infection 0.32+ accepts only
+    // "phpunit" / "phpspec" / "codeception" out of the box — Pest is NOT
+    // a valid value unless `infection/pest-plugin` is installed separately.
+    // Using "phpunit" here is the standard path: Pest ships a PHPUnit-
+    // compatible binary and infection invokes it as if it were PHPUnit.
+    "testFramework": "phpunit",
 
     // Only run the Unit suite during mutation testing — Feature/Integration tests
     // are too slow to run N times (once per mutant). Mutation testing gives
