@@ -8,104 +8,76 @@ type: project
 
 > **Para Claude**: Este é o documento vivo de estado. Leia na primeira ferramenta-call de toda sessão substantiva. Atualize ao completar qualquer commit que mude escopo, ou ao mudar de sprint/foco. Em caso de conflito com outro arquivo de memória, este ganha (pra resolver drift, corrija o outro arquivo, não aqui).
 
-**Última atualização**: 2026-04-22 (sessão 6 — 8 merges no Arch + backlog overwrite-mecanismos)
-**HEAD**: `e6665d1` docs(memory): mark Option A #1 shipped, update status to point at TestSuiteRunner extract
-**Branch**: `main`, 37 commits ahead de `origin/main` + **working tree TEM mudanças não-commitadas** (fix `regex→value` em DeptracLayerSuggester)
-**Suite**: 284 tests / 706 assertions (todos verdes — após fix regex→value)
+**Última atualização**: 2026-04-22 (sessão 7 — overwrite-mecanismos + backflow + fixes validados no Arch)
+**HEAD**: `d936b43` fix(stubs): drop shipmonkDeadCode.usageProviders.laravel/eloquent keys
+**Branch**: `main`, 48 commits ahead de `origin/main` (working tree limpo)
+**Suite**: 321 tests / 779 assertions (todos verdes)
 **Lint/Static**: Pint clean; PHPStan level 0 clean
 **Release publicado**: nenhum (dev @ v0.x)
 
 ---
 
-## 🎯 Sprint Atual: Sessão 7 — overwrite-mecanismos + backflow stubs
+## 🎯 Sprint Atual: Sessão 8 — TestSuiteRunner extract OU Opção C Deptrac ruleset
 
-**Decisão tomada em 2026-04-22 (sessão 6)**: pausar sprint Option A (TestSuiteRunner extract) pra atacar primeiro 8 itens do backlog que **destravam o uso real do CodeGuard sem perder customizações Arch**. Sem isso, cada install no Arch arrisca sobrescrever 9 arquivos sem confirmação.
+**Sessão 7 (2026-04-22) fechou**: todos os 8 itens do backlog + validação no Arch + 2 bugs pré-existentes do stub corrigidos (Pint `_rule_docs` fora de `rules`; shipmonk `usageProviders.laravel/eloquent` removidos). Arch agora consome package via path repo, install em `--no-interactive` roda end-to-end, Pint/PHPStan/Deptrac gates passam.
 
-**Meta funcional sessão 7**: implementar fix bugs + mecanismos de stub-overrides + cleanup legacy + 4 backflows do Arch (Carbon/Peststan/infection/pint), depois validar end-to-end no Arch.
+**Meta sessão 8** (escolher um):
+- **Opção A** — retomar sprint Option A: extrair `TestSuiteRunner` (770 LOC do Arch) → `src/Testing/*` + `codeguard:test` (estimativa ~6-8h).
+- **Opção C** — DDD-pragmatic Deptrac ruleset (~2h15min): novo `LayerOption`, `DEFAULT_RULESET` com Application→Infrastructure permitido, copy do wizard, ADR-011.
 
-**Estimativa sessão 7**: ~5h30min (P0 50min + P1 2h15min + P2 1h50min + validação 30min).
+### Próxima ação concreta (sessão 8 inicia AQUI)
 
-### Próxima ação concreta (sessão 7 inicia AQUI)
+🔜 **Decisão pendente**: qual opção começar? Opção A é o item mais valioso (destrava M1 e release alpha); Opção C desbloqueia uso de Deptrac sem Override manual. Recomendação do agente: Opção A primeiro.
 
-🔜 **[NEXT — P0 #1]** Commit do fix `regex → value` em DeptracLayerSuggester.
-- Working tree já tem mudanças aplicadas (3 arquivos). Falta apenas:
-  ```bash
-  cd /home/henry/codeguard
-  git add src/Install/DeptracLayerSuggester.php resources/stubs/deptrac.yaml.stub tests/Unit/Install/DeptracLayerSuggesterTest.php
-  git commit -m "fix(deptrac): use 'value' key for classLike (Deptrac 2.x format)"
-  ```
-- Razão: Deptrac 2.x espera `value`, não `regex` (mensagem de erro do tool é ambígua). Verificado em vendor source. Sem fix, qualquer install novo gera deptrac.yaml inválido.
+### Itens arrastados da sessão 7 para backlog pós-alpha
 
-### Backlog completo sessão 7 (10 itens, ordem dependência)
+Nenhum item ficou pendente de sessão 7 — todos os 8 tasks + validação foram cumpridos.
 
-Ver `.ai/memory/conversation-handoff.md` seção "BACKLOG SESSÃO 7" para detalhes completos. Resumo:
+**Design gap anotado** (pós-alpha): `maybeSuggestDeptracLayers` em `CodeguardInstallCommand` escreve `deptrac.yaml` via `$filesystem->put` BYPASSANDO `StubPublisher`. Isso significa que `.codeguard/stub-overrides.yaml` **não protege** `deptrac.yaml` quando o wizard rodar. Sessão 7 confirmou: durante validação, o install non-interactive sobrescreveu a 30-layer config do Arch (restaurada via `git checkout -- deptrac.yaml`). Fix óbvio: o wizard consultar `StubOverrides` antes de gravar.
 
-**🔥 P0 — Fixes (~50min)**:
-1. ✅ Working tree pronto / 🔜 commit fix `regex → value`
-2. 🔜 Investigar bug `PhpstanExtensionApplier` removendo `#` de `:end` sentinels (3 ocorrências no Arch)
+### Validação na sessão 7 (o que rodou onde)
 
-**🎯 P1 — Mecanismos overwrite (~2h15min)**:
-3. 🔜 `.codeguard/stub-overrides.yaml` (skip permanente) — novo `StubOverrides` service + opção 4ª no prompt diff "Keep + remember" + comando `codeguard:install:override` + status `KeptCustomPermanent`
-4. 🔜 Legacy stubs cleanup — novo `LegacyStubCleaner`, prompt "Delete legacy lefthook.yml? [Y/n]" pós preset switch
+| Alvo | Comando | Resultado |
+|------|---------|-----------|
+| CodeGuard suite | `vendor/bin/pest` | 321 passed / 779 assertions |
+| Arch path repo | `composer update henryavila/codeguard` | OK |
+| Arch install | `php artisan codeguard:install --no-interactive --preset=default` | OK — stubs publicados, Carbon+Peststan no phpstan.neon, captainhook registrado |
+| Arch Pint | `vendor/bin/pint --test` | Roda — reporta formatação pending (esperado, Arch não está Pint-clean) |
+| Arch PHPStan | `vendor/bin/phpstan analyse` | Roda — 1130 erros post-baseline (débito Arch, não CodeGuard) |
+| Arch Deptrac | `vendor/bin/deptrac analyse` | Passa — 5804 allowed, 0 violations |
 
-**📦 P2 — Backflow Arch → stubs (~1h50min)**:
-5. 🔜 Carbon ext always-on em `phpstan.neon.stub`
-6. 🔜 Peststan opt-in (enum case + composer dep + auto-detect via pestphp/pest no consumer composer.json)
-7. 🔜 `infection.json5.stub` ajustes (não excluir Configurators/Middleware/Abstracts)
-8. 🔜 `pint.json.stub` +3 rules (combine_unsets/issets/explicit_string_variable)
+### Bugs pré-existentes corrigidos fora do backlog sessão 7
 
-**Validação end-to-end (~30min)** — após #1-#8:
-- `vendor/bin/pest` no CodeGuard (deve manter 284+ verdes)
-- `git push` 38+ commits ahead
-- `composer update henryavila/codeguard` no Arch
-- `php artisan codeguard:install --refresh-stubs` interativo, validar Carbon/Peststan/4ª opção/legacy cleanup
-- Quality gates (Pint, PHPStan, Deptrac, Infection) rodando
+- `cc3e776` — Pint 1.29+ rejeita `_rule_docs` dentro de `rules` (stub fix)
+- `d936b43` — shipmonk/dead-code-detector removeu `usageProviders.laravel/eloquent` em 0.14+ (stub fix)
 
-### Fora do escopo da sprint
+### Backlog pós-alpha (itens empurrados)
 
-- **#9 — Opção C "Laravel-pragmatic" Deptrac ruleset** (~2h15min) — sessão 8
-- **#10 — Telemetria Layers 3-7** — bloqueado por commands (`codeguard:test/prepare/analyze/baseline`)
-- **TestSuiteRunner extract** (sprint Option A original, ~6-8h) — retomado depois da sessão 7
-- Pegar `TestSuiteRunner` (770 LOC no Arch `/home/henry/arch/app/Testing/`) + dependências
-- Generalizar stages hardcoded → consumir `StageConfig[]` via `CodeguardConfig`
-- Remover refs Arch-specific (Playwright cleanup, MongoDB hooks — mover para fora do runner)
-- Registrar `Henryavila\Codeguard\Testing\*` (namespace já existe com DTOs)
-- Novo `src/Commands/CodeguardTestCommand.php` com signature compatível (`--stage=`, `--with-coverage`)
-- Instrumentar com `test.started` + `test.ended` (Layer 5 telemetria)
-- Estimativa: ~6-8h
-
-### Backlog da sprint (ordem dependência)
-
-1. ✅ ~~`codeguard:check` — roda gates por preset~~ — shipped `e60fb00`, 284 tests
-2. 🔜 Extract `TestSuiteRunner` do Arch → `src/Testing/*` + `codeguard:test` (~6-8h)
-   - 770 LOC no Arch; mudança semântica: stages hardcoded → `StageConfig[]` via DTO
-   - Inclui `CommandExecutor`, `AsyncCommandExecutor`, `ProcessCommandExecutor`, `RunningCommand`, `ProcessRunningCommand`
-3. 📋 Arch consome package @dev via path repository + migra imports Arch→package (~2-3h)
-4. 📋 Release `1.0.0-alpha.1`: README bootstrap + CHANGELOG + `git tag` + `git push` origin (~2h)
-
-### Fora do escopo da sprint (empurrado pra pós-alpha)
-
+- **#9 — Opção C Laravel-pragmatic Deptrac ruleset** (~2h15min) — sessão 8 candidata
+- **#10 — Telemetria Layers 3-7** — bloqueado por commands faltantes
+- **TestSuiteRunner extract** (Option A original, ~6-8h) — sessão 8 candidata
+- **wizard respeita stub-overrides.yaml** — fechar design gap anotado acima (~30min)
 - Pattern engine (`src/Patterns/*` + `codeguard:analyze`)
 - AI rules generator (`src/AiRules/*`)
 - Schema dump multi-DB (`src/Schema/*` + `codeguard:prepare`)
 - Baseline manager (`codeguard:baseline`)
 - `henryavila/codeguard-hooks` Claude plugin (repo separado)
-- Telemetry instrumentation layers 3-7 (bloqueado por comandos acima)
 
 ---
 
 ## 🟢 Implementado hoje (inventário objetivo)
 
-### Comandos Artisan — 5 de 9
+### Comandos Artisan — 6 de 10
 
 | Comando | Status | Arquivo |
 |---------|:-----:|---------|
 | `codeguard:install` | ✅ | src/Commands/CodeguardInstallCommand.php |
+| `codeguard:install:override` | ✅ | src/Commands/CodeguardInstallOverrideCommand.php |
 | `codeguard:check` | ✅ | src/Commands/CodeguardCheckCommand.php |
 | `codeguard:telemetry:enable` | ✅ | src/Commands/Telemetry/EnableCommand.php |
 | `codeguard:telemetry:disable` | ✅ | src/Commands/Telemetry/DisableCommand.php |
 | `codeguard:telemetry:clear` | ✅ | src/Commands/Telemetry/ClearCommand.php |
-| `codeguard:test` | 🔜 sprint atual | — |
+| `codeguard:test` | 🔜 sprint 8 | — |
 | `codeguard:analyze` | ⏸️ pós-alpha | — |
 | `codeguard:baseline` | ⏸️ pós-alpha | — |
 | `codeguard:prepare` | ⏸️ pós-alpha | — |
@@ -114,7 +86,7 @@ Ver `.ai/memory/conversation-handoff.md` seção "BACKLOG SESSÃO 7" para detalh
 
 | Namespace | Status | Observação |
 |-----------|:-----:|------------|
-| `Install\*` | ✅ completo | Environment + Preset + StubPublisher + DeptracLayerSuggester + DeptracLayerWizard + LayerDecisionStore + CaptainhookInstaller + ComposerAllowPluginsCheck + CodeguardDirectoryInitializer + InstallSummary + PhpstanExtension{Selector,Store,Applier} + NextStepsReporter + GatePlan{,Registry} + InstallTelemetry |
+| `Install\*` | ✅ completo | Environment + Preset + StubPublisher + StubOverrides + LegacyStubCleaner + DeptracLayerSuggester + DeptracLayerWizard + LayerDecisionStore + CaptainhookInstaller + ComposerAllowPluginsCheck + CodeguardDirectoryInitializer + InstallSummary + PhpstanExtension{Selector,Store,Applier} + NextStepsReporter + GatePlan{,Registry} + InstallTelemetry |
 | `Telemetry\*` | ✅ completo | Event + EventName + EventStatus + FieldAllowlist + Recorder + ConfigGate + Rotator + JsonlWriter + StopwatchScope + MeasuredAction + TelemetryStateStore |
 | `Commands\Telemetry\*` | ✅ completo | 3 commands |
 | `Gates\*` | ✅ novo | GateRunner + GateRunResult; consumido pelo CheckCommand e primeira emissão de Layer 3 telemetry |

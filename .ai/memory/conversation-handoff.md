@@ -6,7 +6,7 @@ type: project
 
 # Conversation Handoff
 
-**Última atualização**: 2026-04-22 (sessão 6 — análise + 8 merges no Arch + backlog consolidado)
+**Última atualização**: 2026-04-22 (sessão 7 — 8 tasks backlog + validação Arch + 2 stub fixes pré-existentes)
 
 **Sessões**:
 - Sessão 1: Pivot Node→PHP, 10 reviews, consolidação memória
@@ -15,10 +15,77 @@ type: project
 - Sessão 4 (2026-04-20): Phase C β completa em 4 commits + code-reviewer adversarial pass + review fixes aplicados
 - Sessão 5 (2026-04-22): Phase B β completa em 5 commits + dual review gate (code-reviewer + security-reviewer) + 1 review-fix commit
 - Sessão 6 (2026-04-22): análise install Arch (9 arquivos sobrescritos vs 3 percebidos) + comparação per-file + 8 merges aplicados no Arch + backlog 10 itens consolidado
+- **Sessão 7 (2026-04-22)**: 8 tasks do backlog executados (P0 fix+regression, P1 overwrite mechanisms, P2 stub backflow) + validação end-to-end no Arch + 2 bugs pré-existentes do stub corrigidos. HEAD `d936b43`. Suite 321 passed.
 
 ---
 
-## Estado Atual (2026-04-22 — fim sessão 6)
+## Estado Atual (2026-04-22 — fim sessão 7)
+
+### Working tree CodeGuard
+Branch `main`. **Working tree limpo**, 48 commits ahead de `origin/main`.
+
+### Working tree Arch (`/home/henry/arch`) — branch `chore/fix-composer-quality-debt`
+9 arquivos modificados (merge da sessão 6 + sessão 7):
+
+```
+Modified:
+  .jscpd.json, composer.json, composer.lock, infection.json5,
+  phpstan-test-quality.neon, phpstan.neon, pint.json (dead-code providers
+  removidos + _rule_docs movido top-level), tests/Arch/TestQualityTest.php
+  deptrac.yaml — RESTAURADO à versão 30-layer (git checkout -- deptrac.yaml
+  depois que install non-interactive tinha sobrescrito para 4-layer wizard)
+
+Untracked: captainhook.json, captainhook.json.README.md
+```
+
+### Bugs corrigidos na sessão 7 (fora do backlog original)
+
+- **Pint `_rule_docs` inside rules**: Pint 1.29+ rejeita chaves desconhecidas dentro de `rules`. Movido para top-level do JSON (sibling de `_comment`/`_docs`). Commit `cc3e776`.
+- **shipmonk usageProviders.laravel/eloquent**: removidos em `shipmonk/dead-code-detector` 0.14+. Stub referenciava keys inexistentes → "Unexpected item" error. Removidos; built-in vendor provider cobre o use case. Commit `d936b43`.
+
+### Design gap documentado (pós-alpha)
+
+`CodeguardInstallCommand::maybeSuggestDeptracLayers` escreve `deptrac.yaml` via `$filesystem->put()` direto — **bypassando `StubPublisher`**. Resultado: `.codeguard/stub-overrides.yaml` NÃO protege `deptrac.yaml` quando o wizard roda. Reprodução durante validação sessão 7: install no Arch sobrescreveu a 30-layer config (restaurada com `git checkout`). Fix trivial (wizard consulta `StubOverrides` antes de gravar) fica pra sessão 8+.
+
+### O que entrou na sessão 7 (ordem cronológica)
+
+| Commit | Tipo | Descrição |
+|---|---|---|
+| `04b36a0` | P0 fix | (session 6 carry-over) deptrac `regex` → `value` |
+| `b89a32a` | P0 test | regression tests locking sentinel `#` preservation — bug não reproduz no código atual |
+| `b4f2e1d` | P1 feat | `.codeguard/stub-overrides.yaml` — `StubOverrides` service + `KeptCustomPermanent` status + 4ª opção "Keep + remember" no prompt + `codeguard:install:override` command |
+| `4c7a75e` | P1 feat | `LegacyStubCleaner` — prompt "Delete lefthook.yml?" interativo; warning no summary em `--no-interactive` |
+| `fa2866c` | P2 feat | Carbon PHPStan extension always-on (no sentinel) |
+| `65e59b6` | P2 feat | Peststan opt-in — enum case + `EnvironmentDetector::detectPestUsage()` + auto-preselect no selector + composer dep |
+| `0446349` | P2 feat | infection excludes refine — Configurators/Middleware/Abstracts permanecem in-scope |
+| `ebc709d` | P2 feat | Pint +3 rules (combine_unsets, combine_issets, explicit_string_variable) |
+| `cc3e776` | fix | stub: `_rule_docs` para top-level (Pint 1.29+) |
+| `d936b43` | fix | stub: drop shipmonk usageProviders.laravel/eloquent |
+
+### Resultados da validação sessão 7
+
+| Alvo | Comando | Status |
+|---|---|---|
+| Suite CodeGuard | `vendor/bin/pest` | ✅ 321 / 779 (+37 vs início sessão) |
+| Path repo refresh | `composer update henryavila/codeguard` (no Arch) | ✅ |
+| Install Arch | `php artisan codeguard:install --no-interactive --preset=default` | ✅ (stubs publicados + CaptainHook registrado) |
+| Arch Pint | `vendor/bin/pint --test` | ✅ roda (reporta débito Arch — esperado) |
+| Arch PHPStan | `vendor/bin/phpstan analyse` | ✅ roda (1130 erros post-baseline — débito Arch) |
+| Arch Deptrac | `vendor/bin/deptrac analyse` | ✅ 5804 allowed / 0 violations |
+
+### Aprendizados da sessão 7 (não mover pra ADR ainda)
+
+1. **`KeptCustomPermanent` só cobre stubs publicados via `StubPublisher`**. Qualquer arquivo gerado por código fora do publisher (e.g., deptrac via wizard) precisa consultar `StubOverrides` por conta própria.
+2. **Pint 1.29+ validation stricter than 1.x**. Stub mantido "_rule_docs" inside `rules` por anos funcionou; upgrade quebrou. Lição: padrão "underscore comment keys" deve ficar sempre no nível raiz do JSON.
+3. **Shipmonk dead-code 0.14+ schema mudou silenciosamente**. Nenhum deprecation warning — só um erro direto ao rodar. Lição: stub deve depender de features core, não de keys que podem sumir.
+
+### Próximos passos (sessão 8)
+
+Decidir entre Opção A (TestSuiteRunner extract) e Opção C (DDD-pragmatic Deptrac ruleset). Ver `PROJECT-STATUS.md` para análise de tradeoffs.
+
+---
+
+## Estado anterior (2026-04-22 — fim sessão 6)
 
 ### Working tree CodeGuard
 Branch `main`. **Modificações UNCOMMITTED** desta sessão:
