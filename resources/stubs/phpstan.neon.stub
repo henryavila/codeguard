@@ -107,17 +107,12 @@ parameters:
     # @codeguard:ext=cognitive-complexity:params:end
 
     # --------------------------------------------------------------------------
-    # Dead Code Detector — Laravel usage providers ENABLED
-    # Without these, Laravel DI magic (ServiceProviders, route bindings, event
-    # subscribers, policies, etc.) produces massive false positives.
+    # Dead Code Detector (shipmonk/dead-code-detector)
+    # `laravel` / `eloquent` usageProviders were removed in 0.14 — the
+    # built-in vendor provider already tracks framework-driven usage.
     # --------------------------------------------------------------------------
     # @codeguard:ext=dead-code:params:start
     shipmonkDeadCode:
-        usageProviders:
-            laravel:
-                enabled: true
-            eloquent:
-                enabled: true
         detect:
             deadMethods: true
             deadConstants: true
