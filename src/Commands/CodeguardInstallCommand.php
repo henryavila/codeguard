@@ -22,6 +22,7 @@ use Henryavila\Codeguard\Install\InstallWarning;
 use Henryavila\Codeguard\Install\LayerDecisionStore;
 use Henryavila\Codeguard\Install\LayerOption;
 use Henryavila\Codeguard\Install\LayerSuggestion;
+use Henryavila\Codeguard\Install\LegacyStubCleaner;
 use Henryavila\Codeguard\Install\NextStepsReporter;
 use Henryavila\Codeguard\Install\PhpstanExtension;
 use Henryavila\Codeguard\Install\PhpstanExtensionApplier;
@@ -70,6 +71,7 @@ final class CodeguardInstallCommand extends Command
         ComposerAllowPluginsCheck $allowPluginsCheck,
         CodeguardDirectoryInitializer $directoryInitializer,
         InstallTelemetry $telemetry,
+        LegacyStubCleaner $legacyCleaner,
     ): int {
         $interactive = ! $this->option('no-interactive');
         $forceOverwrite = (bool) $this->option('refresh-stubs');
@@ -112,6 +114,8 @@ final class CodeguardInstallCommand extends Command
         }
 
         $this->ensureCaptainhookPluginAllowed($allowPluginsCheck, $summary, $interactive);
+
+        $this->handleLegacyStubs($legacyCleaner, $summary, $interactive);
 
         $selectedExtensions = $this->selectPhpstanExtensions(
             phpstanExtSelector: $phpstanExtSelector,
@@ -436,6 +440,63 @@ final class CodeguardInstallCommand extends Command
                 $this->line('');
                 $this->line($result->diff);
                 $this->line('');
+            }
+        }
+    }
+
+    private function handleLegacyStubs(
+        LegacyStubCleaner $cleaner,
+        InstallSummary $summary,
+        bool $interactive,
+    ): void {
+        $detected = $cleaner->detect();
+
+        if ($detected === []) {
+            return;
+        }
+
+        $this->line('');
+        $this->components->info('Legacy files detected');
+
+        foreach ($detected as $stub) {
+            $this->components->twoColumnDetail(
+                "  <fg=yellow>legacy</>  {$stub->path}",
+                "replaced by <fg=cyan>{$stub->replacement}</>",
+            );
+            $this->line('    <fg=gray>'.$stub->reason.'</>');
+
+            if (! $interactive) {
+                $summary->warn(new InstallWarning(
+                    level: WarningLevel::Warning,
+                    code: WarningCode::LegacyStubPresent,
+                    message: "Legacy file {$stub->path} kept — it was replaced by {$stub->replacement}.",
+                    remediation: "Delete {$stub->path} manually or re-run `codeguard:install` interactively to be prompted.",
+                ));
+
+                continue;
+            }
+
+            $confirmed = confirm(
+                label: "Delete {$stub->path}? It was replaced by {$stub->replacement}.",
+                default: true,
+            );
+
+            if (! $confirmed) {
+                $summary->warn(new InstallWarning(
+                    level: WarningLevel::Warning,
+                    code: WarningCode::LegacyStubPresent,
+                    message: "Legacy file {$stub->path} kept at user's request.",
+                    remediation: "Remove {$stub->path} when you're confident no tooling still depends on it.",
+                ));
+
+                continue;
+            }
+
+            if ($cleaner->delete($stub)) {
+                $this->components->twoColumnDetail(
+                    "  deleted  {$stub->path}",
+                    '<fg=green>ok</>',
+                );
             }
         }
     }

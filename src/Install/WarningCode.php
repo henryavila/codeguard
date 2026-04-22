@@ -14,4 +14,5 @@ enum WarningCode: string
     case NodeMissingForFullPreset = 'node-missing-for-full-preset';
     case StubPublishFailed = 'stub-publish-failed';
     case DeptracWriteFailed = 'deptrac-write-failed';
+    case LegacyStubPresent = 'legacy-stub-present';
 }

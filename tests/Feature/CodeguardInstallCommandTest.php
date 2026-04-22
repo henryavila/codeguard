@@ -11,6 +11,7 @@ use Henryavila\Codeguard\Install\ComposerAllowPluginsCheck;
 use Henryavila\Codeguard\Install\EnvironmentDetector;
 use Henryavila\Codeguard\Install\EnvironmentInfo;
 use Henryavila\Codeguard\Install\InstallTelemetry;
+use Henryavila\Codeguard\Install\LegacyStubCleaner;
 use Henryavila\Codeguard\Install\StubDiffer;
 use Henryavila\Codeguard\Install\StubOverrides;
 use Henryavila\Codeguard\Install\StubPublisher;
@@ -102,6 +103,15 @@ beforeEach(function (): void {
         return new StubOverrides(
             filesystem: new Filesystem,
             path: $tempApp.'/.codeguard/stub-overrides.yaml',
+        );
+    });
+
+    // Same rebind for LegacyStubCleaner — by default it walks Testbench's
+    // fixture root and never sees the files under $tempApp.
+    $this->app->singleton(LegacyStubCleaner::class, function () use ($tempApp): LegacyStubCleaner {
+        return new LegacyStubCleaner(
+            filesystem: new Filesystem,
+            basePath: $tempApp,
         );
     });
 
@@ -325,4 +335,22 @@ it('bypasses stub-overrides.yaml when --refresh-stubs is passed (force flag)', f
     // --refresh-stubs is an explicit force: the override is ignored and the
     // file is created from the stub as usual.
     expect(file_exists($this->tempApp.'/phpstan.neon'))->toBeTrue();
+});
+
+it('warns but does not delete legacy stubs (lefthook.yml) in non-interactive mode', function (): void {
+    // Simulate a pre-CaptainHook project that still has lefthook.yml lying
+    // around. The installer must warn without touching it — safety default
+    // for CI runs.
+    $legacyPath = $this->tempApp.'/lefthook.yml';
+    file_put_contents($legacyPath, "pre-commit:\n  commands: {}\n");
+
+    $exitCode = $this->artisan('codeguard:install', [
+        '--no-interactive' => true,
+        '--preset' => 'default',
+    ])->run();
+
+    // Exit 2 because a pendency (the legacy file) was recorded in summary.
+    expect($exitCode)->toBe(2);
+    // File MUST still exist — non-interactive must never delete silently.
+    expect(file_exists($legacyPath))->toBeTrue();
 });

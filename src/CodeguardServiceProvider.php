@@ -20,6 +20,7 @@ use Henryavila\Codeguard\Install\EnvironmentDetector;
 use Henryavila\Codeguard\Install\GatePlanRegistry;
 use Henryavila\Codeguard\Install\InstallTelemetry;
 use Henryavila\Codeguard\Install\LayerDecisionStore;
+use Henryavila\Codeguard\Install\LegacyStubCleaner;
 use Henryavila\Codeguard\Install\NextStepsReporter;
 use Henryavila\Codeguard\Install\PhpstanExtensionApplier;
 use Henryavila\Codeguard\Install\PhpstanExtensionSelector;
@@ -93,6 +94,16 @@ final class CodeguardServiceProvider extends ServiceProvider
             return new LayerDecisionStore(
                 filesystem: $filesystem,
                 path: $app->basePath('.codeguard'.DIRECTORY_SEPARATOR.'layer-decisions.yaml'),
+            );
+        });
+
+        $this->app->singleton(LegacyStubCleaner::class, function (Application $app): LegacyStubCleaner {
+            /** @var Filesystem $filesystem */
+            $filesystem = $app->make(Filesystem::class);
+
+            return new LegacyStubCleaner(
+                filesystem: $filesystem,
+                basePath: $app->basePath(),
             );
         });
 
