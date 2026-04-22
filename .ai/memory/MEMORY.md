@@ -14,13 +14,14 @@ Memória persistente do projeto — leia antes de qualquer trabalho substantivo.
 
 ## Design Evolution (ordem cronológica)
 - [Design Doc v5 ACTIVE](../../docs/specs/2026-04-16-codeguard-v2-architecture.md) — **canonical spec** (2 packages, codeguard/codeguard-full presets, Lefthook, install híbrido)
-- [Spec 2026-04-17 CaptainHook + Telemetry](../../docs/specs/2026-04-17-captainhook-migration-and-telemetry.md) — Phase A β **COMPLETA** 2026-04-20; Phase C + B pendentes (ver handoff)
+- [Spec 2026-04-17 CaptainHook + Telemetry](../../docs/specs/2026-04-17-captainhook-migration-and-telemetry.md) — Phases A β + C + B **COMPLETAS** (2026-04-20/22); follow-ups pendentes (ver handoff)
 - [CodeGuard v2 Internal Design](codeguard-v2-design.md) — decisões consolidadas (pré-preset redesign)
 - [Reviews Consolidated](reviews-consolidated.md) — 10 agentes (6 adversariais + 4 steelman)
 - [Preset Design Evolution](preset-design-evolution.md) — jornada 3 presets → 2 presets + Node auto-detect + install híbrido (sessão 2, 2026-04-16)
 
 ## State & Handoff
-- [Conversation Handoff](conversation-handoff.md) — onde paramos, próximo passo concreto
+- [Conversation Handoff](conversation-handoff.md) — onde paramos, próximo passo concreto (atualizado fim sessão 6)
+- [Session 7 Prompt](SESSION-7-PROMPT.md) — **prompt self-contained pra colar no início da próxima sessão**
 - [Open Questions](open-questions.md) — decisões pendentes
 - [Legacy npm v0](../../docs/legacy/npm-v0-README.md) — estado do repo Node preservado
 

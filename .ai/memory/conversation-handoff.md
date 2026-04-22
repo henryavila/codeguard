@@ -6,7 +6,7 @@ type: project
 
 # Conversation Handoff
 
-**Última atualização**: 2026-04-22 (sessão 5 — Phase B completa + reviewed)
+**Última atualização**: 2026-04-22 (sessão 6 — análise + 8 merges no Arch + backlog consolidado)
 
 **Sessões**:
 - Sessão 1: Pivot Node→PHP, 10 reviews, consolidação memória
@@ -14,38 +14,63 @@ type: project
 - Sessão 3 (2026-04-19/20): ADR-010 Lefthook→CaptainHook + spec 2026-04-17 + Phase A β implementada end-to-end
 - Sessão 4 (2026-04-20): Phase C β completa em 4 commits + code-reviewer adversarial pass + review fixes aplicados
 - Sessão 5 (2026-04-22): Phase B β completa em 5 commits + dual review gate (code-reviewer + security-reviewer) + 1 review-fix commit
+- Sessão 6 (2026-04-22): análise install Arch (9 arquivos sobrescritos vs 3 percebidos) + comparação per-file + 8 merges aplicados no Arch + backlog 10 itens consolidado
 
 ---
 
-## Estado Atual (2026-04-22)
+## Estado Atual (2026-04-22 — fim sessão 6)
 
-### Working tree
-Branch `main`, limpo. Últimos commits (Phase B):
+### Working tree CodeGuard
+Branch `main`. **Modificações UNCOMMITTED** desta sessão:
+
 ```
-3aa3e42 fix(telemetry): address Phase B review findings — Composer 3, strict default, atomic state write, abort exit
-e3ebde2 feat(telemetry): instrument install command + split Captainhook classes
-4f28c76 feat(telemetry): 3 Artisan commands (enable/disable/clear) + privacy E2E test
-94ef8c8 feat(telemetry): StopwatchScope + MeasuredAction decorator with tests
-594e575 feat(telemetry): Recorder + ConfigGate + Rotator + JsonlWriter with tests
-1f5a6e6 feat(telemetry): Event, EventName, EventStatus, FieldAllowlist value objects with tests
-7e0326c docs(memory): handoff for Phase C β completion + Phase B roadmap
+src/Install/DeptracLayerSuggester.php       — fix regex → value (linha 188-194)
+resources/stubs/deptrac.yaml.stub           — fix regex → value (4 ocorrências)
+tests/Unit/Install/DeptracLayerSuggesterTest.php — assertion ajustada (linha 240)
+.ai/memory/MEMORY.md                        — link para spec 2026-04-17 atualizado
+.ai/memory/architecture-decisions.md        — ADR-010 adicionado (sessões anteriores)
+.ai/memory/open-questions.md                — Q13/Q14 telemetry hypotheses
+docs/specs/2026-04-17-captainhook-migration-and-telemetry.md — spec completo
 ```
 
-33 commits ahead de `origin/main` (aguarda `git push`).
+33 commits ahead de `origin/main`. Pendente: commit do fix `regex→value` (item P0 #1).
+
+### Working tree Arch (`/home/henry/arch`) — branch `chore/fix-composer-quality-debt`
+8 arquivos modificados (merges aplicados nesta sessão) + 2 untracked:
+
+```
+Modified:
+  .jscpd.json                    threshold 10, Nova ignores, output storage/quality/cpd
+  composer.json                  typo codegaurd → codeguard
+  composer.lock                  deps captainhook (sem ação manual)
+  infection.json5                Nova excludes, timeout 30, github logs, NÃO exclui Configurators/Middleware/Abstracts
+  phpstan-test-quality.neon      aceito do stub
+  phpstan.neon                   level 10, baseline include, Carbon, peststan, Nova excludes, processTimeout, deadMethods false
+  pint.json                      Nova/public excludes, +3 rules: combine_unsets/issets/explicit_string_variable
+  tests/Arch/TestQualityTest.php híbrido: trait API + allowlists + 3 testes Arch-específicos + helpers locais
+
+Untracked (novos do CodeGuard install):
+  captainhook.json
+  captainhook.json.README.md
+
+deptrac.yaml — REVERTIDO ao HEAD (30-layer config preservada — sessão 7 fará Opção C)
+lefthook.yml — REMOVIDO (legado pré-CaptainHook)
+```
 
 ### Tag de rollback
 `v0-last-lefthook` continua válida (pre-Phase-A).
 
 ### Suite de testes
-**271 testes / 668 assertions, todos verdes.**
+**284 testes / 706 assertions, todos verdes** (após fix regex→value).
 ```bash
 cd /home/henry/codeguard && vendor/bin/pest --colors=never
 ```
 
-PHPStan + Pint clean nos arquivos tocados. Nenhum CRITICAL ou HIGH aberto.
-
 ### Validação end-to-end
-Phase A validada em `/home/henry/arch` anteriormente (composer install → hooks ativos). Phase C não foi re-validada no Arch nesta sessão — recomendado validar após push + `composer update` no Arch para ver `InstallSummary`, exit code 2, e `.codeguard/.gitignore` em ação.
+- Phase A validada em `/home/henry/arch` (composer install → hooks ativos).
+- Phase C não re-validada no Arch nesta sessão.
+- Phase B não re-validada no Arch nesta sessão.
+- **Sessão 7 fará validação completa após resolver os 9 itens do backlog.**
 
 ---
 
@@ -57,180 +82,203 @@ Phase A validada em `/home/henry/arch` anteriormente (composer install → hooks
 |---|---|---|
 | A — CaptainHook migration | ✅ COMPLETA (2026-04-20, sessão 3) | 9 commits + 1 tag |
 | C — Install UX | ✅ COMPLETA (2026-04-20, sessão 4) | 3 commits + 1 review-fix commit |
-| B — Telemetry (install layer) | ✅ **COMPLETA** (2026-04-22, sessão 5) | 5 commits + 1 review-fix commit |
+| B — Telemetry (install layer) | ✅ COMPLETA (2026-04-22, sessão 5) | 5 commits + 1 review-fix commit |
 
 ---
 
-## Phase C — O que entrou
+## BACKLOG SESSÃO 7 — Resolver tudo, depois validar no Arch
 
-**Arquivos novos** (prod):
-- `src/Install/InstallSummary.php` — coletor de warnings com ordenação estável por severidade
-- `src/Install/InstallWarning.php` — DTO readonly
-- `src/Install/WarningLevel.php` — enum {Warning, Error}
-- `src/Install/WarningCode.php` — enum 8 códigos canônicos (3 declarados mas ainda não usados — scaffolding para Phase B: ComposerLockStale, StubPublishFailed, DeptracWriteFailed)
-- `src/Install/ComposerAllowPluginsCheck.php` — inspeciona `config.allow-plugins` no composer.json consumidor; suporta wildcards; write atômico via temp-file + rename; preserva perms; recusa overwrite de `allow-plugins: false`
-- `src/Install/AllowPluginsStatus.php` — enum {Allowed, NotAllowed, Unknown}
-- `src/Install/CodeguardDirectoryInitializer.php` — cria `.codeguard/` + `.gitignore` canônico; idempotente; preserva linhas custom do user
+### 🔥 P0 — Fixes (~50min)
 
-**Arquivos editados**:
-- `src/Commands/CodeguardInstallCommand.php` — injeção de 3 novos serviços, 5 métodos privados novos (checkPhpVersion, ensureCaptainhookPluginAllowed, renderSummary, recordCaptainhookOutcome, resolveExitCode), exit code 2 quando `$summary->hasIssues()`, markup escape via `OutputFormatter::escape`
-- `src/CodeguardServiceProvider.php` — 3 novas singletons
-- `tests/Feature/CodeguardInstallCommandTest.php` — stubs reconfigurados (happy-path default), 4 testes
-- `resources/stubs/captainhook.json.README.md.stub` — seção nova "Where the installed hook scripts actually live" (core.hooksPath, follow-up b)
+**#1 — Commit do fix `regex → value` (5min)**
+- Working tree CodeGuard já tem mudanças aplicadas em:
+  - `src/Install/DeptracLayerSuggester.php` (linha 188-194 — array key + comment)
+  - `resources/stubs/deptrac.yaml.stub` (4× `regex:` → `value:`)
+  - `tests/Unit/Install/DeptracLayerSuggesterTest.php` (linha 240 — assertion)
+- Comando: `cd /home/henry/codeguard && git add src/Install/DeptracLayerSuggester.php resources/stubs/deptrac.yaml.stub tests/Unit/Install/DeptracLayerSuggesterTest.php && git commit -m "fix(deptrac): use 'value' key for classLike (Deptrac 2.x format)"`
+- Razão: Deptrac 2.x usa `value`, não `regex`. Mensagem de erro do próprio Deptrac é ambígua ("needs the regex configuration" mas código procura `$config['value']`). Verificado em `vendor/deptrac/deptrac/src/Core/Layer/Collector/AbstractTypeCollector.php`. Sem fix, install em qualquer Arch-like quebra com `Invalid collector definition`.
 
-**Tests** (28 novos total):
-- `InstallSummaryTest.php` — 6 tests
-- `ComposerAllowPluginsCheckTest.php` — 13 tests (incluindo deny-all guard + perms)
-- `CodeguardDirectoryInitializerTest.php` — 6 tests
-- `CodeguardInstallCommandTest.php` — 3 tests novos (exit 2 via captainhook missing; exit 2 via plugin blocked; .codeguard/.gitignore criado)
+**#2 — Bug PhpstanExtensionApplier removendo `#` de `:end` sentinels (30-45min)**
+- Sintoma: instalação no Arch produziu phpstan.neon onde linhas `# @codeguard:ext=NAME:params:end` ficaram `@codeguard:ext=NAME:params:end` (sem `#`). 3 ocorrências: cognitive-complexity, dead-code, disallowed-calls.
+- Stub e o regex inline (`/#\s*@codeguard:ext=([a-z-]+)\s*$/`) estão CORRETOS.
+- Hipóteses:
+  - Loop em `commentBlockBody`/`uncommentBlockBody` está correto (i=1 a lineCount-2, exclui sentinels)
+  - Regex inline NÃO matcha `:end` (testado mentalmente)
+  - Pode ser execução dupla? Versão antiga do CodeGuard? Stub que foi publicado antes do bug fix?
+- Investigação:
+  1. Adicionar test reproduzindo o cenário exato (block enabled, ver se end fica intacto)
+  2. Se reproduzir: fix no Applier
+  3. Se não reproduzir: confirmar que era versão antiga do código no Arch (provável)
+- Em qualquer caso: adicionar test de regressão garantindo sentinels nunca são modificados.
 
-**Code review findings** (aplicados em commit `9faf0c2`):
-- HIGH: `allow()` não reescreve mais `allow-plugins: false` (deny-all shorthand)
-- HIGH: summary renderer escapa Symfony Console markup para blindar fontes futuras (Phase B)
-- MEDIUM: `allow()` usa write atômico (temp + rename) + preserva perms
-- LOW deliberadamente ignoradas: CRLF normalization (baixa probabilidade), enum unused (scaffolding), test helper cosmetics
+### 🎯 P1 — Mecanismos overwrite (~2h15min)
 
-### Dívida documentada mas não-bloqueante
-- Enum `WarningCode` tem 3 casos não usados (`ComposerLockStale`, `StubPublishFailed`, `DeptracWriteFailed`) — serão consumidos em Phase B (detect composer.lock stale) e eventual expansão; sem TODO comment ainda
-- Test helper em `CodeguardInstallCommandTest` lê `app(ComposerAllowPluginsCheck::class)` pós-run — funciona porque binding é singleton; fragile se virar factory. Não foi refatorado.
+**#3 — `.codeguard/stub-overrides.yaml` (skip permanente) (~1h30min)**
+
+Design:
+```yaml
+# .codeguard/stub-overrides.yaml — generated by codeguard:install or codeguard:install:override
+# Files in this list are NEVER overwritten by codeguard:install (even with --refresh-stubs).
+# To re-enable stub publishing for a file, remove its entry from this list.
+overrides:
+  - phpstan.neon         # custom: peststan + level 10 + project paths
+  - deptrac.yaml         # custom: 30-layer config (HEAD restore)
+```
+
+Implementação:
+- `src/Install/StubOverrides.php` — read/write `.codeguard/stub-overrides.yaml`
+  - `load(): array<string>` (lista de paths normalized)
+  - `add(string $path): void` (idempotente)
+  - `remove(string $path): void`
+  - `contains(string $path): bool`
+- Tests: `tests/Unit/Install/StubOverridesTest.php` (~80 LOC)
+- Modificação no `StubPublisher.php`:
+  - `publish()` recebe `StubOverrides $overrides`
+  - Para cada stub no preset: se `$overrides->contains($stub->target)` → status `KeptCustomPermanent`, NÃO prompta, NÃO publica
+- Modificação no prompt de diff (`StubPublisher::overwriteAfterDiffReview` ou similar):
+  - Após "Keep custom" / "Overwrite" / "Show full diff", adicionar 4ª opção:
+    - "Keep custom + remember (never ask again for this file)"
+  - Se escolhido: `$overrides->add($stub->target)` antes de retornar `KeptCustom`
+- Novo `StubPublishStatus::KeptCustomPermanent` (case enum)
+- Novo comando: `codeguard:install:override <stub-path>` — adiciona ao yaml manualmente
+  - Útil quando user já edited e quer marcar sem rodar install
+  - `src/Commands/CodeguardInstallOverrideCommand.php`
+- Modo `--refresh-stubs` IGNORA overrides (force flag)
+- Update install command output: mostrar contagem "X files in stub-overrides (skipped)" no resumo final
+
+Como funciona na primeira instalação:
+- yaml não existe → comportamento normal (prompta cada diff)
+- User escolhe "Keep custom + remember" → yaml é criado com 1 entrada
+- Próximas instalações: yaml lido no início, paths skipados silenciosamente
+
+**#4 — Legacy stubs cleanup (~45min)**
+
+Design:
+- `src/Install/LegacyStubCleaner.php` — lista hardcoded de paths legados:
+  ```php
+  private const LEGACY_PATHS = [
+      'lefthook.yml',           // pre-CaptainHook era
+      // futuros adicionados aqui quando rename/remove de stubs
+  ];
+  ```
+- Método `detect(): array<string>` retorna paths que existem no projeto
+- Modificação em `CodeguardInstallCommand`:
+  - Após preset selection, antes de publish stubs
+  - Para cada legacy path detected: prompt "Delete legacy {path}? It was replaced by {new}. [Y/n]"
+  - Se Y: `unlink()` + log no InstallSummary como warning info
+  - Se N: skip + warning "Legacy file {path} kept — please remove manually"
+- Tests: `tests/Unit/Install/LegacyStubCleanerTest.php` (~50 LOC)
+- Em modo `--no-interactive`: NÃO deleta automaticamente (safety), só lista no warning summary
+
+### 📦 P2 — Backflow do Arch para os stubs (~1h50min)
+
+**#5 — Carbon ext always-on no `phpstan.neon.stub` (15min)**
+- Adicionar entre os includes obrigatórios (after larastan):
+  ```yaml
+      # Carbon-aware static analysis — types Carbon::macro() returns + DatePeriod
+      # Bundled with nesbot/carbon (always present in Laravel projects), zero install cost.
+      - vendor/nesbot/carbon/extension.neon
+  ```
+- SEM sentinel `@codeguard:ext=carbon` (always-on, não opt-out via wizard)
+- ADR-009 backflow note: 11.7M downloads/mo, universal Laravel, zero custo
+- Update test que verifica includes
+- Não precisa adicionar ao enum `PhpstanExtension` (não é toggleable)
+
+**#6 — Peststan opt-in (~1h)**
+- Adicionar enum case `PhpstanExtension::Peststan` em `src/Install/PhpstanExtension.php`
+- Adicionar `mrpunyapal/peststan: ^0.2` ao `composer.json` `require` (igual outras extensions)
+- Stub `phpstan.neon.stub` ganha:
+  ```yaml
+      - vendor/mrpunyapal/peststan/extension.neon  # @codeguard:ext=peststan
+
+      # @codeguard:ext=peststan:params:start
+      peststan:
+          testCaseClass: Tests\TestCase
+      # @codeguard:ext=peststan:params:end
+  ```
+- `PhpstanExtensionSelector::autoResolve()` — auto-marcar Peststan se `pestphp/pest` em composer.json do consumidor (precisa novo método em `EnvironmentDetector` ou similar pra inspecionar composer.json)
+- Decisão técnica: ADR-009 explicar por que Peststan é opt-in (12k downloads/mo, solo maintainer, pre-1.0) mas vale shippar
+
+**#7 — Stub `infection.json5.stub` ajustes (20min)**
+- Atualizar `excludes` baseado na análise de Configurators/Middleware/Abstracts (não excluir code com lógica testável)
+- Adicionar comments explicando cada exclude e o porquê das EXCLUSÕES INTENCIONAIS NÃO feitas
+- Considerar incluir warning na install output: "Primeira execução de Infection pode falhar minMsi — rode `--initial-tests-only` se acontecer"
+
+**#8 — Stub `pint.json.stub` adicionar 3 rules (15min)**
+- `combine_consecutive_unsets: true`
+- `combine_consecutive_issets: true`
+- `explicit_string_variable: true`
+- Mesma estrutura: rule + comment em `_rule_docs`
+- ADR-009 backflow
+
+### Validação end-to-end no Arch (~30min — última etapa)
+
+Após #1-#8 completos:
+
+```bash
+# 1. Push commits do CodeGuard
+cd /home/henry/codeguard
+vendor/bin/pest --colors=never        # deve dar TODOS verdes
+git log --oneline origin/main..HEAD   # ver quantos commits ahead
+git push origin main
+
+# 2. Update Arch path repository (composer reload da nova versão)
+cd /home/henry/arch
+composer update henryavila/codeguard --no-interaction
+
+# 3. Rodar install em modo interativo pra validar:
+#    - Carbon ext aparece na multiselect (sem opt-out)
+#    - Peststan aparece na multiselect (auto-marcado pq Pest detectado)
+#    - Quando phpstan.neon difere: aparece prompt com 4ª opção "Keep + remember"
+#    - lefthook.yml legado: prompt "Delete? [Y/n]"
+#    - InstallSummary mostra warnings agregados
+php artisan codeguard:install --refresh-stubs
+
+# 4. Validar arquivos finais
+git status
+git diff phpstan.neon          # deve estar como o merge atual + 0 perdas
+ls .codeguard/                  # stub-overrides.yaml deve existir se user marcou algum
+
+# 5. Rodar quality gates pra confirmar nada quebrou:
+vendor/bin/pint --test
+vendor/bin/phpstan analyse      # respeita baseline
+vendor/bin/deptrac analyse      # config 30-layer original
+vendor/bin/infection --skip-initial-tests --no-progress 2>&1 | grep MSI:
+```
+
+Critérios de sucesso:
+- ✅ Install completa sem erros
+- ✅ Nenhum arquivo do Arch é sobrescrito sem confirmação
+- ✅ Após escolher "Keep + remember", próxima install não pergunta novamente
+- ✅ Carbon ext + Peststan estão no phpstan.neon final
+- ✅ lefthook.yml não reaparece
+- ✅ Todos os quality gates rodam (PHPStan respeitando baseline, Deptrac com 30 layers, etc.)
 
 ---
 
-## Phase B — O que entrou (sessão 5)
+## ITENS DEIXADOS PARA SESSÃO 8+
 
-**Namespace novo**: `Henryavila\Codeguard\Telemetry\`
+**#9 — Opção C "Laravel-pragmatic" ruleset (~2h15min)** — Não inclui na sessão 7 pra manter escopo administrável. Decisão tomada (DDD-inspired ruleset com Application→Infrastructure permitido), implementação fica pra depois.
+- Files: `LayerOption`, `DeptracLayerSuggester::DEFAULT_RULESET`, `deptrac.yaml.stub`, `DeptracLayerWizard` copy, todos os testes deptrac
+- ADR-011 a criar
+- Re-validação no Arch
 
-**Arquivos prod (11 novos + 3 splits)**:
-- `Telemetry/Event.php` — readonly VO com `toArray()` de ordem estável
-- `Telemetry/EventName.php` — enum 20 casos (spec §5.2)
-- `Telemetry/EventStatus.php` — enum Ok|Fail|Skip
-- `Telemetry/FieldAllowlist.php` — gate central com SCHEMA por evento; `validate()` e `rejectFreeformStrings()`; `target_event`/`stub_outcome`/`activation_status` renomeados para evitar colisão com top-level keys
-- `Telemetry/ConfigGate.php` — single-decision gate
-- `Telemetry/JsonlWriter.php` — append com flock EX
-- `Telemetry/Rotator.php` — rotação > 10MB, retenção mtime-desc dos 5 mais recentes, second-collision guard
-- `Telemetry/Recorder.php` — entry-point com loop guard + scope guard para `telemetry.dropped_field`
-- `Telemetry/StopwatchScope.php` — hrtime helper para single ended event
-- `Telemetry/MeasuredAction.php` — decorator CaptainHook Action → gate.started/gate.ended
-- `Telemetry/TelemetryStateStore.php` — `.codeguard/telemetry-state.json` atomic write (temp+rename)
-- `Commands/Telemetry/{Enable,Disable,Clear}Command.php` — 3 artisan
-- `Install/InstallTelemetry.php` — façade com mapping typed → enum
-- `Install/CaptainhookInstall{Result,Status}.php` — split de CaptainhookInstaller.php para satisfazer PSR-4 autoloading
-
-**Arquivos editados**:
-- `Commands/CodeguardInstallCommand.php` — injeção de InstallTelemetry, 7 pontos de emissão, maybeInstallCaptainhook retorna Result, renderNextSteps retorna count
-- `CodeguardServiceProvider.php` — registra 7 singletons + 3 commands
-- `config/codeguard.php` — seção `telemetry` (enabled/strict_mode/path/rotate_bytes/retain_archives); strict_mode **default false em prod** (review fix)
-
-**Tests** (~870 LOC, 133 tests novos):
-- `tests/Unit/Telemetry/*` — 8 arquivos (88 tests)
-- `tests/Feature/Telemetry/*` — 2 arquivos (12 tests) incluindo `TelemetryPrivacyTest` com regex sweep (/home/, /Users/, C:\\, emails, SHA-1, URLs)
-- `tests/Unit/Install/InstallTelemetryTest.php` — 20 tests com mapping completo
-- `tests/Feature/CodeguardInstallCommandTest.php` — 1 smoke test novo
-
-**Review gate (sessão 5)**:
-Spawnou em paralelo code-reviewer + security-reviewer.
-
-- **security-reviewer**: 0 CRITICAL, 0 HIGH, 1 MEDIUM, 3 LOW. Confirmou end-to-end: (a) todo `Recorder::record` passa por `FieldAllowlist::validate`, (b) nenhum path/email/SHA/URL chega ao jsonl, (c) `strict_mode=true` default no VO e nos tests. MEDIUM foi Rotator race (deferred). LOWs: rejectFreeformStrings docstring, MeasuredAction stringly-typed params (deferred), TelemetryStateStore atomic write (**aplicado em 3aa3e42**).
-- **code-reviewer**: 0 CRITICAL, 1 HIGH, 3 MEDIUM, 3 LOW. HIGH foi `composerMajor` silenciando Composer 3 como 2 → **aplicado** (schema `[1, 3]`, clamping ≥4 e <1). MEDIUM CODEGUARD_TELEMETRY_STRICT default → **aplicado** (prod agora default false). MEDIUM memoization + MEDIUM TODO comments no EventName deferred. LOW ClearCommand abort exit → **aplicado** (SUCCESS). LOWs readonly class markers + ts timezone assertion deferred.
-
-Tudo que foi aplicado está em `3aa3e42 fix(telemetry): address Phase B review findings`.
-
-### Próximo Passo Concreto: follow-up telemetry instrumentation (não-urgente)
-
-Phase B cobriu apenas o install command (Layer 1 + Layer 2 do spec §5.2). As outras camadas ficam para quando seus comandos existirem:
-- Layer 3 (gate.started/ended) — precisa do `codeguard:check` command
-- Layer 4 (hook.triggered/completed) — precisa do hook-bootstrap mechanism para Laravel container rodar dentro de captainhook processes
-- Layer 5 (test.started/ended) — precisa do `codeguard:test` command
-- Layer 6 (analyze.ended/baseline.ended) — precisam dos respectivos commands
-- Layer 7 (prepare.step.ended) — precisa do `codeguard:prepare` command
-
-`MeasuredAction` já existe e está testado; é só wrap em captainhook.json stub quando houver bootstrap. Três casos de `EventName` (InstallStubProcessed, InstallDeptracDetected, InstallDeptracWizardDecision) estão declarados no schema mas ainda não têm método no `InstallTelemetry` — instrumentar em follow-up (o reviewer sugeriu TODO comment, mas decidi não poluir os enums; está aqui documentado).
-
-### (Histórico — Phase B planning, já cumprido)
-
-### Dependência satisfeita
-`.codeguard/.gitignore` já é gerado automaticamente pelo `CodeguardDirectoryInitializer`. Telemetria pode escrever `telemetry.jsonl` em `.codeguard/` sem risco de vazar pro git.
-
-### Escopo (5 commits, P50 ~6h)
-
-**Commit #11** — `feat(telemetry): Event, EventName, EventStatus, FieldAllowlist value objects with tests`
-- `src/Telemetry/EventName.php` — enum fechado (20 casos, catálogo em spec §5.2)
-- `src/Telemetry/EventStatus.php` — enum `Ok | Fail | Skip`
-- `src/Telemetry/Event.php` — value object readonly: `ts, event, status, duration_ms, extras` + `toArray()` canonical serialization
-- `src/Telemetry/FieldAllowlist.php` — enforcement CENTRAL: `validate(EventName, array): array` + `rejectFreeformStrings(array): void`. Enum-only, zero string livre. Regra: dev → throws; prod com `strict_mode=false` → drop silencioso + emite `telemetry.dropped_field` event
-- Tests: 4 arquivos, ênfase em FieldAllowlist (privacy critical — testar explicitamente que PII strings são rejeitadas/dropadas)
-
-**Commit #12** — `feat(telemetry): Recorder + ConfigGate + Rotator + JsonlWriter with tests`
-- `src/Telemetry/ConfigGate.php` — lê `telemetry.enabled` 1× por processo; `isEnabled(): bool`
-- `src/Telemetry/Recorder.php` — entry point `record(Event): void`; no-op se gate disabled; usa Rotator + JsonlWriter
-- `src/Telemetry/Rotator.php` — rotaciona `telemetry.jsonl` quando > 10MB para `telemetry-YYYY-MM-DD-HHMMSS.jsonl`; retém 5 mais recentes
-- `src/Telemetry/JsonlWriter.php` — append atômico com `flock`, **reaproveitar padrão temp+rename do ComposerAllowPluginsCheck::writeAtomic** para robustez
-- `config/codeguard.php` — adicionar seção `telemetry` (schema em spec §5)
-
-**Commit #13** — `feat(telemetry): StopwatchScope + MeasuredAction decorator with tests`
-- `src/Telemetry/StopwatchScope.php` — helper `Stopwatch::time(EventName, extras, callable): mixed`
-- `src/Telemetry/MeasuredAction.php` — decorator para CaptainHook Actions: implements `Action`, delega pro inner, emite `gate.started`/`gate.ended` com duration_ms via `hrtime(true)`
-
-**Commit #14** — `feat(telemetry): 3 Artisan commands + TelemetryPrivacyTest E2E`
-- `src/Commands/Telemetry/EnableCommand.php` — signature `codeguard:telemetry:enable` → persiste `telemetry.enabled=true`
-- `src/Commands/Telemetry/DisableCommand.php` — idem, false
-- `src/Commands/Telemetry/ClearCommand.php` — signature `codeguard:telemetry:clear` → confirm Y/n → `unlink` em `telemetry*.jsonl`
-- `tests/Feature/TelemetryPrivacyTest.php` — E2E crítico: roda install + commit simulado; lê `.jsonl`; regex sweep `/home/`, `/Users/`, `C:\\`, emails, SHA-1 hashes, URLs → fail loud se encontrar
-
-**Commit #15** — `feat(telemetry): instrument install/gates/hooks/test/analyze/prepare layers`
-- Edits em 7 pontos: install command, gate runners, hooks (MeasuredAction wrap em CaptainHook actions), test runner, analyze command, baseline command, prepare command
-- Catálogo de 20 eventos em spec §5.2 — cada um tem 1 ponto de gravação
-
-### Review gate obrigatório pós #15
-Spawnar **2 agents em paralelo** após commit #15:
-1. `code-reviewer` — qualidade geral, padrões, test coverage
-2. `security-reviewer` — privacy invariants, `FieldAllowlist` enforcement, caminhos que podem vazar PII
-
-Especialmente: verificar que toda chamada a `Recorder::record()` passa por `FieldAllowlist::validate()`; que `strict_mode=true` em testes é o default para captura agressiva de violações durante dev; que nenhum log path, nenhum email de git config, nenhum hash SHA-1 chega ao jsonl.
+**#10 — Telemetria Layers 3-7 (~3h)** — Bloqueado em pre-requisitos:
+- Precisa comandos `codeguard:check`, `codeguard:test`, `codeguard:prepare`, `codeguard:analyze`, `codeguard:baseline` (não existem ainda — apenas `codeguard:install` e telemetry commands)
+- Precisa hook-bootstrap mechanism para Laravel container rodar dentro de captainhook processes
+- 3 enum cases existentes sem método: `InstallStubProcessed`, `InstallDeptracDetected`, `InstallDeptracWizardDecision`
 
 ---
 
-## Diretrizes que NÃO podem ser reabertas nesta sessão
+## Diretrizes que NÃO podem ser reabertas
 
 - **ADR-010 (CaptainHook)**: decidido, implementado, validado. NÃO voltar para Lefthook sem trigger explícito do ADR (perf > 30s em produção OU maintainer inativo 6mo+).
 - **Opção β (StagedPhpFilesRunner na Phase A)**: shipped. Não reabrir "pra simplificar".
 - **Phase order A → C → B**: cumprida. C entregue antes de B por causa de `.codeguard/.gitignore`.
 - **Cutover direto (não-compat)**: v0.x, nenhum consumer externo. Não reintroduzir Lefthook como backend alternativo.
 - **3 comandos de telemetria (enable/disable/clear)**: não criar `export`, `dashboard`, `show`, `analyze`. Claude analisa o jsonl diretamente.
-- **Privacy first**: `FieldAllowlist` é enum-only, sem strings livres. Nunca reabrir pra "conveniência".
-
-Se user questionar qualquer ponto, escutar (pode ter contexto novo), mas confirmar antes de alterar.
-
----
-
-## Lista de Tasks
-
-```
-#4  Phase B #11 — Event, EventName, EventStatus, FieldAllowlist + tests
-#5  Phase B #12 — Recorder, ConfigGate, Rotator, JsonlWriter + tests
-#6  Phase B #13 — StopwatchScope, MeasuredAction + tests
-#7  Phase B #14 — 3 Artisan commands + TelemetryPrivacyTest E2E
-#8  Phase B #15 — Instrumentar 7 camadas (install/gates/hooks/test/analyze/prepare)
-```
-
-Tasks #1, #2, #3 (Phase C #8/#9/#10) estão completed.
-
----
-
-## Arquivos-chave para ler antes de começar Phase B
-
-**Obrigatórios** (context load):
-1. [CLAUDE.md](../../CLAUDE.md)
-2. [MEMORY.md](MEMORY.md)
-3. Este arquivo (conversation-handoff.md)
-4. [docs/specs/2026-04-17-captainhook-migration-and-telemetry.md](../../docs/specs/2026-04-17-captainhook-migration-and-telemetry.md) — especialmente §5 (Telemetry formal schema) e §6.2 (sequence)
-
-**Referenciais**:
-- `src/Install/ComposerAllowPluginsCheck.php` — padrão writeAtomic para reaproveitar em JsonlWriter
-- `src/Install/InstallSummary.php` — padrão coletor+readonly DTO (aplicável a FieldAllowlist violations)
-- `src/Hooks/StagedPhpFilesRunner.php` — pattern de PHP Action (MeasuredAction decorará Actions similares)
-- `src/Install/PhpstanExtensionStore.php` — pattern de YAML persistence (inspiração pro Rotator file-handling)
-- `resources/stubs/captainhook.json.stub` — stub JSON que MeasuredAction vai wrapar
+- **Privacy first**: `FieldAllowlist` é enum-only, sem strings livres.
+- **DDD-inspired (NÃO strict)** (sessão 6 reaffirmada): Service→Model OK, Filament→Model OK, Domain stays framework-free. Reflete em ADR-010 e futura ADR-011.
 
 ---
 
@@ -242,29 +290,29 @@ Em `/home/henry/.claude/projects/-home-henry-codeguard/memory/`:
 - `feedback-honest-tradeoffs.md`
 - `feedback-node-when-justified.md`
 - `feedback-portuguese-typos.md`
+- `feedback-ddd-inspired-not-strict.md` (NOVO sessão 6)
 - `user-profile.md`
 - `project-codeguard-state.md`
 
 ---
 
-## Cheatsheet para próxima sessão
+## Cheatsheet para sessão 7
 
 ```bash
 # 1. Context load (Claude faz automaticamente):
-#    CLAUDE.md → .ai/memory/MEMORY.md → este arquivo
+#    CLAUDE.md → .ai/memory/MEMORY.md → este arquivo (handoff)
 
 # 2. Verificar estado:
 cd /home/henry/codeguard
-git log --oneline -5           # último = 9faf0c2
-git status                      # deve estar limpo
-vendor/bin/pest --colors=never  # deve dar 144 passed
-git tag -l | grep lefthook      # v0-last-lefthook
+git status                                       # working tree TEM mudanças não-commitadas (regex→value fix)
+vendor/bin/pest --colors=never                  # 284 verdes
+git log --oneline -5                             # último commit deve ser o de docs/handoff
 
-# 3. Ler spec §5 (Telemetry formal schema):
+# 3. Verificar bug applier:
+grep -n "@codeguard:ext.*params:end" /home/henry/arch/phpstan.neon
+# Se mostrar linhas SEM # → bug ainda presente (P0 #2)
+# Se mostrar com # → user manualmente fixou OU re-instalou
+
+# 4. Ler spec:
 sed -n '/## 5\. Telemetry/,/## 6\. Migration/p' docs/specs/2026-04-17-captainhook-migration-and-telemetry.md
-
-# 4. Começar Phase B #11:
-#    - TDD: escrever FieldAllowlistTest primeiro (foco em privacy)
-#    - Depois EventNameTest (20 casos enum), EventTest (value object)
-#    - FieldAllowlist é o componente mais crítico — privacy enforcement central
 ```
