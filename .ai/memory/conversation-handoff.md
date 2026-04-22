@@ -15,14 +15,14 @@ type: project
 - Sessão 4 (2026-04-20): Phase C β completa em 4 commits + code-reviewer adversarial pass + review fixes aplicados
 - Sessão 5 (2026-04-22): Phase B β completa em 5 commits + dual review gate (code-reviewer + security-reviewer) + 1 review-fix commit
 - Sessão 6 (2026-04-22): análise install Arch (9 arquivos sobrescritos vs 3 percebidos) + comparação per-file + 8 merges aplicados no Arch + backlog 10 itens consolidado
-- **Sessão 7 (2026-04-22)**: 8 tasks do backlog executados (P0 fix+regression, P1 overwrite mechanisms, P2 stub backflow) + validação end-to-end no Arch + 2 bugs pré-existentes do stub corrigidos. HEAD `d936b43`. Suite 321 passed.
+- **Sessão 7 (2026-04-22)**: 8 tasks do backlog + validação **interativa** no Arch + 2 bugs pré-existentes do stub + **2 design gaps fechados** (wizard Deptrac e applier PHPStan passaram a respeitar `StubOverrides`). HEAD `e9c1269`. Suite 325 passed.
 
 ---
 
 ## Estado Atual (2026-04-22 — fim sessão 7)
 
 ### Working tree CodeGuard
-Branch `main`. **Working tree limpo**, 48 commits ahead de `origin/main`.
+Branch `main`. **Working tree limpo**, 53 commits ahead de `origin/main`.
 
 ### Working tree Arch (`/home/henry/arch`) — branch `chore/fix-composer-quality-debt`
 9 arquivos modificados (merge da sessão 6 + sessão 7):
@@ -43,9 +43,26 @@ Untracked: captainhook.json, captainhook.json.README.md
 - **Pint `_rule_docs` inside rules**: Pint 1.29+ rejeita chaves desconhecidas dentro de `rules`. Movido para top-level do JSON (sibling de `_comment`/`_docs`). Commit `cc3e776`.
 - **shipmonk usageProviders.laravel/eloquent**: removidos em `shipmonk/dead-code-detector` 0.14+. Stub referenciava keys inexistentes → "Unexpected item" error. Removidos; built-in vendor provider cobre o use case. Commit `d936b43`.
 
-### Design gap documentado (pós-alpha)
+### 2 design gaps descobertos E FIXADOS na sessão 7
 
-`CodeguardInstallCommand::maybeSuggestDeptracLayers` escreve `deptrac.yaml` via `$filesystem->put()` direto — **bypassando `StubPublisher`**. Resultado: `.codeguard/stub-overrides.yaml` NÃO protege `deptrac.yaml` quando o wizard roda. Reprodução durante validação sessão 7: install no Arch sobrescreveu a 30-layer config (restaurada com `git checkout`). Fix trivial (wizard consulta `StubOverrides` antes de gravar) fica pra sessão 8+.
+Pattern: componentes que mutam arquivos sob raiz do projeto precisam consultar `StubOverrides` antes de gravar, com `--refresh-stubs` como escape hatch.
+
+- **Gap #1 — Deptrac wizard** (`maybeSuggestDeptracLayers`): descoberto na validação non-interativa (install sobrescreveu a 30-layer config do Arch com wizard default 4-layer). Fix `fb63ed3` + 2 tests. O deptrac.yaml do Arch foi restaurado via `git checkout --`.
+- **Gap #2 — PHPStan extension applier** (`applyPhpstanExtensionsToStub`): descoberto na validação **interativa** (usuário testou install interativo após fix #1; PHPStan acusou `Duplicated key '@codeguard:ext' on line 140` porque o applier tocou sentinels fragilizados de sessões anteriores). Fix `e9c1269` + 2 tests. Sentinels do Arch foram manualmente restaurados.
+
+Ambos os fixes seguem o mesmo shape:
+```php
+if (! $forceOverwrite && $stubOverrides->contains($path)) {
+    // short-circuit com mensagem explicativa
+    return;
+}
+// ... caminho normal
+```
+
+### Papercuts menores anotados para pós-alpha
+
+- `NextStepsReporter` tem hardcode `"Review level in phpstan.neon (currently 5)"` — não lê level real do arquivo.
+- `StubOverrides::save()` sobrescreve arquivo com header canônico — perde comentários per-entry que o user escreva manualmente.
 
 ### O que entrou na sessão 7 (ordem cronológica)
 
@@ -61,27 +78,46 @@ Untracked: captainhook.json, captainhook.json.README.md
 | `ebc709d` | P2 feat | Pint +3 rules (combine_unsets, combine_issets, explicit_string_variable) |
 | `cc3e776` | fix | stub: `_rule_docs` para top-level (Pint 1.29+) |
 | `d936b43` | fix | stub: drop shipmonk usageProviders.laravel/eloquent |
+| `2d73935` | docs | memory: session 7 closeout inicial |
+| `fb63ed3` | fix | **design gap #1**: wizard Deptrac respeita `StubOverrides` |
+| `62cfdbb` | docs | SESSION-8-ARCH-TEST.md (roteiro pra teste pós-almoço) |
+| `e9c1269` | fix | **design gap #2**: PhpstanExtensionApplier respeita `StubOverrides` |
 
 ### Resultados da validação sessão 7
 
 | Alvo | Comando | Status |
 |---|---|---|
-| Suite CodeGuard | `vendor/bin/pest` | ✅ 321 / 779 (+37 vs início sessão) |
+| Suite CodeGuard | `vendor/bin/pest` | ✅ 325 / 787 (+41 vs início sessão) |
 | Path repo refresh | `composer update henryavila/codeguard` (no Arch) | ✅ |
-| Install Arch | `php artisan codeguard:install --no-interactive --preset=default` | ✅ (stubs publicados + CaptainHook registrado) |
+| Install NON-interativo Arch (validação 1) | `php artisan codeguard:install --no-interactive --preset=default` | ✅ mas descobriu gap #1 (deptrac.yaml sobrescrito pelo wizard) |
+| Install **interativo** Arch (validação 2, pós-seed overrides) | `php artisan codeguard:install` | ✅ — Peststan auto-select, 4ª opção "Keep + remember" funciona, wizard Deptrac skip silencioso. Descobriu gap #2 (applier corrompeu sentinels). |
 | Arch Pint | `vendor/bin/pint --test` | ✅ roda (reporta débito Arch — esperado) |
-| Arch PHPStan | `vendor/bin/phpstan analyse` | ✅ roda (1130 erros post-baseline — débito Arch) |
-| Arch Deptrac | `vendor/bin/deptrac analyse` | ✅ 5804 allowed / 0 violations |
+| Arch PHPStan | `vendor/bin/phpstan analyse` | ✅ roda pós-fix `e9c1269` + sentinels restaurados manualmente (1130 erros — débito Arch) |
+| Arch Deptrac | `vendor/bin/deptrac analyse` | ✅ 5804 allowed / 0 violations (30-layer preservada pelo `fb63ed3`) |
+
+### Estado final do Arch (working tree)
+
+- `.codeguard/stub-overrides.yaml` com 7 entradas (`.jscpd.json`, `deptrac.yaml`, `infection.json5`, `phpstan-test-quality.neon`, `phpstan.neon`, `pint.json`, `tests/Arch/TestQualityTest.php`)
+- `phpstan.neon` sentinels `#` restaurados manualmente (lines 118, 140, 172)
+- `deptrac.yaml` 30-layer (687 linhas, 28 layers) intacto
+- CaptainHook registrado com 3 hooks
+- Todos os 7 arquivos customizados protegidos contra re-installs
 
 ### Aprendizados da sessão 7 (não mover pra ADR ainda)
 
-1. **`KeptCustomPermanent` só cobre stubs publicados via `StubPublisher`**. Qualquer arquivo gerado por código fora do publisher (e.g., deptrac via wizard) precisa consultar `StubOverrides` por conta própria.
+1. **Pattern "design gap" identificado**: qualquer componente que mute arquivos sob raiz do projeto (não apenas `StubPublisher`) precisa consultar `StubOverrides` antes de gravar. Sessão 7 encontrou 2 ocorrências (wizard Deptrac + applier PHPStan) e fechou ambas. Pattern: `if (!$forceOverwrite && $stubOverrides->contains($path)) return;`.
 2. **Pint 1.29+ validation stricter than 1.x**. Stub mantido "_rule_docs" inside `rules` por anos funcionou; upgrade quebrou. Lição: padrão "underscore comment keys" deve ficar sempre no nível raiz do JSON.
 3. **Shipmonk dead-code 0.14+ schema mudou silenciosamente**. Nenhum deprecation warning — só um erro direto ao rodar. Lição: stub deve depender de features core, não de keys que podem sumir.
+4. **Validação interativa descobre gaps que non-interativa esconde**. Fix #1 foi descoberto na non-interativa (sobrescreveu deptrac.yaml). Fix #2 precisou de interativa (com overrides já pré-seeded + extension multiselect exercitado) pra manifestar. Lição: validar ambos os modos a cada mudança de install flow.
+5. **Pre-seed do `stub-overrides.yaml` no consumidor é UX friction real**. Na sessão 7 user precisou de 2 iterações (esqueceu `tests/Arch/TestQualityTest.php` de primeira) + 1 comando `install:override` pós-install. Lição: considerar command `codeguard:install:override --detect` que sugere paths baseado em diff vs stub.
 
 ### Próximos passos (sessão 8)
 
-Decidir entre Opção A (TestSuiteRunner extract) e Opção C (DDD-pragmatic Deptrac ruleset). Ver `PROJECT-STATUS.md` para análise de tradeoffs.
+**Decisão pendente do Henry**: Opção A (TestSuiteRunner extract, ~6-8h, caminho crítico pra release alpha) ou Opção C (DDD-pragmatic Deptrac ruleset, ~2h15min, quick win). Recomendação do agente: Opção A — acelera release mínimo.
+
+**Push para `origin/main`**: **não feito** (53 commits ahead). Ação shared-state que aguarda aprovação explícita do Henry.
+
+Ver `PROJECT-STATUS.md` para análise de tradeoffs.
 
 ---
 
