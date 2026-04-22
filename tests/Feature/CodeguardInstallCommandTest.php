@@ -337,6 +337,66 @@ it('bypasses stub-overrides.yaml when --refresh-stubs is passed (force flag)', f
     expect(file_exists($this->tempApp.'/phpstan.neon'))->toBeTrue();
 });
 
+it('deptrac wizard respects stub-overrides.yaml (deptrac.yaml not overwritten)', function (): void {
+    // Seed overrides protecting deptrac.yaml + a pre-existing file we want
+    // to survive. Without this fix, the wizard would rewrite it.
+    mkdir($this->tempApp.'/.codeguard', 0o755, recursive: true);
+    file_put_contents(
+        $this->tempApp.'/.codeguard/stub-overrides.yaml',
+        "overrides:\n  - deptrac.yaml\n",
+    );
+
+    // User's hand-tuned deptrac.yaml (sentinel content we expect to survive).
+    file_put_contents(
+        $this->tempApp.'/deptrac.yaml',
+        "deptrac:\n  # CUSTOM-30-LAYER-SENTINEL\n  layers: []\n",
+    );
+
+    // Give the suggester something to find so the wizard path is actually
+    // considered — otherwise maybeSuggestDeptracLayers short-circuits via
+    // `$suggestion->isEmpty()`.
+    mkdir($this->tempApp.'/app/Services', 0o755, recursive: true);
+    file_put_contents(
+        $this->tempApp.'/app/Services/X.php',
+        "<?php\nnamespace App\\Services;\nclass X {}\n",
+    );
+
+    $this->artisan('codeguard:install', [
+        '--no-interactive' => true,
+        '--preset' => 'default',
+    ])->assertExitCode(0);
+
+    $contents = file_get_contents($this->tempApp.'/deptrac.yaml');
+    expect($contents)->toContain('CUSTOM-30-LAYER-SENTINEL');
+});
+
+it('deptrac wizard bypasses stub-overrides.yaml when --refresh-stubs is passed', function (): void {
+    mkdir($this->tempApp.'/.codeguard', 0o755, recursive: true);
+    file_put_contents(
+        $this->tempApp.'/.codeguard/stub-overrides.yaml',
+        "overrides:\n  - deptrac.yaml\n",
+    );
+    file_put_contents(
+        $this->tempApp.'/deptrac.yaml',
+        "deptrac:\n  # CUSTOM-30-LAYER-SENTINEL\n  layers: []\n",
+    );
+    mkdir($this->tempApp.'/app/Services', 0o755, recursive: true);
+    file_put_contents(
+        $this->tempApp.'/app/Services/X.php',
+        "<?php\nnamespace App\\Services;\nclass X {}\n",
+    );
+
+    $this->artisan('codeguard:install', [
+        '--no-interactive' => true,
+        '--preset' => 'default',
+        '--refresh-stubs' => true,
+    ])->assertExitCode(0);
+
+    $contents = file_get_contents($this->tempApp.'/deptrac.yaml');
+    // --refresh-stubs is an explicit force — the custom content is gone.
+    expect($contents)->not->toContain('CUSTOM-30-LAYER-SENTINEL');
+});
+
 it('warns but does not delete legacy stubs (lefthook.yml) in non-interactive mode', function (): void {
     // Simulate a pre-CaptainHook project that still has lefthook.yml lying
     // around. The installer must warn without touching it — safety default

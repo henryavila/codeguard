@@ -29,6 +29,7 @@ use Henryavila\Codeguard\Install\PhpstanExtensionApplier;
 use Henryavila\Codeguard\Install\PhpstanExtensionSelector;
 use Henryavila\Codeguard\Install\PhpstanExtensionStore;
 use Henryavila\Codeguard\Install\PresetSelector;
+use Henryavila\Codeguard\Install\StubOverrides;
 use Henryavila\Codeguard\Install\StubPublisher;
 use Henryavila\Codeguard\Install\StubPublishResult;
 use Henryavila\Codeguard\Install\StubPublishStatus;
@@ -72,6 +73,7 @@ final class CodeguardInstallCommand extends Command
         CodeguardDirectoryInitializer $directoryInitializer,
         InstallTelemetry $telemetry,
         LegacyStubCleaner $legacyCleaner,
+        StubOverrides $stubOverrides,
     ): int {
         $interactive = ! $this->option('no-interactive');
         $forceOverwrite = (bool) $this->option('refresh-stubs');
@@ -173,6 +175,8 @@ final class CodeguardInstallCommand extends Command
             $filesystem,
             $interactive,
             $skipWizard,
+            $stubOverrides,
+            $forceOverwrite,
         );
         $captainhookResult = $this->maybeInstallCaptainhook($preset, $environment, $captainhookInstaller, $summary);
         $telemetry->captainhookActivated($captainhookResult);
@@ -597,8 +601,24 @@ final class CodeguardInstallCommand extends Command
         Filesystem $filesystem,
         bool $interactive,
         bool $skipWizard,
+        StubOverrides $stubOverrides,
+        bool $forceOverwrite,
     ): void {
         unset($preset);
+
+        // Short-circuit: if the user marked deptrac.yaml as permanently
+        // customized via `codeguard:install:override`, the wizard must not
+        // overwrite it. Mirrors the semantics StubPublisher already honors.
+        // --refresh-stubs still bypasses this (explicit force flag).
+        if (! $forceOverwrite && $stubOverrides->contains('deptrac.yaml')) {
+            $this->line('');
+            $this->components->info('Deptrac layer detection');
+            $this->components->bulletList([
+                'deptrac.yaml is listed in .codeguard/stub-overrides.yaml — wizard skipped.',
+            ]);
+
+            return;
+        }
 
         $appPath = $this->laravel->basePath('app');
         $suggestion = $suggester->suggest($appPath);
