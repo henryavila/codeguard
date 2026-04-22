@@ -17,12 +17,23 @@
     "source": {
         "directories": ["app"],
 
-        // Excluded paths — these are typically framework glue or bootstrapping
-        // where mutation testing yields little signal and much noise.
-        //   - Console: Artisan command scaffolding, often thin wrappers
-        //   - Exceptions: handler classes, mostly framework-driven
-        //   - Providers: service providers, mostly container wiring
-        "excludes": ["Console", "Exceptions", "Providers"]
+        // Exclude ONLY framework glue — wiring with no testable behavior of
+        // its own. Everything that ships logic (HTTP middleware, configurators,
+        // abstracts, services, actions) stays IN so mutation testing actually
+        // exercises business decisions.
+        //
+        // Keeping in scope on purpose:
+        //   - Configurators: Gate::after, Password rules — security-critical.
+        //   - Http/Middleware: auth + throttling + request shaping.
+        //   - Abstracts: shared decisions pulled into subclasses.
+        "excludes": [
+            "Console/Kernel.php",       // Artisan scheduling — framework hook, no branches.
+            "Exceptions/Handler.php",   // Error funnel — framework hook, no branches.
+            "Providers"                 // Service container wiring, not decision logic.
+        ]
+        // NOTE: first run may report a low minMsi until your suite matures.
+        //       Use `vendor/bin/infection --initial-tests-only` once to see
+        //       baseline coverage before chasing the threshold.
     },
 
     // Per-test timeout in seconds. If a mutant causes an infinite loop,
