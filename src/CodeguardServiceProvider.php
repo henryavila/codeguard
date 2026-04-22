@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Henryavila\Codeguard;
 
+use Henryavila\Codeguard\Commands\CodeguardCheckCommand;
 use Henryavila\Codeguard\Commands\CodeguardInstallCommand;
 use Henryavila\Codeguard\Commands\Telemetry\ClearCommand as TelemetryClearCommand;
 use Henryavila\Codeguard\Commands\Telemetry\DisableCommand as TelemetryDisableCommand;
 use Henryavila\Codeguard\Commands\Telemetry\EnableCommand as TelemetryEnableCommand;
+use Henryavila\Codeguard\Gates\GateRunner;
 use Henryavila\Codeguard\Install\CaptainhookInstaller;
 use Henryavila\Codeguard\Install\CodeguardDirectoryInitializer;
 use Henryavila\Codeguard\Install\ComposerAllowPluginsCheck;
@@ -231,12 +233,20 @@ final class CodeguardServiceProvider extends ServiceProvider
         $this->app->singleton(InstallTelemetry::class, static function (Application $app): InstallTelemetry {
             return new InstallTelemetry(recorder: $app->make(Recorder::class));
         });
+
+        $this->app->singleton(GateRunner::class, static function (Application $app): GateRunner {
+            return new GateRunner(
+                recorder: $app->make(Recorder::class),
+                workingDirectory: $app->basePath(),
+            );
+        });
     }
 
     private function bootConsole(): void
     {
         $this->commands([
             CodeguardInstallCommand::class,
+            CodeguardCheckCommand::class,
             TelemetryEnableCommand::class,
             TelemetryDisableCommand::class,
             TelemetryClearCommand::class,
