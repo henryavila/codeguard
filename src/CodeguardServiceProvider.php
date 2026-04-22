@@ -15,6 +15,7 @@ use Henryavila\Codeguard\Install\DeptracLayerSuggester;
 use Henryavila\Codeguard\Install\DeptracLayerWizard;
 use Henryavila\Codeguard\Install\EnvironmentDetector;
 use Henryavila\Codeguard\Install\GatePlanRegistry;
+use Henryavila\Codeguard\Install\InstallTelemetry;
 use Henryavila\Codeguard\Install\LayerDecisionStore;
 use Henryavila\Codeguard\Install\NextStepsReporter;
 use Henryavila\Codeguard\Install\PhpstanExtensionApplier;
@@ -225,6 +226,10 @@ final class CodeguardServiceProvider extends ServiceProvider
 
         $this->app->singleton(StopwatchScope::class, static function (Application $app): StopwatchScope {
             return new StopwatchScope(recorder: $app->make(Recorder::class));
+        });
+
+        $this->app->singleton(InstallTelemetry::class, static function (Application $app): InstallTelemetry {
+            return new InstallTelemetry(recorder: $app->make(Recorder::class));
         });
     }
 

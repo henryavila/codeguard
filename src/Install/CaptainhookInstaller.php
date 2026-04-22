@@ -6,22 +6,6 @@ namespace Henryavila\Codeguard\Install;
 
 use Symfony\Component\Process\Process;
 
-enum CaptainhookInstallStatus: string
-{
-    case Installed = 'installed';
-    case BinaryMissing = 'binary-missing';
-    case Skipped = 'skipped';
-    case Failed = 'failed';
-}
-
-final readonly class CaptainhookInstallResult
-{
-    public function __construct(
-        public CaptainhookInstallStatus $status,
-        public ?string $message = null,
-    ) {}
-}
-
 /**
  * Ensures CaptainHook's Git hooks are wired into .git/hooks/* for the
  * consumer project.

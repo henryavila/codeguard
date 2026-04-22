@@ -186,7 +186,7 @@ final class DeptracLayerSuggester
      */
     private function scanAppDirectory(string $appPath): array
     {
-        $finder = new Finder();
+        $finder = new Finder;
         $finder->directories()->in($appPath)->depth('== 0');
 
         $detected = [];
@@ -217,7 +217,7 @@ final class DeptracLayerSuggester
 
     private function countPhpFiles(string $directory): int
     {
-        $finder = new Finder();
+        $finder = new Finder;
         $finder->files()->in($directory)->name('*.php');
 
         return $finder->count();
@@ -294,7 +294,7 @@ final class DeptracLayerSuggester
     }
 
     /**
-     * @return array<string, list<string>>  layerName => list of escaped namespace regexes
+     * @return array<string, list<string>> layerName => list of escaped namespace regexes
      */
     private function groupDecisionsByLayer(LayerSuggestion $original, WizardResult $result): array
     {

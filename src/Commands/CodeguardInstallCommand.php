@@ -17,6 +17,7 @@ use Henryavila\Codeguard\Install\EnvironmentInfo;
 use Henryavila\Codeguard\Install\GatePlan;
 use Henryavila\Codeguard\Install\GatePlanRegistry;
 use Henryavila\Codeguard\Install\InstallSummary;
+use Henryavila\Codeguard\Install\InstallTelemetry;
 use Henryavila\Codeguard\Install\InstallWarning;
 use Henryavila\Codeguard\Install\LayerDecisionStore;
 use Henryavila\Codeguard\Install\LayerOption;
@@ -68,17 +69,23 @@ final class CodeguardInstallCommand extends Command
         Filesystem $filesystem,
         ComposerAllowPluginsCheck $allowPluginsCheck,
         CodeguardDirectoryInitializer $directoryInitializer,
+        InstallTelemetry $telemetry,
     ): int {
         $interactive = ! $this->option('no-interactive');
         $forceOverwrite = (bool) $this->option('refresh-stubs');
         $skipWizard = (bool) $this->option('no-deptrac-wizard');
         $presetFlag = $this->option('preset');
 
+        $startHrtime = hrtime(true);
+        $presetFlagStr = is_string($presetFlag) ? $presetFlag : null;
+        $telemetry->commandStarted($presetFlagStr);
+
         $summary = new InstallSummary;
 
         $this->renderHeader();
 
         $environment = $detector->detect();
+        $telemetry->envDetected($environment);
         $this->renderEnvironment($environment);
         $this->checkPhpVersion($environment, $summary);
 
@@ -86,6 +93,12 @@ final class CodeguardInstallCommand extends Command
         $this->renderRecommendation($recommended, $environment);
 
         $preset = $this->resolvePreset($environment, $presetSelector, $presetFlag, $interactive);
+        $presetSource = match (true) {
+            is_string($presetFlag) && $presetFlag !== '' => 'flag',
+            ! $interactive => 'auto',
+            default => 'prompt',
+        };
+        $telemetry->presetSelected($preset, $presetSource);
         $this->line('');
         $this->components->twoColumnDetail('Selected preset', $preset->label());
 
@@ -105,12 +118,14 @@ final class CodeguardInstallCommand extends Command
             phpstanExtStore: $phpstanExtStore,
             interactive: $interactive,
         );
+        $telemetry->phpstanExtensionsSelected($selectedExtensions);
 
         $plans = $planRegistry->plansFor($preset);
         $this->renderGatePlan($plans, $planRegistry, $selectedExtensions);
 
         if (! $this->confirmProceed($interactive)) {
             $this->components->warn('Install aborted.');
+            $telemetry->commandEnded(self::SUCCESS, $this->elapsedMsFrom($startHrtime));
 
             return self::SUCCESS;
         }
@@ -133,6 +148,7 @@ final class CodeguardInstallCommand extends Command
 
         if ($this->hasFailures($results)) {
             $this->components->error('One or more stubs failed to publish. See messages above.');
+            $telemetry->commandEnded(self::FAILURE, $this->elapsedMsFrom($startHrtime));
 
             return self::FAILURE;
         }
@@ -152,18 +168,28 @@ final class CodeguardInstallCommand extends Command
             $interactive,
             $skipWizard,
         );
-        $this->maybeInstallCaptainhook($preset, $environment, $captainhookInstaller, $summary);
+        $captainhookResult = $this->maybeInstallCaptainhook($preset, $environment, $captainhookInstaller, $summary);
+        $telemetry->captainhookActivated($captainhookResult);
 
         $this->renderSummary($summary);
 
         $this->line('');
         $this->components->info('Next steps:');
-        $this->renderNextSteps($preset, $reporter);
+        $nextStepsCount = $this->renderNextSteps($preset, $reporter);
+        $telemetry->nextStepsRendered($nextStepsCount);
 
         $this->line('');
         $this->components->twoColumnDetail('Docs', $reporter->documentationUrl());
 
-        return $this->resolveExitCode($summary);
+        $exitCode = $this->resolveExitCode($summary);
+        $telemetry->commandEnded($exitCode, $this->elapsedMsFrom($startHrtime));
+
+        return $exitCode;
+    }
+
+    private function elapsedMsFrom(int $startHrtime): int
+    {
+        return (int) round((hrtime(true) - $startHrtime) / 1_000_000);
     }
 
     private function resolveExitCode(InstallSummary $summary): int
@@ -668,13 +694,15 @@ final class CodeguardInstallCommand extends Command
         EnvironmentInfo $env,
         CaptainhookInstaller $installer,
         InstallSummary $summary,
-    ): void {
+    ): CaptainhookInstallResult {
         $this->line('');
         $this->components->info('CaptainHook setup');
 
         $result = $installer->install($env);
         $this->renderCaptainhookResult($result);
         $this->recordCaptainhookOutcome($result, $summary);
+
+        return $result;
     }
 
     private function recordCaptainhookOutcome(CaptainhookInstallResult $result, InstallSummary $summary): void
@@ -727,14 +755,18 @@ final class CodeguardInstallCommand extends Command
         }
     }
 
-    private function renderNextSteps(Preset $preset, NextStepsReporter $reporter): void
+    private function renderNextSteps(Preset $preset, NextStepsReporter $reporter): int
     {
+        $count = 0;
         foreach ($reporter->nextSteps($preset) as $step) {
             $this->components->twoColumnDetail(
                 $step['gate'],
                 $step['action'],
             );
             $this->line('    <fg=cyan>→</> '.$step['command']);
+            $count++;
         }
+
+        return $count;
     }
 }

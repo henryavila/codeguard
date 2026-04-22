@@ -8,8 +8,8 @@ final readonly class LayerSuggestion
 {
     /**
      * @param  list<DetectedNamespace>  $detectedNamespaces
-     * @param  array<string, list<string>>  $layers         layer name → regex patterns
-     * @param  array<string, list<string>>  $ruleset        layer name → allowed layers it can depend on
+     * @param  array<string, list<string>>  $layers  layer name → regex patterns
+     * @param  array<string, list<string>>  $ruleset  layer name → allowed layers it can depend on
      */
     public function __construct(
         public array $detectedNamespaces,

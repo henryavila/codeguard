@@ -10,8 +10,14 @@ use Henryavila\Codeguard\Install\CodeguardDirectoryInitializer;
 use Henryavila\Codeguard\Install\ComposerAllowPluginsCheck;
 use Henryavila\Codeguard\Install\EnvironmentDetector;
 use Henryavila\Codeguard\Install\EnvironmentInfo;
+use Henryavila\Codeguard\Install\InstallTelemetry;
 use Henryavila\Codeguard\Install\StubDiffer;
 use Henryavila\Codeguard\Install\StubPublisher;
+use Henryavila\Codeguard\Telemetry\ConfigGate;
+use Henryavila\Codeguard\Telemetry\FieldAllowlist;
+use Henryavila\Codeguard\Telemetry\JsonlWriter;
+use Henryavila\Codeguard\Telemetry\Recorder;
+use Henryavila\Codeguard\Telemetry\Rotator;
 use Illuminate\Filesystem\Filesystem;
 
 beforeEach(function (): void {
@@ -188,6 +194,53 @@ it('exits with code 2 when a pendency is recorded (captainhook binary missing)',
     ])->run();
 
     expect($exitCode)->toBe(2);
+});
+
+it('writes install telemetry events when telemetry is enabled', function (): void {
+    // Flip the gate on for just this test and point the recorder at a
+    // path inside the temp app. The rest of the install flow (stubs,
+    // captainhook, summary) is already stubbed out by beforeEach.
+    $jsonlPath = $this->tempApp.DIRECTORY_SEPARATOR.'.codeguard'.DIRECTORY_SEPARATOR.'telemetry.jsonl';
+
+    $this->app->singleton(ConfigGate::class, fn () => new ConfigGate(enabled: true));
+    $this->app->forgetInstance(Recorder::class);
+    $this->app->singleton(Recorder::class, fn ($app) => new Recorder(
+        gate: $app->make(ConfigGate::class),
+        allowlist: new FieldAllowlist(strictMode: true),
+        rotator: new Rotator,
+        writer: new JsonlWriter,
+        activePath: $jsonlPath,
+    ));
+    $this->app->forgetInstance(InstallTelemetry::class);
+    $this->app->singleton(InstallTelemetry::class, fn ($app) => new InstallTelemetry(
+        recorder: $app->make(Recorder::class),
+    ));
+
+    $this->artisan('codeguard:install', [
+        '--no-interactive' => true,
+        '--preset' => 'default',
+    ])->assertExitCode(0);
+
+    expect(file_exists($jsonlPath))->toBeTrue();
+
+    $events = [];
+    foreach (file($jsonlPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $raw) {
+        $decoded = json_decode((string) $raw, true);
+        if (is_array($decoded) && isset($decoded['event']) && is_string($decoded['event'])) {
+            $events[] = $decoded['event'];
+        }
+    }
+
+    // Every event type the install flow should emit when reaching exit 0.
+    expect($events)->toContain(
+        'command.start',
+        'install.env.detected',
+        'install.preset.selected',
+        'install.phpstan_extensions.selected',
+        'install.captainhook.activated',
+        'install.next_steps.rendered',
+        'command.end',
+    );
 });
 
 it('exits with code 2 when the captainhook plugin is blocked in composer.json (non-interactive)', function (): void {

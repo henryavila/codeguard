@@ -21,7 +21,7 @@ final readonly class WizardResult
     }
 
     /**
-     * @return array<string, ?string>  namespace => layerName (null = skip)
+     * @return array<string, ?string> namespace => layerName (null = skip)
      */
     public function toSerializableMap(): array
     {

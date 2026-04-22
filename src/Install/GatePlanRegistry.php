@@ -14,11 +14,11 @@ final class GatePlanRegistry
     public function plansFor(Preset $preset): array
     {
         $default = [
-            new GatePlan('Pint',      'auto-format',         configMinutes:  0, ciCostSeconds:   5),
-            new GatePlan('PHPStan',   'type safety',         configMinutes: 15, ciCostSeconds:  30),
-            new GatePlan('Deptrac',   'architecture',        configMinutes: 30, ciCostSeconds:  15),
-            new GatePlan('Infection', 'test quality',        configMinutes: 20, ciCostSeconds: 180),
-            new GatePlan('CaptainHook', 'pre-commit enforce', configMinutes: 10, ciCostSeconds:   0),
+            new GatePlan('Pint', 'auto-format', configMinutes: 0, ciCostSeconds: 5),
+            new GatePlan('PHPStan', 'type safety', configMinutes: 15, ciCostSeconds: 30),
+            new GatePlan('Deptrac', 'architecture', configMinutes: 30, ciCostSeconds: 15),
+            new GatePlan('Infection', 'test quality', configMinutes: 20, ciCostSeconds: 180),
+            new GatePlan('CaptainHook', 'pre-commit enforce', configMinutes: 10, ciCostSeconds: 0),
         ];
 
         if ($preset === Preset::Default) {
@@ -27,9 +27,9 @@ final class GatePlanRegistry
 
         return [
             ...$default,
-            new GatePlan('jscpd',            'duplication detection', configMinutes:  5, ciCostSeconds: 10),
-            new GatePlan('Insights',         'metrics dashboard',     configMinutes:  0, ciCostSeconds: 20),
-            new GatePlan('TestQualityTest',  'meta-quality arch',     configMinutes: 15, ciCostSeconds:  5),
+            new GatePlan('jscpd', 'duplication detection', configMinutes: 5, ciCostSeconds: 10),
+            new GatePlan('Insights', 'metrics dashboard', configMinutes: 0, ciCostSeconds: 20),
+            new GatePlan('TestQualityTest', 'meta-quality arch', configMinutes: 15, ciCostSeconds: 5),
         ];
     }
 
