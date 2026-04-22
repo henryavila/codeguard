@@ -230,7 +230,12 @@ return [
 
     'telemetry' => [
         'enabled' => env('CODEGUARD_TELEMETRY_ENABLED', false),
-        'strict_mode' => env('CODEGUARD_TELEMETRY_STRICT', true),
+        // Default false for production consumers: a mis-mapped extras
+        // field should drop silently (and emit a `telemetry.dropped_field`
+        // meta event) rather than discard the whole envelope. Dev/test
+        // environments should opt-in to strict=true in their phpunit.xml
+        // or .env.testing so schema violations surface loud.
+        'strict_mode' => env('CODEGUARD_TELEMETRY_STRICT', false),
         'path' => '.codeguard'.DIRECTORY_SEPARATOR.'telemetry.jsonl',
         'rotate_bytes' => 10 * 1024 * 1024,
         'retain_archives' => 5,

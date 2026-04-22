@@ -156,12 +156,21 @@ final class InstallTelemetry
     private function composerMajor(string $version): int
     {
         if (preg_match('/^(\d+)/', $version, $match) !== 1) {
+            // No digit prefix — default to the most common current major.
             return 2;
         }
 
         $major = (int) $match[1];
 
-        return in_array($major, [1, 2], true) ? $major : 2;
+        // Record real values for 1, 2, and 3; anything higher gets clamped
+        // to the schema's maximum (3) so FieldAllowlist accepts the event
+        // rather than dropping it on an int_range violation. The schema
+        // range is widened in lockstep with this guard.
+        return match (true) {
+            $major < 1 => 1,
+            $major > 3 => 3,
+            default => $major,
+        };
     }
 
     private function activationFromCaptainhook(CaptainhookInstallStatus $status): string

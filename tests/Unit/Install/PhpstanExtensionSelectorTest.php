@@ -6,7 +6,7 @@ use Henryavila\Codeguard\Install\PhpstanExtension;
 use Henryavila\Codeguard\Install\PhpstanExtensionSelector;
 
 beforeEach(function (): void {
-    $this->selector = new PhpstanExtensionSelector();
+    $this->selector = new PhpstanExtensionSelector;
 });
 
 it('autoResolve returns defaultEnabled when no saved choice', function (): void {

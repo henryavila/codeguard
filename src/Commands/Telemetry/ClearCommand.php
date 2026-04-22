@@ -34,9 +34,11 @@ final class ClearCommand extends Command
                 default: false,
             );
             if (! $confirmed) {
-                $this->components->warn('Aborted — nothing deleted.');
+                $this->components->info('Aborted — nothing deleted.');
 
-                return self::FAILURE;
+                // User choosing "no" is not an error: CI that invokes this
+                // without --force should not fail when a human declines.
+                return self::SUCCESS;
             }
         }
 

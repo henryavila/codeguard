@@ -29,7 +29,7 @@ it('returns null when both files have identical content', function (): void {
     file_put_contents($existing, "line 1\nline 2\n");
     file_put_contents($incoming, "line 1\nline 2\n");
 
-    $differ = new StubDiffer(new Filesystem());
+    $differ = new StubDiffer(new Filesystem);
 
     expect($differ->diff($existing, $incoming))->toBeNull();
 });
@@ -38,7 +38,7 @@ it('returns null when one of the files does not exist', function (): void {
     $existing = $this->tempDir.'/real.txt';
     file_put_contents($existing, "content\n");
 
-    $differ = new StubDiffer(new Filesystem());
+    $differ = new StubDiffer(new Filesystem);
 
     expect($differ->diff($existing, $this->tempDir.'/missing.txt'))->toBeNull();
 });
@@ -50,7 +50,7 @@ it('returns a unified diff with header when files differ', function (): void {
     file_put_contents($existing, "line 1\nline 2\n");
     file_put_contents($incoming, "line 1\nchanged\n");
 
-    $diff = (new StubDiffer(new Filesystem()))->diff($existing, $incoming);
+    $diff = (new StubDiffer(new Filesystem))->diff($existing, $incoming);
 
     expect($diff)->toBeString()
         ->and($diff)->toContain('--- existing.txt (existing)')
@@ -68,7 +68,7 @@ it('colorize wraps +/-/@@ lines with ANSI tags and leaves context alone', functi
         ' line 3',
     ]);
 
-    $colored = (new StubDiffer(new Filesystem()))->colorize($diff);
+    $colored = (new StubDiffer(new Filesystem))->colorize($diff);
 
     expect($colored)->toContain('<fg=yellow>--- old.txt (existing)</>')
         ->and($colored)->toContain('<fg=yellow>+++ new.txt (stub)</>')
@@ -79,7 +79,7 @@ it('colorize wraps +/-/@@ lines with ANSI tags and leaves context alone', functi
 });
 
 it('colorize preserves empty lines unchanged', function (): void {
-    $colored = (new StubDiffer(new Filesystem()))->colorize("line\n\nother");
+    $colored = (new StubDiffer(new Filesystem))->colorize("line\n\nother");
 
     expect($colored)->toBe("line\n\nother");
 });

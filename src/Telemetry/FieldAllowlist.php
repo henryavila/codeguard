@@ -56,7 +56,9 @@ final class FieldAllowlist
         ],
         'install.env.detected' => [
             'php_version_major_minor' => ['enum', ['8.3', '8.4', '8.5', 'other']],
-            'composer_version_major' => ['int_range', 1, 2],
+            // Widened to [1, 3] so Composer 3 (shipping in preview) records
+            // honestly instead of getting silently bucketed into 2.
+            'composer_version_major' => ['int_range', 1, 3],
             'has_node' => ['bool'],
             'has_captainhook_binary' => ['bool'],
         ],

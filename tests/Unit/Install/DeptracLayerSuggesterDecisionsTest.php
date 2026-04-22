@@ -10,7 +10,7 @@ use Henryavila\Codeguard\Install\WizardResult;
 use Illuminate\Filesystem\Filesystem;
 
 beforeEach(function (): void {
-    $this->suggester = new DeptracLayerSuggester(new Filesystem());
+    $this->suggester = new DeptracLayerSuggester(new Filesystem);
 });
 
 function makeBaseSuggestion(): LayerSuggestion

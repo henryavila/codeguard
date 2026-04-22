@@ -10,7 +10,7 @@ beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().DIRECTORY_SEPARATOR.'codeguard-phpstan-store-'.uniqid();
     mkdir($this->tempDir, 0o755, true);
     $this->path = $this->tempDir.DIRECTORY_SEPARATOR.'phpstan-extensions.yaml';
-    $this->store = new PhpstanExtensionStore(new Filesystem(), $this->path);
+    $this->store = new PhpstanExtensionStore(new Filesystem, $this->path);
 });
 
 afterEach(function (): void {

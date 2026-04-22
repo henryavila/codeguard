@@ -53,7 +53,7 @@ function writePhpFile(string $dir, string $name): void
 }
 
 it('returns an empty suggestion when the app directory does not exist', function (): void {
-    $suggester = new DeptracLayerSuggester(new Filesystem());
+    $suggester = new DeptracLayerSuggester(new Filesystem);
 
     $suggestion = $suggester->suggest('/nonexistent/path/here');
 
@@ -71,7 +71,7 @@ it('detects namespaces and groups them into four Laravel layers', function (): v
     writePhpFile($this->appPath.'/Models', 'UserModel.php');
     writePhpFile($this->appPath.'/Livewire', 'Dashboard.php');
 
-    $suggestion = (new DeptracLayerSuggester(new Filesystem()))->suggest($this->appPath);
+    $suggestion = (new DeptracLayerSuggester(new Filesystem))->suggest($this->appPath);
 
     expect($suggestion->isEmpty())->toBeFalse()
         ->and($suggestion->detectedNamespaces)->toHaveCount(4);
@@ -91,7 +91,7 @@ it('auto-suggests Skip for bootstrap/cross-cutting namespaces', function (): voi
     writePhpFile($this->appPath.'/Exceptions', 'Handler.php');
     writePhpFile($this->appPath.'/Traits', 'HasUuid.php');
 
-    $suggestion = (new DeptracLayerSuggester(new Filesystem()))->suggest($this->appPath);
+    $suggestion = (new DeptracLayerSuggester(new Filesystem))->suggest($this->appPath);
 
     $suggestedLayers = array_map(
         static fn ($n) => $n->suggestedLayer,
@@ -115,7 +115,7 @@ it('classifies UI namespaces (Livewire, Filament) as Presentation', function ():
     writePhpFile($this->appPath.'/Filament', 'UserResource.php');
     writePhpFile($this->appPath.'/Http', 'Controller.php');
 
-    $suggestion = (new DeptracLayerSuggester(new Filesystem()))->suggest($this->appPath);
+    $suggestion = (new DeptracLayerSuggester(new Filesystem))->suggest($this->appPath);
 
     foreach ($suggestion->detectedNamespaces as $ns) {
         expect($ns->suggestedLayer)->toBe('Presentation');
@@ -127,7 +127,7 @@ it('classifies Notifications and Listeners as Application', function (): void {
     writePhpFile($this->appPath.'/Listeners', 'SendInvoice.php');
     writePhpFile($this->appPath.'/Observers', 'UserObserver.php');
 
-    $suggestion = (new DeptracLayerSuggester(new Filesystem()))->suggest($this->appPath);
+    $suggestion = (new DeptracLayerSuggester(new Filesystem))->suggest($this->appPath);
 
     foreach ($suggestion->detectedNamespaces as $ns) {
         expect($ns->suggestedLayer)->toBe('Application');
@@ -139,7 +139,7 @@ it('classifies ValueObjects and Policies as Domain', function (): void {
     writePhpFile($this->appPath.'/Policies', 'ArticlePolicy.php');
     writePhpFile($this->appPath.'/Contracts', 'Repository.php');
 
-    $suggestion = (new DeptracLayerSuggester(new Filesystem()))->suggest($this->appPath);
+    $suggestion = (new DeptracLayerSuggester(new Filesystem))->suggest($this->appPath);
 
     foreach ($suggestion->detectedNamespaces as $ns) {
         expect($ns->suggestedLayer)->toBe('Domain');
@@ -151,7 +151,7 @@ it('classifies project-specific Infrastructure namespaces via heuristic', functi
     writePhpFile($this->appPath.'/Configurators', 'QueueConfigurator.php');
     writePhpFile($this->appPath.'/Upgrades', 'Upgrade_2026.php');
 
-    $suggestion = (new DeptracLayerSuggester(new Filesystem()))->suggest($this->appPath);
+    $suggestion = (new DeptracLayerSuggester(new Filesystem))->suggest($this->appPath);
 
     foreach ($suggestion->detectedNamespaces as $ns) {
         expect($ns->suggestedLayer)->toBe('Infrastructure');
@@ -166,7 +166,7 @@ it('sorts detected namespaces by file count descending', function (): void {
     writePhpFile($this->appPath.'/Models', 'E.php');
     writePhpFile($this->appPath.'/Models', 'F.php');
 
-    $suggestion = (new DeptracLayerSuggester(new Filesystem()))->suggest($this->appPath);
+    $suggestion = (new DeptracLayerSuggester(new Filesystem))->suggest($this->appPath);
 
     $counts = array_map(
         static fn ($n) => $n->fileCount,
@@ -179,7 +179,7 @@ it('skips empty directories that contain no PHP files', function (): void {
     mkdir($this->appPath.'/Empty', 0o755, true);
     writePhpFile($this->appPath.'/Domain', 'User.php');
 
-    $suggestion = (new DeptracLayerSuggester(new Filesystem()))->suggest($this->appPath);
+    $suggestion = (new DeptracLayerSuggester(new Filesystem))->suggest($this->appPath);
 
     expect($suggestion->detectedNamespaces)->toHaveCount(1)
         ->and($suggestion->detectedNamespaces[0]->namespace)->toBe('App\\Domain');
@@ -189,7 +189,7 @@ it('builds a ruleset that only references detected layers', function (): void {
     writePhpFile($this->appPath.'/Domain', 'A.php');
     writePhpFile($this->appPath.'/Services', 'B.php');
 
-    $suggestion = (new DeptracLayerSuggester(new Filesystem()))->suggest($this->appPath);
+    $suggestion = (new DeptracLayerSuggester(new Filesystem))->suggest($this->appPath);
 
     expect($suggestion->ruleset)->toHaveKeys(['Domain', 'Application'])
         ->and($suggestion->ruleset)->not->toHaveKey('Infrastructure')
@@ -204,7 +204,7 @@ it('builds Presentation ruleset allowing Application and Domain when all present
     writePhpFile($this->appPath.'/Http', 'C.php');
     writePhpFile($this->appPath.'/Models', 'D.php');
 
-    $suggestion = (new DeptracLayerSuggester(new Filesystem()))->suggest($this->appPath);
+    $suggestion = (new DeptracLayerSuggester(new Filesystem))->suggest($this->appPath);
 
     expect($suggestion->ruleset)->toHaveKeys(['Domain', 'Application', 'Presentation', 'Infrastructure'])
         ->and($suggestion->ruleset['Presentation'])->toBe(['Application', 'Domain'])
@@ -214,7 +214,7 @@ it('builds Presentation ruleset allowing Application and Domain when all present
 });
 
 it('toYaml produces an empty scaffold when no namespaces are detected', function (): void {
-    $suggester = new DeptracLayerSuggester(new Filesystem());
+    $suggester = new DeptracLayerSuggester(new Filesystem);
     $empty = new LayerSuggestion(detectedNamespaces: [], layers: [], ruleset: []);
 
     $yaml = $suggester->toYaml($empty);
@@ -230,7 +230,7 @@ it('toYaml emits deptrac layers, collectors and ruleset for detected namespaces'
     writePhpFile($this->appPath.'/Domain', 'User.php');
     writePhpFile($this->appPath.'/Services', 'CheckoutService.php');
 
-    $suggester = new DeptracLayerSuggester(new Filesystem());
+    $suggester = new DeptracLayerSuggester(new Filesystem);
     $yaml = $suggester->toYaml($suggester->suggest($this->appPath));
 
     expect($yaml)->toContain('deptrac:')

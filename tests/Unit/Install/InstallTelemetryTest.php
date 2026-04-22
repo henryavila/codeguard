@@ -106,24 +106,31 @@ it('envDetected buckets PHP version to the nearest allowed track', function (str
     ['unknown', 'other'],
 ]);
 
-it('envDetected extracts the composer major version', function (): void {
+it('envDetected extracts the composer major version', function (string $input, int $expected): void {
     $path = installTelemetryTempPath();
 
     try {
         installTelemetryFactory($path)->envDetected(new EnvironmentInfo(
             phpVersion: '8.3.0',
-            composerVersion: '2.7.4',
+            composerVersion: $input,
             nodeVersion: null,
             hasPackageJson: false,
             hasNodeModules: false,
             hasCaptainhookBinary: true,
         ));
 
-        expect(installTelemetryLines($path)[0]['composer_version_major'])->toBe(2);
+        expect(installTelemetryLines($path)[0]['composer_version_major'])->toBe($expected);
     } finally {
         @unlink($path);
     }
-});
+})->with([
+    ['1.10.26', 1],
+    ['2.7.4', 2],
+    ['3.0.0-beta', 3],         // Composer 3 preview — schema widened for this
+    ['4.2.1', 3],              // higher majors clamp to max rather than drop
+    ['0.1.0', 1],              // edge: below 1 clamps up to 1
+    ['bogus', 2],              // unparseable → safe default
+]);
 
 it('presetSelected passes preset value and source straight through', function (): void {
     $path = installTelemetryTempPath();

@@ -7,7 +7,7 @@ use Henryavila\Codeguard\Install\GatePlanRegistry;
 use Henryavila\Codeguard\Testing\Preset;
 
 it('plansFor(Default) returns the 5 PHP-native gates', function (): void {
-    $plans = (new GatePlanRegistry())->plansFor(Preset::Default);
+    $plans = (new GatePlanRegistry)->plansFor(Preset::Default);
 
     expect($plans)->toHaveCount(5);
 
@@ -16,7 +16,7 @@ it('plansFor(Default) returns the 5 PHP-native gates', function (): void {
 });
 
 it('plansFor(Full) returns the 8 extended gates', function (): void {
-    $plans = (new GatePlanRegistry())->plansFor(Preset::Full);
+    $plans = (new GatePlanRegistry)->plansFor(Preset::Full);
 
     expect($plans)->toHaveCount(8);
 
@@ -28,7 +28,7 @@ it('plansFor(Full) returns the 8 extended gates', function (): void {
 });
 
 it('totalConfigMinutes sums configMinutes across plans', function (): void {
-    $registry = new GatePlanRegistry();
+    $registry = new GatePlanRegistry;
 
     $plans = [
         new GatePlan('A', 'desc', configMinutes: 15, ciCostSeconds: 0),
@@ -40,21 +40,21 @@ it('totalConfigMinutes sums configMinutes across plans', function (): void {
 });
 
 it('totalConfigMinutes returns 0 for an empty plan list', function (): void {
-    expect((new GatePlanRegistry())->totalConfigMinutes([]))->toBe(0);
+    expect((new GatePlanRegistry)->totalConfigMinutes([]))->toBe(0);
 });
 
 it('formatMinutes returns "0 min" when zero', function (): void {
-    expect((new GatePlanRegistry())->formatMinutes(0))->toBe('0 min');
+    expect((new GatePlanRegistry)->formatMinutes(0))->toBe('0 min');
 });
 
 it('formatMinutes returns raw minutes when under an hour', function (): void {
-    expect((new GatePlanRegistry())->formatMinutes(45))->toBe('45 min');
+    expect((new GatePlanRegistry)->formatMinutes(45))->toBe('45 min');
 });
 
 it('formatMinutes returns whole hours when remainder is zero', function (): void {
-    expect((new GatePlanRegistry())->formatMinutes(120))->toBe('2h');
+    expect((new GatePlanRegistry)->formatMinutes(120))->toBe('2h');
 });
 
 it('formatMinutes combines hours and remaining minutes', function (): void {
-    expect((new GatePlanRegistry())->formatMinutes(75))->toBe('1h 15min');
+    expect((new GatePlanRegistry)->formatMinutes(75))->toBe('1h 15min');
 });

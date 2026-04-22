@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
+use Henryavila\Codeguard\Install\CaptainhookInstaller;
 use Henryavila\Codeguard\Install\CaptainhookInstallResult;
 use Henryavila\Codeguard\Install\CaptainhookInstallStatus;
-use Henryavila\Codeguard\Install\CaptainhookInstaller;
 use Henryavila\Codeguard\Install\EnvironmentInfo;
 
 function makeEnv(bool $hasCaptainhook): EnvironmentInfo

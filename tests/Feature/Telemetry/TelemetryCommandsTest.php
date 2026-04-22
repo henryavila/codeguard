@@ -75,6 +75,19 @@ it('clear command reports zero work when no telemetry files exist', function ():
         ->assertSuccessful();
 });
 
+it('clear command exits 0 when the user declines the confirmation', function (): void {
+    $active = $this->tempApp.DIRECTORY_SEPARATOR.'.codeguard'.DIRECTORY_SEPARATOR.'telemetry.jsonl';
+    file_put_contents($active, "{\"ok\":1}\n");
+
+    $this->artisan('codeguard:telemetry:clear')
+        ->expectsConfirmation('Delete 1 telemetry file(s)?', 'no')
+        ->expectsOutputToContain('Aborted — nothing deleted')
+        ->assertSuccessful();
+
+    // File is preserved when the user says no.
+    expect(file_exists($active))->toBeTrue();
+});
+
 it('clear command deletes telemetry files when forced', function (): void {
     $active = $this->tempApp.DIRECTORY_SEPARATOR.'.codeguard'.DIRECTORY_SEPARATOR.'telemetry.jsonl';
     $archive = $this->tempApp.DIRECTORY_SEPARATOR.'.codeguard'.DIRECTORY_SEPARATOR.'telemetry-2026-04-20-120000.jsonl';

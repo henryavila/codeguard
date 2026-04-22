@@ -61,7 +61,21 @@ final class TelemetryStateStore
             return false;
         }
 
-        return @file_put_contents($this->stateFilePath, $payload."\n") !== false;
+        // Atomic: write to sibling tmp file then rename. Matches the pattern
+        // established by ComposerAllowPluginsCheck::writeAtomic — a SIGINT
+        // mid-write cannot leave the state file truncated.
+        $tmp = $this->stateFilePath.'.tmp';
+        if (@file_put_contents($tmp, $payload."\n") === false) {
+            return false;
+        }
+
+        if (! @rename($tmp, $this->stateFilePath)) {
+            @unlink($tmp);
+
+            return false;
+        }
+
+        return true;
     }
 
     public function path(): string

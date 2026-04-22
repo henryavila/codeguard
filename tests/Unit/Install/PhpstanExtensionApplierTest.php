@@ -10,7 +10,7 @@ beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().DIRECTORY_SEPARATOR.'codeguard-applier-'.uniqid();
     mkdir($this->tempDir, 0o755, true);
     $this->path = $this->tempDir.DIRECTORY_SEPARATOR.'phpstan.neon';
-    $this->applier = new PhpstanExtensionApplier(new Filesystem());
+    $this->applier = new PhpstanExtensionApplier(new Filesystem);
 });
 
 afterEach(function (): void {

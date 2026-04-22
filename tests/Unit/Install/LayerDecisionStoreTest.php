@@ -11,7 +11,7 @@ beforeEach(function (): void {
     $this->tempDir = sys_get_temp_dir().DIRECTORY_SEPARATOR.'codeguard-store-'.uniqid();
     mkdir($this->tempDir, 0o755, true);
     $this->path = $this->tempDir.DIRECTORY_SEPARATOR.'layer-decisions.yaml';
-    $this->store = new LayerDecisionStore(new Filesystem(), $this->path);
+    $this->store = new LayerDecisionStore(new Filesystem, $this->path);
 });
 
 afterEach(function (): void {
