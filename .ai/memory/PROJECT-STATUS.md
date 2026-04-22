@@ -8,10 +8,10 @@ type: project
 
 > **Para Claude**: Este é o documento vivo de estado. Leia na primeira ferramenta-call de toda sessão substantiva. Atualize ao completar qualquer commit que mude escopo, ou ao mudar de sprint/foco. Em caso de conflito com outro arquivo de memória, este ganha (pra resolver drift, corrija o outro arquivo, não aqui).
 
-**Última atualização**: 2026-04-22 (sessão 5 — Phase B β completa, Option A iniciando)
-**HEAD**: `d6b0124` docs(memory): handoff for Phase B β completion
-**Branch**: `main`, 35 commits ahead de `origin/main`
-**Suite**: 271 tests / 668 assertions (todos verdes)
+**Última atualização**: 2026-04-22 (sessão 5 — Option A #1 shipped)
+**HEAD**: `e60fb00` feat(check): codeguard:check command with fail-fast, --gate filter, and Layer 3 telemetry
+**Branch**: `main`, 37 commits ahead de `origin/main`
+**Suite**: 284 tests / 706 assertions (todos verdes)
 **Lint/Static**: Pint clean; PHPStan level 0 clean
 **Release publicado**: nenhum (dev @ v0.x)
 
@@ -27,19 +27,20 @@ type: project
 
 ### Próxima ação concreta
 
-🔜 **[NEXT]** Criar `src/Commands/CodeguardCheckCommand.php` — gates sequencial fail-fast.
-- Reutilizar `GatePlanRegistry` e `Testing/Preset` (já existem)
-- Para cada gate enabled, spawnar processo via `symfony/process`
-- Fail-fast por default; flag `--all` rodar todos mesmo em falha
-- Instrumentar com `MeasuredAction` (Recorder já existe)
-- Emitir `gate.started` + `gate.ended` per gate (Layer 3 de telemetria)
-- Estimativa: ~4h
+🔜 **[NEXT]** Extract do Arch: `TestSuiteRunner` + executors + `codeguard:test`.
+- Pegar `TestSuiteRunner` (770 LOC no Arch `/home/henry/arch/app/Testing/`) + dependências
+- Generalizar stages hardcoded → consumir `StageConfig[]` via `CodeguardConfig`
+- Remover refs Arch-specific (Playwright cleanup, MongoDB hooks — mover para fora do runner)
+- Registrar `Henryavila\Codeguard\Testing\*` (namespace já existe com DTOs)
+- Novo `src/Commands/CodeguardTestCommand.php` com signature compatível (`--stage=`, `--with-coverage`)
+- Instrumentar com `test.started` + `test.ended` (Layer 5 telemetria)
+- Estimativa: ~6-8h
 
 ### Backlog da sprint (ordem dependência)
 
-1. 🔜 `codeguard:check` — roda gates por preset (~4h)
-2. 📋 Extract `TestSuiteRunner` do Arch → `src/Testing/*` + `codeguard:test` (~6-8h)
-   - 770 LOC existentes no Arch; mudança semântica: stages hardcoded → `StageConfig[]` via DTO
+1. ✅ ~~`codeguard:check` — roda gates por preset~~ — shipped `e60fb00`, 284 tests
+2. 🔜 Extract `TestSuiteRunner` do Arch → `src/Testing/*` + `codeguard:test` (~6-8h)
+   - 770 LOC no Arch; mudança semântica: stages hardcoded → `StageConfig[]` via DTO
    - Inclui `CommandExecutor`, `AsyncCommandExecutor`, `ProcessCommandExecutor`, `RunningCommand`, `ProcessRunningCommand`
 3. 📋 Arch consome package @dev via path repository + migra imports Arch→package (~2-3h)
 4. 📋 Release `1.0.0-alpha.1`: README bootstrap + CHANGELOG + `git tag` + `git push` origin (~2h)
@@ -57,16 +58,16 @@ type: project
 
 ## 🟢 Implementado hoje (inventário objetivo)
 
-### Comandos Artisan — 4 de 9
+### Comandos Artisan — 5 de 9
 
 | Comando | Status | Arquivo |
 |---------|:-----:|---------|
 | `codeguard:install` | ✅ | src/Commands/CodeguardInstallCommand.php |
+| `codeguard:check` | ✅ | src/Commands/CodeguardCheckCommand.php |
 | `codeguard:telemetry:enable` | ✅ | src/Commands/Telemetry/EnableCommand.php |
 | `codeguard:telemetry:disable` | ✅ | src/Commands/Telemetry/DisableCommand.php |
 | `codeguard:telemetry:clear` | ✅ | src/Commands/Telemetry/ClearCommand.php |
-| `codeguard:check` | 🔜 sprint atual | — |
-| `codeguard:test` | 📋 sprint atual | — |
+| `codeguard:test` | 🔜 sprint atual | — |
 | `codeguard:analyze` | ⏸️ pós-alpha | — |
 | `codeguard:baseline` | ⏸️ pós-alpha | — |
 | `codeguard:prepare` | ⏸️ pós-alpha | — |
@@ -78,6 +79,7 @@ type: project
 | `Install\*` | ✅ completo | Environment + Preset + StubPublisher + DeptracLayerSuggester + DeptracLayerWizard + LayerDecisionStore + CaptainhookInstaller + ComposerAllowPluginsCheck + CodeguardDirectoryInitializer + InstallSummary + PhpstanExtension{Selector,Store,Applier} + NextStepsReporter + GatePlan{,Registry} + InstallTelemetry |
 | `Telemetry\*` | ✅ completo | Event + EventName + EventStatus + FieldAllowlist + Recorder + ConfigGate + Rotator + JsonlWriter + StopwatchScope + MeasuredAction + TelemetryStateStore |
 | `Commands\Telemetry\*` | ✅ completo | 3 commands |
+| `Gates\*` | ✅ novo | GateRunner + GateRunResult; consumido pelo CheckCommand e primeira emissão de Layer 3 telemetry |
 | `Hooks\*` | 🟡 parcial | StagedPhpFilesRunner existe; outras PHP Actions viriam depois |
 | `Testing\*` (DTOs) | 🟡 parcial | Preset + CodeguardConfig + StageConfig + GateConfig + PrepareConfig existem. TestSuiteRunner ainda no Arch. |
 | `Assertions\*` | 🟡 parcial | TestQualityAssertions + ParallelSafetyAssertions traits existem. PestExpectations + QualityExpectation faltam. |
@@ -119,9 +121,10 @@ Fases do [roadmap do spec v5](../../docs/specs/2026-04-16-codeguard-v2-architect
 |:---:|---|:---:|---|
 | 1 | composer.json + config + DTOs + ServiceProvider (foundation) | ✅ | — |
 | 2 | `CodeguardInstallCommand` híbrido | ✅ | sessões 2-4 |
-| 3 | Stubs 8 gates + Pest tests | ✅ | 7 stubs + 271 tests |
+| 3 | Stubs 8 gates + Pest tests | ✅ | 7 stubs + 284 tests |
 | 4 | README + `1.0.0-alpha.1` | ⏳ | sprint atual #4 |
-| 5 | `TestSuiteRunner` extract + `CodeguardTestCommand` | 🔜 | sprint atual #2 |
+| 5 | `TestSuiteRunner` extract + `CodeguardTestCommand` | 🔜 | sprint atual #2 (NEXT) |
+| **+D** (2026-04-22) | `codeguard:check` + `Gates\*` + Layer 3 telemetry | ✅ | sessão 5, sprint Option A #1 |
 | 6 | Assertions (PestExpectations + QualityExpectation) | ⏸️ | 2 traits prontas, 2 classes faltam |
 | 7 | Schema dump + `CodeguardPrepareCommand` | ⏸️ | pós-alpha |
 | 8 | Pattern engine + `CodeguardAnalyzeCommand` | ⏸️ | pós-alpha |
