@@ -209,4 +209,31 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Telemetry
+    |--------------------------------------------------------------------------
+    |
+    | Local-only telemetry — every event is appended to `.codeguard/telemetry.jsonl`
+    | in the consumer's project. Nothing is uploaded. See spec §5 for the full
+    | event catalog. Tooling:
+    |
+    |   php artisan codeguard:telemetry:enable   # turn on
+    |   php artisan codeguard:telemetry:disable  # turn off
+    |   php artisan codeguard:telemetry:clear    # delete all recorded jsonl
+    |
+    | `strict_mode=true` makes FieldAllowlist throw on any schema violation;
+    | `false` silently drops the offending field and emits a meta event
+    | `telemetry.dropped_field` so developers can investigate later.
+    |
+    */
+
+    'telemetry' => [
+        'enabled' => env('CODEGUARD_TELEMETRY_ENABLED', false),
+        'strict_mode' => env('CODEGUARD_TELEMETRY_STRICT', true),
+        'path' => '.codeguard'.DIRECTORY_SEPARATOR.'telemetry.jsonl',
+        'rotate_bytes' => 10 * 1024 * 1024,
+        'retain_archives' => 5,
+    ],
+
 ];

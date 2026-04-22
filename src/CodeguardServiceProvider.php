@@ -21,6 +21,11 @@ use Henryavila\Codeguard\Install\PresetSelector;
 use Henryavila\Codeguard\Install\StubDiffer;
 use Henryavila\Codeguard\Install\StubPublisher;
 use Henryavila\Codeguard\Install\StubRegistry;
+use Henryavila\Codeguard\Telemetry\ConfigGate;
+use Henryavila\Codeguard\Telemetry\FieldAllowlist;
+use Henryavila\Codeguard\Telemetry\JsonlWriter;
+use Henryavila\Codeguard\Telemetry\Recorder;
+use Henryavila\Codeguard\Telemetry\Rotator;
 use Henryavila\Codeguard\Testing\CodeguardConfig;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Filesystem\Filesystem;
@@ -43,6 +48,7 @@ final class CodeguardServiceProvider extends ServiceProvider
         });
 
         $this->registerInstallServices();
+        $this->registerTelemetryServices();
     }
 
     public function boot(): void
@@ -152,6 +158,54 @@ final class CodeguardServiceProvider extends ServiceProvider
                 basePath: $app->basePath(),
                 stubsSourcePath: $stubsSourcePath,
                 differ: $differ,
+            );
+        });
+    }
+
+    private function registerTelemetryServices(): void
+    {
+        $this->app->singleton(ConfigGate::class, static function (Application $app): ConfigGate {
+            /** @var bool $enabled */
+            $enabled = (bool) $app['config']->get('codeguard.telemetry.enabled', false);
+
+            return new ConfigGate(enabled: $enabled);
+        });
+
+        $this->app->singleton(FieldAllowlist::class, static function (Application $app): FieldAllowlist {
+            /** @var bool $strict */
+            $strict = (bool) $app['config']->get('codeguard.telemetry.strict_mode', true);
+
+            return new FieldAllowlist(strictMode: $strict);
+        });
+
+        $this->app->singleton(JsonlWriter::class);
+
+        $this->app->singleton(Rotator::class, static function (Application $app): Rotator {
+            /** @var int $maxBytes */
+            $maxBytes = (int) $app['config']->get('codeguard.telemetry.rotate_bytes', 10 * 1024 * 1024);
+            /** @var int $retain */
+            $retain = (int) $app['config']->get('codeguard.telemetry.retain_archives', 5);
+
+            return new Rotator(maxBytes: $maxBytes, retain: $retain);
+        });
+
+        $this->app->singleton(Recorder::class, static function (Application $app): Recorder {
+            /** @var string $relativePath */
+            $relativePath = (string) $app['config']->get(
+                'codeguard.telemetry.path',
+                '.codeguard'.DIRECTORY_SEPARATOR.'telemetry.jsonl',
+            );
+
+            $activePath = str_starts_with($relativePath, DIRECTORY_SEPARATOR)
+                ? $relativePath
+                : $app->basePath($relativePath);
+
+            return new Recorder(
+                gate: $app->make(ConfigGate::class),
+                allowlist: $app->make(FieldAllowlist::class),
+                rotator: $app->make(Rotator::class),
+                writer: $app->make(JsonlWriter::class),
+                activePath: $activePath,
             );
         });
     }
