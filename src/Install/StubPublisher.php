@@ -18,6 +18,7 @@ final class StubPublisher
         private readonly string $basePath,
         private readonly string $stubsSourcePath,
         private readonly StubDiffer $differ,
+        private readonly StubOverrides $overrides,
     ) {}
 
     public function useOutput(?OutputStyle $output): void
@@ -47,6 +48,18 @@ final class StubPublisher
 
         if (! $this->filesystem->exists($sourcePath)) {
             return $this->failure($stub, $targetPath, "Source stub missing: {$sourcePath}");
+        }
+
+        // Permanent skip — unless the user forces overwrite with --refresh-stubs.
+        // Checked before exists() so the override is honored even when the
+        // target was deleted and would otherwise be re-created from the stub.
+        if (! $forceOverwrite && $this->overrides->contains($stub->targetRelativePath)) {
+            return new StubPublishResult(
+                stub: $stub,
+                targetAbsolutePath: $targetPath,
+                status: StubPublishStatus::KeptCustomPermanent,
+                message: 'Listed in .codeguard/stub-overrides.yaml — skipped.',
+            );
         }
 
         if (! $this->filesystem->exists($targetPath)) {
@@ -94,6 +107,7 @@ final class StubPublisher
         return match ($choice) {
             'overwrite' => $this->overwrite($stub, $sourcePath, $targetPath, $diff),
             'show-diff' => $this->overwriteAfterDiffReview($stub, $sourcePath, $targetPath, $diff),
+            'keep-remember' => $this->keepAndRemember($stub, $targetPath, $diff),
             default => new StubPublishResult(
                 stub: $stub,
                 targetAbsolutePath: $targetPath,
@@ -112,7 +126,8 @@ final class StubPublisher
         $choice = select(
             label: "File {$stub->targetRelativePath} differs from current stub ({$summary}).",
             options: [
-                'keep' => 'Keep existing file',
+                'keep' => 'Keep existing file (ask again next run)',
+                'keep-remember' => 'Keep + remember (never ask again for this file)',
                 'overwrite' => 'Overwrite with stub (lose customizations)',
                 'show-diff' => 'Show full diff, then decide',
             ],
@@ -121,6 +136,22 @@ final class StubPublisher
         );
 
         return $choice;
+    }
+
+    private function keepAndRemember(
+        StubDefinition $stub,
+        string $targetPath,
+        string $diff,
+    ): StubPublishResult {
+        $this->overrides->add($stub->targetRelativePath);
+
+        return new StubPublishResult(
+            stub: $stub,
+            targetAbsolutePath: $targetPath,
+            status: StubPublishStatus::KeptCustomPermanent,
+            message: 'Kept + remembered — added to .codeguard/stub-overrides.yaml.',
+            diff: $diff,
+        );
     }
 
     private function overwriteAfterDiffReview(
@@ -135,23 +166,24 @@ final class StubPublisher
         $choice = select(
             label: 'After reviewing the diff above, what do you want to do?',
             options: [
-                'keep' => 'Keep existing file',
+                'keep' => 'Keep existing file (ask again next run)',
+                'keep-remember' => 'Keep + remember (never ask again for this file)',
                 'overwrite' => 'Overwrite with stub',
             ],
             default: 'keep',
         );
 
-        if ($choice === 'overwrite') {
-            return $this->overwrite($stub, $sourcePath, $targetPath, $diff);
-        }
-
-        return new StubPublishResult(
-            stub: $stub,
-            targetAbsolutePath: $targetPath,
-            status: StubPublishStatus::KeptCustom,
-            message: 'Kept existing customizations after diff review.',
-            diff: $diff,
-        );
+        return match ($choice) {
+            'overwrite' => $this->overwrite($stub, $sourcePath, $targetPath, $diff),
+            'keep-remember' => $this->keepAndRemember($stub, $targetPath, $diff),
+            default => new StubPublishResult(
+                stub: $stub,
+                targetAbsolutePath: $targetPath,
+                status: StubPublishStatus::KeptCustom,
+                message: 'Kept existing customizations after diff review.',
+                diff: $diff,
+            ),
+        };
     }
 
     private function writeDiffToOutput(StubDefinition $stub, string $diff): void

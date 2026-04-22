@@ -145,6 +145,7 @@ final class CodeguardInstallCommand extends Command
         $results = $publisher->publish($stubs, $forceOverwrite, $interactive);
 
         $this->renderStubResults($results);
+        $this->renderOverrideCount($results);
 
         if ($this->hasFailures($results)) {
             $this->components->error('One or more stubs failed to publish. See messages above.');
@@ -420,6 +421,7 @@ final class CodeguardInstallCommand extends Command
                 StubPublishStatus::Created => '<fg=green>created</>',
                 StubPublishStatus::Unchanged => '<fg=gray>unchanged</>',
                 StubPublishStatus::KeptCustom => '<fg=cyan>kept custom</>',
+                StubPublishStatus::KeptCustomPermanent => '<fg=cyan>kept custom (remembered)</>',
                 StubPublishStatus::Overwritten => '<fg=yellow>overwritten</>',
                 StubPublishStatus::Failed => '<fg=red>failed</>',
             };
@@ -436,6 +438,28 @@ final class CodeguardInstallCommand extends Command
                 $this->line('');
             }
         }
+    }
+
+    /**
+     * @param  list<StubPublishResult>  $results
+     */
+    private function renderOverrideCount(array $results): void
+    {
+        $count = 0;
+        foreach ($results as $result) {
+            if ($result->status === StubPublishStatus::KeptCustomPermanent) {
+                $count++;
+            }
+        }
+
+        if ($count === 0) {
+            return;
+        }
+
+        $this->components->twoColumnDetail(
+            'Stubs in .codeguard/stub-overrides.yaml (skipped)',
+            "<fg=cyan>{$count}</>",
+        );
     }
 
     /**

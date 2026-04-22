@@ -6,6 +6,7 @@ namespace Henryavila\Codeguard;
 
 use Henryavila\Codeguard\Commands\CodeguardCheckCommand;
 use Henryavila\Codeguard\Commands\CodeguardInstallCommand;
+use Henryavila\Codeguard\Commands\CodeguardInstallOverrideCommand;
 use Henryavila\Codeguard\Commands\Telemetry\ClearCommand as TelemetryClearCommand;
 use Henryavila\Codeguard\Commands\Telemetry\DisableCommand as TelemetryDisableCommand;
 use Henryavila\Codeguard\Commands\Telemetry\EnableCommand as TelemetryEnableCommand;
@@ -25,6 +26,7 @@ use Henryavila\Codeguard\Install\PhpstanExtensionSelector;
 use Henryavila\Codeguard\Install\PhpstanExtensionStore;
 use Henryavila\Codeguard\Install\PresetSelector;
 use Henryavila\Codeguard\Install\StubDiffer;
+use Henryavila\Codeguard\Install\StubOverrides;
 use Henryavila\Codeguard\Install\StubPublisher;
 use Henryavila\Codeguard\Install\StubRegistry;
 use Henryavila\Codeguard\Telemetry\ConfigGate;
@@ -144,6 +146,16 @@ final class CodeguardServiceProvider extends ServiceProvider
             return new StubDiffer(filesystem: $filesystem);
         });
 
+        $this->app->singleton(StubOverrides::class, function (Application $app): StubOverrides {
+            /** @var Filesystem $filesystem */
+            $filesystem = $app->make(Filesystem::class);
+
+            return new StubOverrides(
+                filesystem: $filesystem,
+                path: $app->basePath('.codeguard'.DIRECTORY_SEPARATOR.'stub-overrides.yaml'),
+            );
+        });
+
         $this->app->singleton(EnvironmentDetector::class, function (Application $app): EnvironmentDetector {
             /** @var Filesystem $filesystem */
             $filesystem = $app->make(Filesystem::class);
@@ -161,11 +173,15 @@ final class CodeguardServiceProvider extends ServiceProvider
             /** @var StubDiffer $differ */
             $differ = $app->make(StubDiffer::class);
 
+            /** @var StubOverrides $overrides */
+            $overrides = $app->make(StubOverrides::class);
+
             return new StubPublisher(
                 filesystem: $filesystem,
                 basePath: $app->basePath(),
                 stubsSourcePath: $stubsSourcePath,
                 differ: $differ,
+                overrides: $overrides,
             );
         });
     }
@@ -246,6 +262,7 @@ final class CodeguardServiceProvider extends ServiceProvider
     {
         $this->commands([
             CodeguardInstallCommand::class,
+            CodeguardInstallOverrideCommand::class,
             CodeguardCheckCommand::class,
             TelemetryEnableCommand::class,
             TelemetryDisableCommand::class,

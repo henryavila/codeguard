@@ -12,6 +12,7 @@ use Henryavila\Codeguard\Install\EnvironmentDetector;
 use Henryavila\Codeguard\Install\EnvironmentInfo;
 use Henryavila\Codeguard\Install\InstallTelemetry;
 use Henryavila\Codeguard\Install\StubDiffer;
+use Henryavila\Codeguard\Install\StubOverrides;
 use Henryavila\Codeguard\Install\StubPublisher;
 use Henryavila\Codeguard\Telemetry\ConfigGate;
 use Henryavila\Codeguard\Telemetry\FieldAllowlist;
@@ -95,12 +96,22 @@ beforeEach(function (): void {
     $stubsSourcePath = realpath(__DIR__.'/../../resources/stubs')
         ?: __DIR__.'/../../resources/stubs';
 
+    // Point StubOverrides at the per-test tempApp so overrides persist inside
+    // the fixture dir, not inside a globally shared one.
+    $this->app->singleton(StubOverrides::class, function () use ($tempApp): StubOverrides {
+        return new StubOverrides(
+            filesystem: new Filesystem,
+            path: $tempApp.'/.codeguard/stub-overrides.yaml',
+        );
+    });
+
     $this->app->singleton(StubPublisher::class, function ($app) use ($stubsSourcePath): StubPublisher {
         return new StubPublisher(
             filesystem: $app->make(Filesystem::class),
             basePath: $this->tempApp,
             stubsSourcePath: $stubsSourcePath,
             differ: $app->make(StubDiffer::class),
+            overrides: $app->make(StubOverrides::class),
         );
     });
 });
@@ -276,4 +287,42 @@ it('exits with code 2 when the captainhook plugin is blocked in composer.json (n
     /** @var object{allowCalls:int} $check */
     $check = app(ComposerAllowPluginsCheck::class);
     expect($check->allowCalls)->toBe(0);
+});
+
+it('honors .codeguard/stub-overrides.yaml by skipping listed stubs on install', function (): void {
+    // Pre-seed the overrides file so phpstan.neon is treated as permanently
+    // customized before the install ever runs. This simulates the state the
+    // file is in after a previous interactive session chose "Keep + remember".
+    mkdir($this->tempApp.'/.codeguard', 0o755, recursive: true);
+    file_put_contents(
+        $this->tempApp.'/.codeguard/stub-overrides.yaml',
+        "overrides:\n  - phpstan.neon\n",
+    );
+
+    $this->artisan('codeguard:install', [
+        '--no-interactive' => true,
+        '--preset' => 'default',
+    ])->assertExitCode(0);
+
+    // phpstan.neon is skipped (override honored); pint.json still published.
+    expect(file_exists($this->tempApp.'/phpstan.neon'))->toBeFalse();
+    expect(file_exists($this->tempApp.'/pint.json'))->toBeTrue();
+});
+
+it('bypasses stub-overrides.yaml when --refresh-stubs is passed (force flag)', function (): void {
+    mkdir($this->tempApp.'/.codeguard', 0o755, recursive: true);
+    file_put_contents(
+        $this->tempApp.'/.codeguard/stub-overrides.yaml',
+        "overrides:\n  - phpstan.neon\n",
+    );
+
+    $this->artisan('codeguard:install', [
+        '--no-interactive' => true,
+        '--preset' => 'default',
+        '--refresh-stubs' => true,
+    ])->assertExitCode(0);
+
+    // --refresh-stubs is an explicit force: the override is ignored and the
+    // file is created from the stub as usual.
+    expect(file_exists($this->tempApp.'/phpstan.neon'))->toBeTrue();
 });

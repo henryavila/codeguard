@@ -9,6 +9,7 @@ enum StubPublishStatus: string
     case Created = 'created';
     case Unchanged = 'unchanged';
     case KeptCustom = 'kept-custom';
+    case KeptCustomPermanent = 'kept-custom-permanent';
     case Overwritten = 'overwritten';
     case Failed = 'failed';
 }
