@@ -8,28 +8,45 @@ type: project
 
 > **Para Claude**: Este é o documento vivo de estado. Leia na primeira ferramenta-call de toda sessão substantiva. Atualize ao completar qualquer commit que mude escopo, ou ao mudar de sprint/foco. Em caso de conflito com outro arquivo de memória, este ganha (pra resolver drift, corrija o outro arquivo, não aqui).
 
-**Última atualização**: 2026-04-22 (sessão 7 fim — 2 bugs infection config + Arch consumidor commitado em 2 grupos semânticos)
-**HEAD**: `fc1e777` fix(stubs): infection testFramework phpunit (pest only valid with infection/pest-plugin)
-**Branch**: `main`, 55 commits ahead de `origin/main` (working tree limpo)
-**Suite**: 325 tests / 787 assertions (todos verdes)
+**Última atualização**: 2026-04-23 (sessão 8 fim — TestSuiteRunner extract completo, 4 commits shippados + `codeguard:test` online)
+**HEAD**: `3f3f16a` feat(commands): codeguard:test with Layer 5 telemetry instrumentation
+**Branch**: `main`, 60 commits ahead de `origin/main` (working tree limpo)
+**Suite**: 370 tests / 906 assertions (todos verdes, +45 vs sessão 7)
 **Lint/Static**: Pint clean; PHPStan level 0 clean
 **Release publicado**: nenhum (dev @ v0.x)
 
 ---
 
-## 🎯 Sprint Atual: Sessão 8 — TestSuiteRunner extract (Opção A, caminho crítico pro release alpha)
+## 🎯 Sprint Atual: Sessão 8 COMPLETA — TestSuiteRunner extract + codeguard:test shipped
 
-**Sessão 7 (2026-04-22) fechou completamente**: 8 tasks do backlog + validação **interativa** no Arch + 2 bugs pré-existentes de stub + 2 design gaps descobertos/fixados + 2 bugs de config de check (infection `--show-mutations`, `testFramework pest`). Arch consome package via path repo e tem 2 commits semanticamente agrupados (`4108daff chore(codeguard)` + `addeab5c style(pint)`). Quality gates rodando.
+**Sessão 8 (2026-04-23) fechou os 4 blocos do SESSION-8-PROMPT em uma única sessão** (originalmente estimado 6-8h; saiu mais rápido por zero retrabalho entre blocos + zero retests repetidos).
 
-**Meta sessão 8 — Opção A**: extrair `TestSuiteRunner` + 7 arquivos do namespace `App\Services\Testing\*` de `/home/henry/arch/app/Services/Testing/` → `Henryavila\Codeguard\Testing\*`; generalizar stages hardcoded → consumir `StageConfig[]` via `CodeguardConfig`; novo comando `codeguard:test`; instrumentar com telemetria Layer 5.
+**Entregáveis shippados** (4 commits):
 
-**Estimativa**: ~6-8h (passa de sprint único — pode ir em 2 sessões).
+- `0d8b27b` — **Bloco 1** port 7 primitivos (CommandExecutor/RunningCommand/AsyncCommandExecutor interfaces + ProcessCommandExecutor/ProcessRunningCommand concretes + TestStageResult/TestRunResult DTOs). 18 tests (5+6+7). Provider aliases bound.
+- `1007b49` — **Bloco 2** StageConfig evoluído com 8 campos (label, phase, description, command list, reportType nullable, reportFile, reportArgPrefix, fastFailArguments). 6 novos tests StageConfigTest. Breaking change v0.x aceito.
+- `0269021` — **Bloco 3** TestSuiteRunner generalizado (400 LOC vs 522 do Arch). `stages()` hardcoded → ctor-injected `list<StageConfig>`. `killStalePlaywrightServers` removido. File facade → Filesystem injetado. 13 tests com FakeCommandExecutor/FakeRunningCommand. Service binding em `registerTestingServices()`.
+- `3f3f16a` — **Bloco 4** CodeguardTestCommand + Layer 5 telemetry. Signature `--stage/--mode/--no-coverage/--context`. Emite command.start/test.started/test.ended/command.end. 8 feature tests. Test doubles extraídos pra `tests/Support/` pra reuso. NextStepsReporter agora promove `codeguard:test` como primeiro next-step.
 
-**Ver `.ai/memory/SESSION-8-PROMPT.md` para prompt self-contained da sessão 8.**
+**Critérios de sucesso do plano**:
+- ✅ Suite ≥ 360 tests: 370 verdes (plano previa 325 + ~35; saiu +45)
+- ✅ Zero refs a Playwright/MongoDB/Nova em files novos
+- ✅ Tests cobrem sequential + parallel + fast-fail + report modes
+- ✅ Config default tem stages utilizáveis sem Arch-isms
+- ✅ Telemetria Layer 5 emite jsonl válido (FieldAllowlist já tinha schema)
 
-### Próxima ação concreta (sessão 8 inicia AQUI)
+**Decisão de escopo tomada**: `stage_key` em telemetria não emitido (schema existente do FieldAllowlist é aggregate-por-run, não per-stage). Manter assim — privacy-safe. Se granularidade per-stage virar necessidade, adicionar enum fechado ao allowlist num sprint futuro.
 
-🔜 **[NEXT]** Ler SESSION-8-PROMPT.md e começar bloco 1 (inventário + port dos executors primitivos: CommandExecutor/AsyncCommandExecutor/ProcessCommandExecutor/RunningCommand/ProcessRunningCommand). Esses são os blocos-base, sem lógica Arch-específica — port direto.
+**Gap conhecido anotado**: `--no-coverage` hoje só flipa telemetria `with_coverage`. Coverage real depende de env do projeto (XDEBUG_MODE). Fazer plumbing de `StageConfig::env` através do executor é um follow-up (exige também `AsyncCommandExecutor` aceitar env per-call; hoje hardcoded `APP_ENV=testing`).
+
+### Próxima ação concreta (sessão 9)
+
+🔜 **[NEXT]** Decidir entre dois caminhos paralelos, ambos desbloqueados por sessão 8:
+
+- **Opção A — Arch migra `App\Services\Testing` inline → package** (~2-3h): atualizar `tests/Arch/ArchitectureTest.php` pra permitir ambos namespaces durante transição; remover `app/Services/Testing/*` do Arch; ajustar `composer.json quality` script pra usar `php artisan codeguard:test`. Valida o extract no campo.
+- **Opção B — Release `1.0.0-alpha.1`** (~2h): escrever README mínimo, CHANGELOG bootstrap, `git tag v1.0.0-alpha.1`, push. Bloco 4 do roadmap spec v5.
+
+Recomendação de ordem: **A → B**. A prova que o extract funciona num consumer real antes de publicar. B fica natural depois.
 
 ### Itens arrastados da sessão 7 para backlog pós-alpha
 
@@ -95,7 +112,7 @@ Para futuros componentes similares: seguir o shape desses 2 fixes (check `contai
 | `codeguard:telemetry:enable` | ✅ | src/Commands/Telemetry/EnableCommand.php |
 | `codeguard:telemetry:disable` | ✅ | src/Commands/Telemetry/DisableCommand.php |
 | `codeguard:telemetry:clear` | ✅ | src/Commands/Telemetry/ClearCommand.php |
-| `codeguard:test` | 🔜 sprint 8 | — |
+| `codeguard:test` | ✅ | src/Commands/CodeguardTestCommand.php |
 | `codeguard:analyze` | ⏸️ pós-alpha | — |
 | `codeguard:baseline` | ⏸️ pós-alpha | — |
 | `codeguard:prepare` | ⏸️ pós-alpha | — |
@@ -109,7 +126,7 @@ Para futuros componentes similares: seguir o shape desses 2 fixes (check `contai
 | `Commands\Telemetry\*` | ✅ completo | 3 commands |
 | `Gates\*` | ✅ novo | GateRunner + GateRunResult; consumido pelo CheckCommand e primeira emissão de Layer 3 telemetry |
 | `Hooks\*` | 🟡 parcial | StagedPhpFilesRunner existe; outras PHP Actions viriam depois |
-| `Testing\*` (DTOs) | 🟡 parcial | Preset + CodeguardConfig + StageConfig + GateConfig + PrepareConfig existem. TestSuiteRunner ainda no Arch. |
+| `Testing\*` | ✅ completo | Preset + CodeguardConfig + StageConfig (8 campos) + GateConfig + PrepareConfig + CommandExecutor/RunningCommand/AsyncCommandExecutor interfaces + ProcessCommandExecutor/ProcessRunningCommand concretes + TestStageResult/TestRunResult DTOs + **TestSuiteRunner generalizado** |
 | `Assertions\*` | 🟡 parcial | TestQualityAssertions + ParallelSafetyAssertions traits existem. PestExpectations + QualityExpectation faltam. |
 | `Patterns\*` | ❌ ausente | 28 YAMLs em resources/patterns/ mas nenhum código pra carregar |
 | `AiRules\*` | ❌ ausente | config('codeguard.ai_rules.targets') existe mas sem consumer |
@@ -151,7 +168,7 @@ Fases do [roadmap do spec v5](../../docs/specs/2026-04-16-codeguard-v2-architect
 | 2 | `CodeguardInstallCommand` híbrido | ✅ | sessões 2-4 |
 | 3 | Stubs 8 gates + Pest tests | ✅ | 7 stubs + 284 tests |
 | 4 | README + `1.0.0-alpha.1` | ⏳ | sprint atual #4 |
-| 5 | `TestSuiteRunner` extract + `CodeguardTestCommand` | 🔜 | sprint atual #2 (NEXT) |
+| 5 | `TestSuiteRunner` extract + `CodeguardTestCommand` | ✅ | sessão 8 (2026-04-23) |
 | **+D** (2026-04-22) | `codeguard:check` + `Gates\*` + Layer 3 telemetry | ✅ | sessão 5, sprint Option A #1 |
 | 6 | Assertions (PestExpectations + QualityExpectation) | ⏸️ | 2 traits prontas, 2 classes faltam |
 | 7 | Schema dump + `CodeguardPrepareCommand` | ⏸️ | pós-alpha |
@@ -164,7 +181,7 @@ Fases do [roadmap do spec v5](../../docs/specs/2026-04-16-codeguard-v2-architect
 | **+C** (2026-04-17) | Install UX (β) | ✅ | sessão 4 |
 | **+B** (2026-04-17) | Telemetry (install layer) | ✅ | sessão 5 |
 
-**~45% do escopo total do spec v5 shipped** (Fases 1-3 completas + 2/3 dos extras). Pós-sprint Option A, projetado em ~60% + release alpha.
+**~60% do escopo total do spec v5 shipped** (Fases 1-3 + 5 completas, extras A/B/C/D todos shipped). Restam Fases 4 (README + alpha release), 6 (Assertions classes), 7 (Schema dump), 8 (Patterns), 9 (AI rules), 10 (hooks plugin), 11 (Arch migration), 12 (v1.0).
 
 ---
 
@@ -172,11 +189,12 @@ Fases do [roadmap do spec v5](../../docs/specs/2026-04-16-codeguard-v2-architect
 
 | # | Risco | Mitigação em curso |
 |---|-------|--------------------|
-| R1 | Arch ainda não consome o package — M1 não validada em uso real | Sprint atual resolve em passo #3 |
+| R1 | Arch ainda consome Testing inline; falta migração pro package — M1 não 100% validada em uso real | Sessão 9 Opção A resolve |
 | R2 | Spec v5 não previa CaptainHook+Telemetry (adicionado via ADR-010 e Q14) — roadmap original está sub-estimado | Aceitar: ajustar expectativa de timeline (ver ADR-008) |
-| R3 | `TestSuiteRunner` tem 770 LOC no Arch — extract pode surfar edge cases Arch-specific (Playwright, MongoDB) | Sprint #2 prevê esforço + checkpoint |
+| R3 | ~~TestSuiteRunner extract pode surfar edge cases Arch-specific~~ **MITIGADO sessão 8** — extract limpo, 13 tests cobrem modes, Arch-isms (Playwright/MongoDB/Nova) todos removidos | ✅ fechado |
 | R4 | Telemetria CaptainHook Actions requer bootstrap Laravel dentro do processo do hook — não-trivial | Adiado: Layer 4 de telemetria fica pós-alpha |
-| R5 | Release alpha precisa de README mínimo (hoje não existe) | Parte do sprint #4 |
+| R5 | Release alpha precisa de README mínimo (hoje não existe) | Parte de sessão 9 Opção B |
+| R6 | `--no-coverage` hoje só flipa telemetria; coverage real via XDEBUG_MODE depende do projeto. StageConfig::env não plumbed através do executor | Follow-up: exige AsyncCommandExecutor aceitar env per-call |
 
 ---
 
