@@ -41,6 +41,7 @@ use Henryavila\Codeguard\Testing\AsyncCommandExecutor;
 use Henryavila\Codeguard\Testing\CodeguardConfig;
 use Henryavila\Codeguard\Testing\CommandExecutor;
 use Henryavila\Codeguard\Testing\ProcessCommandExecutor;
+use Henryavila\Codeguard\Testing\TestSuiteRunner;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\ServiceProvider;
@@ -281,6 +282,18 @@ final class CodeguardServiceProvider extends ServiceProvider
         $this->app->singleton(ProcessCommandExecutor::class);
         $this->app->alias(ProcessCommandExecutor::class, CommandExecutor::class);
         $this->app->alias(ProcessCommandExecutor::class, AsyncCommandExecutor::class);
+
+        $this->app->bind(TestSuiteRunner::class, static function (Application $app): TestSuiteRunner {
+            /** @var CodeguardConfig $config */
+            $config = $app->make(CodeguardConfig::class);
+
+            return new TestSuiteRunner(
+                executor: $app->make(AsyncCommandExecutor::class),
+                filesystem: $app->make(Filesystem::class),
+                stages: array_values($config->stages),
+                reportDir: $config->reportDir !== '' ? $config->reportDir : null,
+            );
+        });
     }
 
     private function bootConsole(): void
