@@ -15,6 +15,11 @@ final class NextStepsReporter
     {
         $default = [
             [
+                'gate' => 'Test Runner',
+                'action' => 'Run multi-stage test suite via the generalized runner (unit + feature by default).',
+                'command' => 'php artisan codeguard:test',
+            ],
+            [
                 'gate' => 'PHPStan',
                 'action' => 'Review level in phpstan.neon (currently 5). Raise progressively.',
                 'command' => 'composer codeguard:check',

@@ -2,87 +2,10 @@
 
 declare(strict_types=1);
 
-use Henryavila\Codeguard\Testing\AsyncCommandExecutor;
-use Henryavila\Codeguard\Testing\RunningCommand;
 use Henryavila\Codeguard\Testing\StageConfig;
 use Henryavila\Codeguard\Testing\TestSuiteRunner;
+use Henryavila\Codeguard\Tests\Support\FakeCommandExecutor;
 use Illuminate\Filesystem\Filesystem;
-
-/*
-|--------------------------------------------------------------------------
-| Test doubles
-|--------------------------------------------------------------------------
-*/
-
-final class FakeRunningCommand implements RunningCommand
-{
-    public function __construct(
-        private readonly int $exitCode,
-        private readonly string $output = '',
-    ) {}
-
-    public function wait(?callable $writeOutput = null): int
-    {
-        if ($writeOutput !== null && $this->output !== '') {
-            $writeOutput($this->output);
-        }
-
-        return $this->exitCode;
-    }
-
-    public function isRunning(): bool
-    {
-        return false;
-    }
-
-    public function getExitCode(): ?int
-    {
-        return $this->exitCode;
-    }
-
-    public function getOutput(): string
-    {
-        return $this->output;
-    }
-
-    public function getErrorOutput(): string
-    {
-        return '';
-    }
-
-    public function stop(int $timeout = 10): void {}
-}
-
-final class FakeCommandExecutor implements AsyncCommandExecutor
-{
-    /** @var array<int, list<string>> */
-    public array $executedCommands = [];
-
-    /**
-     * @param  Closure(list<string>): array{0: int, 1: string}  $handler
-     */
-    public function __construct(private readonly Closure $handler) {}
-
-    public function run(array $command, ?callable $writeOutput = null): int
-    {
-        $this->executedCommands[] = $command;
-        [$exit, $output] = ($this->handler)($command);
-
-        if ($writeOutput !== null && $output !== '') {
-            $writeOutput($output);
-        }
-
-        return $exit;
-    }
-
-    public function start(array $command): RunningCommand
-    {
-        $this->executedCommands[] = $command;
-        [$exit, $output] = ($this->handler)($command);
-
-        return new FakeRunningCommand($exit, $output);
-    }
-}
 
 /*
 |--------------------------------------------------------------------------

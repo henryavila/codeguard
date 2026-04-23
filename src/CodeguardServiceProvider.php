@@ -7,6 +7,7 @@ namespace Henryavila\Codeguard;
 use Henryavila\Codeguard\Commands\CodeguardCheckCommand;
 use Henryavila\Codeguard\Commands\CodeguardInstallCommand;
 use Henryavila\Codeguard\Commands\CodeguardInstallOverrideCommand;
+use Henryavila\Codeguard\Commands\CodeguardTestCommand;
 use Henryavila\Codeguard\Commands\Telemetry\ClearCommand as TelemetryClearCommand;
 use Henryavila\Codeguard\Commands\Telemetry\DisableCommand as TelemetryDisableCommand;
 use Henryavila\Codeguard\Commands\Telemetry\EnableCommand as TelemetryEnableCommand;
@@ -302,6 +303,7 @@ final class CodeguardServiceProvider extends ServiceProvider
             CodeguardInstallCommand::class,
             CodeguardInstallOverrideCommand::class,
             CodeguardCheckCommand::class,
+            CodeguardTestCommand::class,
             TelemetryEnableCommand::class,
             TelemetryDisableCommand::class,
             TelemetryClearCommand::class,
