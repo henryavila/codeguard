@@ -39,14 +39,23 @@ type: project
 
 **Gap conhecido anotado**: `--no-coverage` hoje só flipa telemetria `with_coverage`. Coverage real depende de env do projeto (XDEBUG_MODE). Fazer plumbing de `StageConfig::env` através do executor é um follow-up (exige também `AsyncCommandExecutor` aceitar env per-call; hoje hardcoded `APP_ENV=testing`).
 
-### Próxima ação concreta (sessão 9)
+### Próxima ação concreta (sessão 9 — DECIDIDA 2026-04-23)
 
-🔜 **[NEXT]** Decidir entre dois caminhos paralelos, ambos desbloqueados por sessão 8:
+🔜 **[NEXT] Atacar Patterns engine** (ataque a R7 — fecha o gap entre marketing e código, cria o motor que consome os 28 YAMLs dormentes).
 
-- **Opção A — Arch migra `App\Services\Testing` inline → package** (~2-3h): atualizar `tests/Arch/ArchitectureTest.php` pra permitir ambos namespaces durante transição; remover `app/Services/Testing/*` do Arch; ajustar `composer.json quality` script pra usar `php artisan codeguard:test`. Valida o extract no campo.
-- **Opção B — Release `1.0.0-alpha.1`** (~2h): escrever README mínimo, CHANGELOG bootstrap, `git tag v1.0.0-alpha.1`, push. Bloco 4 do roadmap spec v5.
+**Motivação da escolha**: o usuário está usando `codeguard:check` produtivamente no Arch; o pacote é utilizável hoje; o que FALTA pra ele cumprir a promessa "quality gates que sobrevivem ao seu agente" é a feature diferenciadora — pattern review automatizado. Sem Patterns engine, CodeGuard é "mais um wrapper de pint+phpstan+deptrac". Com Patterns engine, é único.
 
-Recomendação de ordem: **A → B**. A prova que o extract funciona num consumer real antes de publicar. B fica natural depois.
+**Prioridade revisada pós-sessão 8**:
+
+1. **Sessão 9 (próxima)** — Patterns engine v0 (src/Patterns/* + codeguard:analyze + testes). Estimativa honesta: ~1 semana de sessões, não 1 sessão. Começa por brainstorm/plano antes de codar.
+2. **Sessão N+k** — Arch migra Testing inline → package (~2-3h, destravado por sessão 8)
+3. **Sessão N+k+1** — README + `1.0.0-alpha.1` release (só faz sentido depois que Patterns engine existe e Arch validou no campo)
+4. **Pós-alpha** — Schema dump (`prepare`), AI rules generator, hooks plugin
+
+**Itens empurrados explicitamente**:
+- README/alpha release: NÃO antes de Patterns engine estar rodando no Arch
+- Schema dump: alto custo (8-12h real + drivers MySQL/Postgres/sqlsrv), baixo ROI sem 2º consumer que exija sqlsrv ou in-memory SQLite
+- AI rules generator: mais útil depois que Patterns engine tem pelo menos um motor de consumo de markdown
 
 ### Itens arrastados da sessão 7 para backlog pós-alpha
 
@@ -183,6 +192,20 @@ Fases do [roadmap do spec v5](../../docs/specs/2026-04-16-codeguard-v2-architect
 
 **~60% do escopo total do spec v5 shipped** (Fases 1-3 + 5 completas, extras A/B/C/D todos shipped). Restam Fases 4 (README + alpha release), 6 (Assertions classes), 7 (Schema dump), 8 (Patterns), 9 (AI rules), 10 (hooks plugin), 11 (Arch migration), 12 (v1.0).
 
+### Scorecard honesto por perspectiva de uso (2026-04-23)
+
+O número "~60% shipped" agregado esconde uma bifurcação importante. Medindo por perspectiva real de consumidor:
+
+| Perspectiva de uso | Estado real | Por quê |
+|---|:-:|---|
+| "install + rodar gates + rodar tests" (Arch hoje) | **~85%** | install/check/test production-ready; telemetria install+gates em pé; CaptainHook ativo |
+| "pattern-based LLM review" (o diferencial marketing) | **~30%** | 28 YAMLs de dados existem em `resources/patterns/`; zero consumer code em `src/Patterns/`; `codeguard:analyze` não existe |
+| "AI rules generator" | **~15%** | config targets existe; zero código em `src/AiRules/` |
+| "schema dump multi-DB" | **~10%** | `PrepareConfig` DTO existe (4 campos); `src/Schema/` não existe; `codeguard:prepare` não existe |
+| "publicar v1.0 no Packagist" | **~60%** | falta README, CHANGELOG, tag, 2º consumer, migration Arch inline |
+
+**Diagnóstico honesto**: o projeto é produtivo pro uso imediato (Arch consumindo quality gates), mas vende uma narrativa (pattern review LLM) que ainda não existe em código. Isso NÃO é falso — é incompleto. O risco concreto é publicar alpha antes de ter a feature diferenciadora.
+
 ---
 
 ## ⚠️ Riscos e blockers ativos
@@ -195,6 +218,8 @@ Fases do [roadmap do spec v5](../../docs/specs/2026-04-16-codeguard-v2-architect
 | R4 | Telemetria CaptainHook Actions requer bootstrap Laravel dentro do processo do hook — não-trivial | Adiado: Layer 4 de telemetria fica pós-alpha |
 | R5 | Release alpha precisa de README mínimo (hoje não existe) | Parte de sessão 9 Opção B |
 | R6 | `--no-coverage` hoje só flipa telemetria; coverage real via XDEBUG_MODE depende do projeto. StageConfig::env não plumbed através do executor | Follow-up: exige AsyncCommandExecutor aceitar env per-call |
+| R7 | **28 YAMLs em `resources/patterns/` são peso morto até Patterns engine shippar** — marketing vende "pattern-based LLM review" que não existe em código | **Sessão 9 ataca essa dívida** (ver sprint abaixo) |
+| R8 | CodeGuard roda PHPStan level 0 em si mesmo (`phpstan.neon:level: 0`) mas exige level 5+ dos consumers via stub — incoerência não-bloqueante | Cosmético; endereçar pós-alpha |
 
 ---
 
