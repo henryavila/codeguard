@@ -37,7 +37,10 @@ use Henryavila\Codeguard\Telemetry\Recorder;
 use Henryavila\Codeguard\Telemetry\Rotator;
 use Henryavila\Codeguard\Telemetry\StopwatchScope;
 use Henryavila\Codeguard\Telemetry\TelemetryStateStore;
+use Henryavila\Codeguard\Testing\AsyncCommandExecutor;
 use Henryavila\Codeguard\Testing\CodeguardConfig;
+use Henryavila\Codeguard\Testing\CommandExecutor;
+use Henryavila\Codeguard\Testing\ProcessCommandExecutor;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\ServiceProvider;
@@ -60,6 +63,7 @@ final class CodeguardServiceProvider extends ServiceProvider
 
         $this->registerInstallServices();
         $this->registerTelemetryServices();
+        $this->registerTestingServices();
     }
 
     public function boot(): void
@@ -267,6 +271,16 @@ final class CodeguardServiceProvider extends ServiceProvider
                 workingDirectory: $app->basePath(),
             );
         });
+    }
+
+    private function registerTestingServices(): void
+    {
+        // ProcessCommandExecutor implements both CommandExecutor + AsyncCommandExecutor.
+        // Bind both contracts to the same singleton so consumers depend on the narrow
+        // interface that matches their need (sync-only vs async-capable).
+        $this->app->singleton(ProcessCommandExecutor::class);
+        $this->app->alias(ProcessCommandExecutor::class, CommandExecutor::class);
+        $this->app->alias(ProcessCommandExecutor::class, AsyncCommandExecutor::class);
     }
 
     private function bootConsole(): void
