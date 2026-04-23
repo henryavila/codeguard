@@ -31,15 +31,22 @@ function codeguardFixtureConfig(): array
         'stages' => [
             'unit' => [
                 'enabled' => true,
-                'command' => './vendor/bin/pest --testsuite=Unit',
+                'label' => 'Unit Tests',
+                'phase' => 1,
+                'description' => 'Pure unit tests',
+                'command' => ['./vendor/bin/pest', '--testsuite=Unit'],
                 'env' => ['APP_ENV' => 'testing'],
-                'report_format' => 'junit',
+                'report_type' => 'junit',
+                'report_file' => 'unit.xml',
+                'report_arg_prefix' => '--log-junit=',
+                'fast_fail_arguments' => ['--bail'],
             ],
             'feature' => [
                 'enabled' => false,
-                'command' => './vendor/bin/pest --testsuite=Feature',
+                'phase' => 1,
+                'command' => ['./vendor/bin/pest', '--testsuite=Feature'],
                 'env' => [],
-                'report_format' => 'junit',
+                'report_type' => 'junit',
             ],
         ],
         'report_dir' => '/tmp/reports',
@@ -89,12 +96,16 @@ it('hydrates nested GateConfig DTOs keyed by gate name', function (): void {
         ->and($config->gates['phpstan']->enabled)->toBeFalse();
 });
 
-it('hydrates nested StageConfig DTOs with env map and report format', function (): void {
+it('hydrates nested StageConfig DTOs with env map and report metadata', function (): void {
     $config = CodeguardConfig::fromArray(codeguardFixtureConfig());
 
     expect($config->stages['unit'])->toBeInstanceOf(StageConfig::class)
         ->and($config->stages['unit']->env)->toBe(['APP_ENV' => 'testing'])
-        ->and($config->stages['unit']->reportFormat)->toBe('junit');
+        ->and($config->stages['unit']->reportType)->toBe('junit')
+        ->and($config->stages['unit']->reportFile)->toBe('unit.xml')
+        ->and($config->stages['unit']->reportArgPrefix)->toBe('--log-junit=')
+        ->and($config->stages['unit']->fastFailArguments)->toBe(['--bail'])
+        ->and($config->stages['unit']->command)->toBe(['./vendor/bin/pest', '--testsuite=Unit']);
 });
 
 it('hydrates PrepareConfig from nested array', function (): void {
