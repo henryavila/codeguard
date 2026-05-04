@@ -8,14 +8,29 @@ type: project
 
 > **Para Claude**: Este é o documento vivo de estado. Leia na primeira ferramenta-call de toda sessão substantiva. Atualize ao completar qualquer commit que mude escopo, ou ao mudar de sprint/foco. Em caso de conflito com outro arquivo de memória, este ganha (pra resolver drift, corrija o outro arquivo, não aqui).
 
-**Última atualização**: 2026-04-23 (sessão 8 fim — TestSuiteRunner extract completo, 4 commits shippados + `codeguard:test` online)
-**HEAD**: `3f3f16a` feat(commands): codeguard:test with Layer 5 telemetry instrumentation
-**Branch**: `main`, 60 commits ahead de `origin/main` (working tree limpo)
-**Suite**: 370 tests / 906 assertions (todos verdes, +45 vs sessão 7)
-**Lint/Static**: Pint clean; PHPStan level 0 clean
+**Última atualização**: 2026-05-04 (warmup pré-sessão 9 — 2 stubs adicionados sob pedido do usuário após análise do `~/arch/docs/code-quality-gates.md`)
+**HEAD**: `76e0074` feat(stubs): add minimal codeguard-ci.yml.stub delegating to codeguard:check
+**Branch**: `main`, 62 commits ahead de `origin/main` (working tree limpo)
+**Suite**: 377 tests / 928 assertions (todos verdes, +7 vs sessão 8)
+**Lint/Static**: Pint clean nos arquivos tocados (TestCase.php + StagedPhpFilesRunnerTest.php tinham débito pré-existente). PHPStan: pacote não tem `phpstan.neon` próprio — `composer phpstan` falha com "At least one path must be specified". R8 (PROJECT-STATUS) precisa ser atualizado de "PHPStan level 0 clean" para "PHPStan não wireado no próprio pacote".
 **Release publicado**: nenhum (dev @ v0.x)
 
 ---
+
+## 🪶 Warmup pré-sessão 9 (2026-05-04)
+
+Usuário trouxe `~/arch/docs/code-quality-gates.md` (snapshot da stack do Arch) para análise. Cruzamento com o estado real do `StubRegistry` revelou 2 falsos gaps (TestQualityTest stub + Insights wire-up) e 2 lacunas reais. Recomendações aprovadas em modo (A) warmup — sprint da sessão 9 (Patterns engine) **continua intacta**.
+
+| Commit | Conteúdo | Tests |
+|---|---|---|
+| `18df00f` | `phpunit.xml.stub` enforça `failOnRisky` + `beStrictAboutTestsThatDoNotTestAnything` | +4 (4) |
+| `76e0074` | `.github/workflows/codeguard-ci.yml.stub` minimal, delega tudo a `composer codeguard:check` | +3 (7 total no novo `StubRegistryTest`) |
+
+Suite: 370 → 377 (+7 / +22 assertions). Stubs registrados em ambos os presets (`Default` + `Full`) — projetos pegam o piso strict-mode independente de Node.
+
+**O que o warmup NÃO fez** (intencional):
+- Não adicionou warning em `InstallSummary` para `phpunit.xml` pré-existente sem `failOnRisky`. Hoje o stub só fira em projeto bare; em projeto com phpunit.xml já existente o `StubOverrides` preserva o arquivo do usuário e a regra fica não-enforced. Follow-up de baixo custo se virar prioridade.
+- Não consertou phpstan-do-pacote (R8 atualizado para refletir realidade: não há `phpstan.neon` na raiz; `composer phpstan` falha). Decisão fora de escopo do warmup.
 
 ## 🎯 Sprint Atual: Sessão 8 COMPLETA — TestSuiteRunner extract + codeguard:test shipped
 
@@ -219,7 +234,7 @@ O número "~60% shipped" agregado esconde uma bifurcação importante. Medindo p
 | R5 | Release alpha precisa de README mínimo (hoje não existe) | Parte de sessão 9 Opção B |
 | R6 | `--no-coverage` hoje só flipa telemetria; coverage real via XDEBUG_MODE depende do projeto. StageConfig::env não plumbed através do executor | Follow-up: exige AsyncCommandExecutor aceitar env per-call |
 | R7 | **28 YAMLs em `resources/patterns/` são peso morto até Patterns engine shippar** — marketing vende "pattern-based LLM review" que não existe em código | **Sessão 9 ataca essa dívida** (ver sprint abaixo) |
-| R8 | CodeGuard roda PHPStan level 0 em si mesmo (`phpstan.neon:level: 0`) mas exige level 5+ dos consumers via stub — incoerência não-bloqueante | Cosmético; endereçar pós-alpha |
+| R8 | **CodeGuard não tem `phpstan.neon` na raiz** — `composer phpstan` falha com "At least one path must be specified". Status anterior dizia "level 0 clean" mas era stale. Pacote não se autoanalisa. | Cosmético; endereçar pós-alpha junto com release de README |
 
 ---
 
