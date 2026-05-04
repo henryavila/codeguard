@@ -1,0 +1,313 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Trait Henryavila\\Codeguard\\Assertions\\ParallelSafetyAssertions is used zero times and is not analysed\.$#'
+			identifier: trait.unused
+			count: 1
+			path: src/Assertions/ParallelSafetyAssertions.php
+
+		-
+			message: '#^Trait Henryavila\\Codeguard\\Assertions\\TestQualityAssertions is used zero times and is not analysed\.$#'
+			identifier: trait.unused
+			count: 1
+			path: src/Assertions/TestQualityAssertions.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between \(int\|string\) and null will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: src/Install/DeptracLayerWizard.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$app\.$#'
+			identifier: property.notFound
+			count: 5
+			path: tests/Feature/CodeguardCheckCommandTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$telemetryPath\.$#'
+			identifier: property.notFound
+			count: 5
+			path: tests/Feature/CodeguardCheckCommandTest.php
+
+		-
+			message: '#^Call to an undefined method Pest\\PendingCalls\\TestCall\:\:artisan\(\)\.$#'
+			identifier: method.notFound
+			count: 7
+			path: tests/Feature/CodeguardCheckCommandTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\Mixins\\Expectation\<string\|false\|null\>\:\:\$not\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/CodeguardInstallCommandTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$app\.$#'
+			identifier: property.notFound
+			count: 14
+			path: tests/Feature/CodeguardInstallCommandTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$tempApp\.$#'
+			identifier: property.notFound
+			count: 35
+			path: tests/Feature/CodeguardInstallCommandTest.php
+
+		-
+			message: '#^Call to an undefined method Pest\\PendingCalls\\TestCall\:\:artisan\(\)\.$#'
+			identifier: method.notFound
+			count: 13
+			path: tests/Feature/CodeguardInstallCommandTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$app\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/CodeguardInstallOverrideCommandTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$tempApp\.$#'
+			identifier: property.notFound
+			count: 4
+			path: tests/Feature/CodeguardInstallOverrideCommandTest.php
+
+		-
+			message: '#^Call to an undefined method Pest\\PendingCalls\\TestCall\:\:artisan\(\)\.$#'
+			identifier: method.notFound
+			count: 7
+			path: tests/Feature/CodeguardInstallOverrideCommandTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$app\.$#'
+			identifier: property.notFound
+			count: 3
+			path: tests/Feature/CodeguardTestCommandTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$telemetryPath\.$#'
+			identifier: property.notFound
+			count: 4
+			path: tests/Feature/CodeguardTestCommandTest.php
+
+		-
+			message: '#^Call to an undefined method Pest\\PendingCalls\\TestCall\:\:artisan\(\)\.$#'
+			identifier: method.notFound
+			count: 8
+			path: tests/Feature/CodeguardTestCommandTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$app\.$#'
+			identifier: property.notFound
+			count: 8
+			path: tests/Feature/Telemetry/TelemetryCommandsTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$tempApp\.$#'
+			identifier: property.notFound
+			count: 4
+			path: tests/Feature/Telemetry/TelemetryCommandsTest.php
+
+		-
+			message: '#^Call to an undefined method Pest\\PendingCalls\\TestCall\:\:artisan\(\)\.$#'
+			identifier: method.notFound
+			count: 5
+			path: tests/Feature/Telemetry/TelemetryCommandsTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$jsonlPath\.$#'
+			identifier: property.notFound
+			count: 13
+			path: tests/Feature/Telemetry/TelemetryPrivacyTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$tempDir\.$#'
+			identifier: property.notFound
+			count: 1
+			path: tests/Feature/Telemetry/TelemetryPrivacyTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$config\.$#'
+			identifier: property.notFound
+			count: 6
+			path: tests/Unit/Hooks/StagedPhpFilesRunnerTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$index\.$#'
+			identifier: property.notFound
+			count: 6
+			path: tests/Unit/Hooks/StagedPhpFilesRunnerTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$io\.$#'
+			identifier: property.notFound
+			count: 9
+			path: tests/Unit/Hooks/StagedPhpFilesRunnerTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$repository\.$#'
+			identifier: property.notFound
+			count: 6
+			path: tests/Unit/Hooks/StagedPhpFilesRunnerTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$runner\.$#'
+			identifier: property.notFound
+			count: 6
+			path: tests/Unit/Hooks/StagedPhpFilesRunnerTest.php
+
+		-
+			message: '#^Call to an undefined method Mockery\\ExpectationInterface\|Mockery\\HigherOrderMessage\:\:byDefault\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Unit/Hooks/StagedPhpFilesRunnerTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$suggester\.$#'
+			identifier: property.notFound
+			count: 8
+			path: tests/Unit/Install/DeptracLayerSuggesterDecisionsTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$appPath\.$#'
+			identifier: property.notFound
+			count: 48
+			path: tests/Unit/Install/DeptracLayerSuggesterTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$tempDir\.$#'
+			identifier: property.notFound
+			count: 2
+			path: tests/Unit/Install/DeptracLayerSuggesterTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$tempDir\.$#'
+			identifier: property.notFound
+			count: 15
+			path: tests/Unit/Install/EnvironmentDetectorPestTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$path\.$#'
+			identifier: property.notFound
+			count: 4
+			path: tests/Unit/Install/LayerDecisionStoreTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$store\.$#'
+			identifier: property.notFound
+			count: 7
+			path: tests/Unit/Install/LayerDecisionStoreTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$tempDir\.$#'
+			identifier: property.notFound
+			count: 4
+			path: tests/Unit/Install/LayerDecisionStoreTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$cleaner\.$#'
+			identifier: property.notFound
+			count: 8
+			path: tests/Unit/Install/LegacyStubCleanerTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$tempApp\.$#'
+			identifier: property.notFound
+			count: 7
+			path: tests/Unit/Install/LegacyStubCleanerTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$applier\.$#'
+			identifier: property.notFound
+			count: 11
+			path: tests/Unit/Install/PhpstanExtensionApplierTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$path\.$#'
+			identifier: property.notFound
+			count: 24
+			path: tests/Unit/Install/PhpstanExtensionApplierTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$tempDir\.$#'
+			identifier: property.notFound
+			count: 4
+			path: tests/Unit/Install/PhpstanExtensionApplierTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$selector\.$#'
+			identifier: property.notFound
+			count: 9
+			path: tests/Unit/Install/PhpstanExtensionSelectorTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$path\.$#'
+			identifier: property.notFound
+			count: 4
+			path: tests/Unit/Install/PhpstanExtensionStoreTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$store\.$#'
+			identifier: property.notFound
+			count: 7
+			path: tests/Unit/Install/PhpstanExtensionStoreTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$tempDir\.$#'
+			identifier: property.notFound
+			count: 4
+			path: tests/Unit/Install/PhpstanExtensionStoreTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$tempDir\.$#'
+			identifier: property.notFound
+			count: 10
+			path: tests/Unit/Install/StubDifferTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$overrides\.$#'
+			identifier: property.notFound
+			count: 26
+			path: tests/Unit/Install/StubOverridesTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$path\.$#'
+			identifier: property.notFound
+			count: 10
+			path: tests/Unit/Install/StubOverridesTest.php
+
+		-
+			message: '#^Access to an undefined property Pest\\PendingCalls\\TestCall\:\:\$tempDir\.$#'
+			identifier: property.notFound
+			count: 4
+			path: tests/Unit/Install/StubOverridesTest.php
+
+		-
+			message: '#^Call to an undefined method Mockery\\ExpectationInterface\|Mockery\\HigherOrderMessage\:\:once\(\)\.$#'
+			identifier: method.notFound
+			count: 3
+			path: tests/Unit/Telemetry/MeasuredActionTest.php
+
+		-
+			message: '#^Parameter \#1 \$config of method Henryavila\\Codeguard\\Telemetry\\MeasuredAction\:\:execute\(\) expects CaptainHook\\App\\Config, Mockery\\MockInterface given\.$#'
+			identifier: argument.type
+			count: 3
+			path: tests/Unit/Telemetry/MeasuredActionTest.php
+
+		-
+			message: '#^Parameter \#2 \$io of method Henryavila\\Codeguard\\Telemetry\\MeasuredAction\:\:execute\(\) expects CaptainHook\\App\\Console\\IO, Mockery\\MockInterface given\.$#'
+			identifier: argument.type
+			count: 3
+			path: tests/Unit/Telemetry/MeasuredActionTest.php
+
+		-
+			message: '#^Parameter \#3 \$repository of method Henryavila\\Codeguard\\Telemetry\\MeasuredAction\:\:execute\(\) expects SebastianFeldmann\\Git\\Repository, Mockery\\MockInterface given\.$#'
+			identifier: argument.type
+			count: 3
+			path: tests/Unit/Telemetry/MeasuredActionTest.php
+
+		-
+			message: '#^Unreachable statement \- code above always terminates\.$#'
+			identifier: deadCode.unreachable
+			count: 2
+			path: tests/Unit/Telemetry/StopwatchScopeTest.php
