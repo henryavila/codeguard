@@ -21,6 +21,7 @@ final class StubRegistry
             new StubDefinition('infection.json5.stub', 'infection.json5', 'infection'),
             new StubDefinition('captainhook.json.stub', 'captainhook.json', 'captainhook'),
             new StubDefinition('captainhook.json.README.md.stub', 'captainhook.json.README.md', 'captainhook'),
+            new StubDefinition('phpunit.xml.stub', 'phpunit.xml', 'phpunit'),
         ];
 
         if ($preset === Preset::Default) {

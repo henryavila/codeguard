@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  CodeGuard phpunit.xml stub.
+
+  The two strict-mode attributes below enforce CodeGuard's anti-pattern #4
+  (tests with zero assertions). PHPUnit emits "risky" first, and failOnRisky
+  promotes that to a CI failure:
+
+      failOnRisky="true"
+      beStrictAboutTestsThatDoNotTestAnything="true"
+
+  Both flags are required together. Without them, AI-generated tests like
+  `it('works', fn () => null)` pass silently in CI even when no assertion
+  ever runs.
+
+  The Arch testsuite directory is referenced for projects that publish the
+  TestQualityTest stub (codeguard-full preset). PHPUnit silently ignores an
+  empty directory, so it is safe to keep regardless of preset.
+
+  Pest sits on top of PHPUnit, so this configuration applies whether you
+  use `vendor/bin/pest` or `vendor/bin/phpunit`.
+
+  Docs: https://docs.phpunit.de/en/12.0/configuration.html
+-->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+         failOnRisky="true"
+         beStrictAboutTestsThatDoNotTestAnything="true"
+         cacheDirectory=".phpunit.cache"
+         executionOrder="random"
+>
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Feature">
+            <directory>tests/Feature</directory>
+        </testsuite>
+        <testsuite name="Arch">
+            <directory>tests/Arch</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory>app</directory>
+        </include>
+    </source>
+    <php>
+        <env name="APP_ENV" value="testing"/>
+        <env name="BCRYPT_ROUNDS" value="4"/>
+        <env name="CACHE_DRIVER" value="array"/>
+        <env name="DB_CONNECTION" value="sqlite"/>
+        <env name="DB_DATABASE" value=":memory:"/>
+        <env name="MAIL_MAILER" value="array"/>
+        <env name="QUEUE_CONNECTION" value="sync"/>
+        <env name="SESSION_DRIVER" value="array"/>
+    </php>
+</phpunit>
