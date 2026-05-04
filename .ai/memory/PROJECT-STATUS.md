@@ -8,31 +8,56 @@ type: project
 
 > **Para Claude**: Este é o documento vivo de estado. Leia na primeira ferramenta-call de toda sessão substantiva. Atualize ao completar qualquer commit que mude escopo, ou ao mudar de sprint/foco. Em caso de conflito com outro arquivo de memória, este ganha (pra resolver drift, corrija o outro arquivo, não aqui).
 
-**Última atualização**: 2026-05-04 (warmup pré-sessão 9 — 2 stubs adicionados sob pedido do usuário após análise do `~/arch/docs/code-quality-gates.md`)
-**HEAD**: `76e0074` feat(stubs): add minimal codeguard-ci.yml.stub delegating to codeguard:check
-**Branch**: `main`, 62 commits ahead de `origin/main` (working tree limpo)
-**Suite**: 377 tests / 928 assertions (todos verdes, +7 vs sessão 8)
-**Lint/Static**: Pint clean nos arquivos tocados (TestCase.php + StagedPhpFilesRunnerTest.php tinham débito pré-existente). PHPStan: pacote não tem `phpstan.neon` próprio — `composer phpstan` falha com "At least one path must be specified". R8 (PROJECT-STATUS) precisa ser atualizado de "PHPStan level 0 clean" para "PHPStan não wireado no próprio pacote".
-**Release publicado**: nenhum (dev @ v0.x)
+**Última atualização**: 2026-05-04 (sprint pivot — release `0.2.0` em preparação após pivot do usuário "preciso de versão minimamente estável pra publicar")
+**HEAD**: `9f5de93` docs: initial CHANGELOG.md following Keep a Changelog 1.1.0
+**Branch**: `main`, 68 commits ahead de `origin/main` (working tree limpo)
+**Suite**: 377 tests / 928 assertions (todos verdes — sem regressão durante pivot)
+**Lint/Static**: Pint clean (débito pré-existente em TestCase.php + StagedPhpFilesRunnerTest.php fixado em `a576501`). PHPStan level 5 self-applied com baseline grandfathered de 405 errors (`156b297`) — R8 fechado. `composer ci` roda pint:test + phpstan + test:coverage; CI ativa em PHP 8.3 + 8.4 via `.github/workflows/ci.yml` (`65893ab`).
+**Release publicado**: nenhum ainda — `0.2.0` aguarda apenas tag + push + Packagist submission do usuário
 
 ---
 
-## 🪶 Warmup pré-sessão 9 (2026-05-04)
+## 🎯 Sprint Atual: Release `0.2.0` (2026-05-04 — em curso)
 
-Usuário trouxe `~/arch/docs/code-quality-gates.md` (snapshot da stack do Arch) para análise. Cruzamento com o estado real do `StubRegistry` revelou 2 falsos gaps (TestQualityTest stub + Insights wire-up) e 2 lacunas reais. Recomendações aprovadas em modo (A) warmup — sprint da sessão 9 (Patterns engine) **continua intacta**.
+Pivot estratégico do usuário: "preciso de versão minimamente estável pra publicar". Sprint da sessão 9 mudou de "Patterns engine" para "Release 0.2.0". Patterns engine empurra para sessão 10. Decisão de versão: **0.2.0** (não `1.0.0-alpha.1` como a spec original sugeria) — continua a numeração v0.x do projeto sem prometer estabilidade de v1.0.
 
-| Commit | Conteúdo | Tests |
+### Itens shippados na sprint (ordem cronológica)
+
+| Commit | Tipo | Conteúdo |
 |---|---|---|
-| `18df00f` | `phpunit.xml.stub` enforça `failOnRisky` + `beStrictAboutTestsThatDoNotTestAnything` | +4 (4) |
-| `76e0074` | `.github/workflows/codeguard-ci.yml.stub` minimal, delega tudo a `composer codeguard:check` | +3 (7 total no novo `StubRegistryTest`) |
+| `18df00f` | feat | `phpunit.xml.stub` enforça `failOnRisky` + `beStrictAboutTestsThatDoNotTestAnything` |
+| `76e0074` | feat | `.github/workflows/codeguard-ci.yml.stub` mínimo, delega a `composer codeguard:check` |
+| `18da3f1` | docs | Status update intermediário |
+| `a576501` | chore | Pint debt cleanup pré-release (TestCase.php + StagedPhpFilesRunnerTest.php) |
+| `156b297` | feat | Self-PHPStan level 5 + baseline grandfathered (R8 fechado) |
+| `65893ab` | ci | Package CI workflow `.github/workflows/ci.yml` (PHP 8.3 + 8.4) |
+| `04c9302` | docs | README accuracy fix — moveu shipped → Available, removeu Vitest/Browser/MongoDB stale |
+| `9f5de93` | docs | CHANGELOG.md inicial (Keep-a-Changelog) |
 
-Suite: 370 → 377 (+7 / +22 assertions). Stubs registrados em ambos os presets (`Default` + `Full`) — projetos pegam o piso strict-mode independente de Node.
+Suite: 370 → 377 (+7 / +22 assertions, sem regressão).
 
-**O que o warmup NÃO fez** (intencional):
-- Não adicionou warning em `InstallSummary` para `phpunit.xml` pré-existente sem `failOnRisky`. Hoje o stub só fira em projeto bare; em projeto com phpunit.xml já existente o `StubOverrides` preserva o arquivo do usuário e a regra fica não-enforced. Follow-up de baixo custo se virar prioridade.
-- Não consertou phpstan-do-pacote (R8 atualizado para refletir realidade: não há `phpstan.neon` na raiz; `composer phpstan` falha). Decisão fora de escopo do warmup.
+### Próxima ação concreta — handoff para o usuário
 
-## 🎯 Sprint Atual: Sessão 8 COMPLETA — TestSuiteRunner extract + codeguard:test shipped
+Tudo que requer credenciais ou autoriza ação pública é responsabilidade do usuário:
+
+1. **Smoke test** — rodar em projeto Laravel novo: `composer require --dev henryavila/codeguard:dev-main` (via path repo) + `php artisan codeguard:install` + `composer codeguard:check`. Confirmar comportamento esperado antes de tag.
+2. **`git tag 0.2.0`** + **`git push origin main --tags`** — versão prefixada (sem `v`) é o convencional para Packagist; ambos estilos funcionam.
+3. **Submeter no [Packagist](https://packagist.org/packages/submit)** — primeiro submit pega URL `https://github.com/henryavila/codeguard.git` e cria a página. Releases subsequentes são auto-discovered via webhook.
+4. **Anunciar/divulgar** se for o caso.
+
+### O que NÃO está em 0.2.0 (intencional, documentado em README "Roadmapped")
+
+- `codeguard:analyze` + Patterns engine (R7 — sessão 10)
+- `codeguard:prepare` + schema dump multi-DB
+- AI rules generator
+- Companion packages (`codeguard-symfony`, `codeguard-python`)
+
+### Riscos pós-release identificados
+
+- **Breakage potencial em consumer existente (Arch)** se path repo apontar pra tag em vez de branch. Arch hoje consome `dev-main` via path; tag 0.2.0 é o primeiro snapshot estável. Recomendado: Arch pinar `^0.2` após release.
+- **Patterns engine vazia continua peso morto narrative** (R7 vivo) — README ainda menciona "AI review where AST can't reach" no header. Sprint 10 fecha esse débito.
+
+## 🎯 Sprint Anterior: Sessão 8 COMPLETA — TestSuiteRunner extract + codeguard:test shipped
 
 **Sessão 8 (2026-04-23) fechou os 4 blocos do SESSION-8-PROMPT em uma única sessão** (originalmente estimado 6-8h; saiu mais rápido por zero retrabalho entre blocos + zero retests repetidos).
 
@@ -231,10 +256,10 @@ O número "~60% shipped" agregado esconde uma bifurcação importante. Medindo p
 | R2 | Spec v5 não previa CaptainHook+Telemetry (adicionado via ADR-010 e Q14) — roadmap original está sub-estimado | Aceitar: ajustar expectativa de timeline (ver ADR-008) |
 | R3 | ~~TestSuiteRunner extract pode surfar edge cases Arch-specific~~ **MITIGADO sessão 8** — extract limpo, 13 tests cobrem modes, Arch-isms (Playwright/MongoDB/Nova) todos removidos | ✅ fechado |
 | R4 | Telemetria CaptainHook Actions requer bootstrap Laravel dentro do processo do hook — não-trivial | Adiado: Layer 4 de telemetria fica pós-alpha |
-| R5 | Release alpha precisa de README mínimo (hoje não existe) | Parte de sessão 9 Opção B |
+| ~~R5~~ | ~~Release alpha precisa de README mínimo (hoje não existe)~~ | **FECHADO 2026-05-04**: README existe (218 linhas) e foi corrigido para alinhar com 0.2.0 (`04c9302`); CHANGELOG criado (`9f5de93`) |
 | R6 | `--no-coverage` hoje só flipa telemetria; coverage real via XDEBUG_MODE depende do projeto. StageConfig::env não plumbed através do executor | Follow-up: exige AsyncCommandExecutor aceitar env per-call |
 | R7 | **28 YAMLs em `resources/patterns/` são peso morto até Patterns engine shippar** — marketing vende "pattern-based LLM review" que não existe em código | **Sessão 9 ataca essa dívida** (ver sprint abaixo) |
-| R8 | **CodeGuard não tem `phpstan.neon` na raiz** — `composer phpstan` falha com "At least one path must be specified". Status anterior dizia "level 0 clean" mas era stale. Pacote não se autoanalisa. | Cosmético; endereçar pós-alpha junto com release de README |
+| ~~R8~~ | ~~CodeGuard não tem `phpstan.neon` na raiz~~ | **FECHADO 2026-05-04** (`156b297`): level 5 + baseline grandfathered de 405 errors + `reportUnmatchedIgnoredErrors: true`. Pacote agora se autoanalisa. |
 
 ---
 
