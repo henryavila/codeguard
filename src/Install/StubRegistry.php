@@ -22,6 +22,11 @@ final class StubRegistry
             new StubDefinition('captainhook.json.stub', 'captainhook.json', 'captainhook'),
             new StubDefinition('captainhook.json.README.md.stub', 'captainhook.json.README.md', 'captainhook'),
             new StubDefinition('phpunit.xml.stub', 'phpunit.xml', 'phpunit'),
+            new StubDefinition(
+                '.github/workflows/codeguard-ci.yml.stub',
+                '.github/workflows/codeguard-ci.yml',
+                'ci-workflow',
+            ),
         ];
 
         if ($preset === Preset::Default) {

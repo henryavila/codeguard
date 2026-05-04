@@ -55,3 +55,26 @@ it('Default preset stub set is a strict subset of the Full preset', function ():
         expect($fullSources)->toContain($source);
     }
 });
+
+it('publishes the CI workflow stub for the Default preset', function (): void {
+    $stubs = (new StubRegistry)->stubsFor(Preset::Default);
+
+    expect(stubSources($stubs))->toContain('.github/workflows/codeguard-ci.yml.stub');
+    expect(stubTargets($stubs))->toContain('.github/workflows/codeguard-ci.yml');
+});
+
+it('publishes the CI workflow stub for the Full preset', function (): void {
+    $stubs = (new StubRegistry)->stubsFor(Preset::Full);
+
+    expect(stubSources($stubs))->toContain('.github/workflows/codeguard-ci.yml.stub');
+    expect(stubTargets($stubs))->toContain('.github/workflows/codeguard-ci.yml');
+});
+
+it('CI workflow stub delegates to composer codeguard:check', function (): void {
+    $stubPath = __DIR__.'/../../../resources/stubs/.github/workflows/codeguard-ci.yml.stub';
+
+    expect(is_file($stubPath))->toBeTrue();
+
+    $content = (string) file_get_contents($stubPath);
+    expect($content)->toContain('composer codeguard:check');
+});

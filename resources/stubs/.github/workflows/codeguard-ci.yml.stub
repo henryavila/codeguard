@@ -1,0 +1,56 @@
+# CodeGuard CI workflow.
+#
+# This is a deliberately minimal workflow that delegates ALL gate logic to
+# the package itself via `composer codeguard:check`. The package is the
+# single source of truth for what runs and in what order; the workflow only
+# wires the runtime (PHP version, composer install, caching).
+#
+# Customise PHP version, branches, or matrix as your project needs. Keep
+# `composer codeguard:check` as the single command that gates merge — that
+# way upgrading CodeGuard updates the gate set without touching this file.
+#
+# Docs: https://github.com/henryavila/codeguard
+
+name: CodeGuard CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  codeguard:
+    name: codeguard:check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer:v2
+
+      - name: Get Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Run codeguard:check
+        run: composer codeguard:check
