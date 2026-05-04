@@ -10,7 +10,7 @@ use SebastianFeldmann\Git\Operator\Index;
 use SebastianFeldmann\Git\Repository;
 
 beforeEach(function (): void {
-    $this->runner = new StagedPhpFilesRunner();
+    $this->runner = new StagedPhpFilesRunner;
 
     $this->config = Mockery::mock(Config::class);
     $this->io = Mockery::mock(IO::class);
