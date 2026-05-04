@@ -4,7 +4,7 @@
 
 Consolidated install for Pint, PHPStan, Deptrac, Infection, and CaptainHook — with AI review where AST can't reach, multi-database schema dump, and honest best-effort Claude hooks.
 
-**Status**: v1.0 in active development. Installs and runs on Laravel 11/12 via `composer path repository` today. First Packagist tag (`1.0.0-alpha.1`) expected mid-2026-04.
+**Status**: `0.2.0` is the first Packagist release. Pre-1.0 means the public API may shift; integrations should pin to a specific minor version (`^0.2`). Installs and runs on Laravel 11/12. Patterns engine, schema dump, and AI rules generator are roadmapped for later 0.x releases.
 
 ---
 
@@ -57,16 +57,20 @@ Recommended preset ... codeguard-full ⭐
   ✓ TestQualityTest  meta-quality         config: 15min     CI: ~5s
 
   Estimated total config ......... 1h 35min
+  Estimated CI cost ........... ~4min per PR
 
 Proceed with install? [yes]
 
 Publishing stubs...
   pint.json                                 created
   phpstan.neon                              created
+  phpstan-test-quality.neon                 created
   deptrac.yaml                              created
   infection.json5                           created
   captainhook.json                          created
   captainhook.json.README.md                created
+  phpunit.xml                               created
+  .github/workflows/codeguard-ci.yml        created
   .jscpd.json                               created
   tests/Arch/TestQualityTest.php            created
 
@@ -124,20 +128,24 @@ php artisan codeguard:install --refresh-stubs       # update stubs (diff-aware)
 
 ## Features
 
-### ✅ Available today (v1.0.0-alpha WIP)
+### ✅ Available in 0.2.0
 
-- **Guided hybrid install** — smart stubs with inline educational comments, auto-detection, Deptrac layer suggestion from your `app/` namespaces, CaptainHook auto-activated via Composer plugin
-- **Idempotent re-run** — `--refresh-stubs` diffs existing files and lets you `keep`, `overwrite`, or review full diff before choosing. No silent customization loss.
-- **Auto-detect Node** — installer picks the right preset for your project without asking
+- **`codeguard:install`** — guided hybrid install with smart stubs (inline educational comments), auto-detection of preset, Deptrac layer suggestion from your `app/` namespaces, CaptainHook auto-activated via Composer plugin, `phpunit.xml` strict-mode floor, and a minimal CI workflow stub
+- **`codeguard:install --refresh-stubs`** — diff-aware re-run that lets you `keep`, `overwrite`, or review full diff per file. No silent customization loss.
+- **`codeguard:install:override`** — register stub paths to keep across re-runs (`--detect` planned for 0.3.x)
+- **`codeguard:check`** — runs all enabled gates sequentially with fail-fast and consolidated report. Layer 3 telemetry per-gate.
+- **`codeguard:test`** — multi-stage test runner (Pest-first) driven by `StageConfig` in `config/codeguard.php`. Sequential or parallel stages, fail-fast modes, Layer 5 telemetry. Project-agnostic (no Playwright/MongoDB/Nova assumptions).
+- **`codeguard:telemetry:enable|disable|clear`** — opt-in JSONL telemetry stored under `.codeguard/telemetry/` with field allowlist, rotation, and privacy-safe enums
+- **`TestQualityAssertions`** + **`ParallelSafetyAssertions`** Pest traits — anti-pattern arch-tests (tautological assertions, Eloquent mocking, bare `assertNotNull`, `truncate` in tests, eager factory creates)
+- **Auto-detect Node** — installer picks `codeguard` (PHP-only) or `codeguard-full` (+ jscpd + Insights + TestQualityTest) without asking
 - **Honest estimates** — per-gate config time and CI cost shown before you commit
 
-### 🚧 Coming in v1.0 stable
+### 🚧 Roadmapped post-0.2.0
 
-- `codeguard:check` — run all enabled gates sequentially with fail-fast and consolidated report
-- `codeguard:test` — multi-stage test runner (Vitest + Pest + Browser + MongoDB stages heterogeneous)
+- `codeguard:analyze` — pattern engine (28 curated YAMLs) with LLM adjudicator for issues where AST can't reach
 - `codeguard:prepare` — multi-database schema dump (MySQL, PostgreSQL, SQLite `:memory:`, SQL Server PDO fallback, Windows without `sqlite3` CLI)
-- `TestQualityAssertions` + `ParallelSafetyAssertions` traits + Pest custom expectations
-- `codeguard:analyze` — pattern engine (28 curated YAMLs) with LLM adjudicator for where AST can't reach
+- AI rules generator — emit canonical `.claude/rules/*.md` from `config('codeguard.ai_rules.targets')`
+- Pest custom expectations beyond the two traits
 
 ### 🔮 Future
 
@@ -201,16 +209,16 @@ codeguard:install      ◄── guided setup (this package)
 
 ## Migrating from npm v0.x?
 
-v1.0 is a **complete rewrite** from Node to PHP/Composer. No programmatic migration path.
+`0.2.0` is a **complete rewrite** from Node to PHP/Composer. No programmatic migration path.
 
-- **If you use PHP/Laravel**: install v1.0 fresh and re-configure via `php artisan codeguard:install`.
-- **If you use Node**: continue with `@henryavila/codeguard@0.1.1` on npm (no further updates planned).
+- **If you use PHP/Laravel**: install fresh and re-configure via `php artisan codeguard:install`.
+- **If you use Node**: continue with `@henryavila/codeguard@0.1.1` on npm (no further updates planned). The PHP rewrite continues semver from 0.x: PHP `0.2.0` is unrelated to npm `0.1.1` other than the legacy version pointer.
 
 ---
 
 ## Contributing
 
-Currently in closed active development by [@henryavila](https://github.com/henryavila). Open issues welcome for questions and design feedback. PRs accepted once v1.0.0-alpha.1 is tagged.
+Currently in closed active development by [@henryavila](https://github.com/henryavila). Open issues welcome for questions and design feedback. PRs accepted now that `0.2.0` is tagged — but expect rapid breaking changes during the 0.x series.
 
 ## License
 
