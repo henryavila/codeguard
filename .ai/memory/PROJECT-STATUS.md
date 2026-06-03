@@ -9,9 +9,9 @@ type: project
 > **Para Claude**: Este é o documento vivo de estado. Leia na primeira ferramenta-call de toda sessão substantiva. Atualize ao completar qualquer commit que mude escopo, ou ao mudar de sprint/foco. Em caso de conflito com outro arquivo de memória, este ganha (pra resolver drift, corrija o outro arquivo, não aqui).
 
 **Última atualização**: 2026-06-03 (audit + replan + Fase 1 traits + Fase 2 MVP + **Tier 2 R1–R4 completo** + **review cross-model codex de PR #1 → 3 fixes** + **CI verde: FP PHPStan-8.5 corrigido + bump PHP 8.5+** — tudo na mesma sessão)
-**HEAD**: `5f457c9` chore!: require PHP 8.5+, drop 8.3/8.4 support
-**Branch**: `feat/patterns-engine-foundation` (**PR #1** aberto pra `main`; **pushed e sincronizado** — `origin == HEAD`, inclui codex fixes + CI fix + bump 8.5). `origin/main` == `4b32886`.
-**Suite**: 496 tests / 1180 assertions (verde). Pint clean, PHPStan level 5 No errors (no PHP 8.5 com a entrada órfã `StopwatchScopeTest` removida do baseline). Coverage gate (≥80%) só roda no CI (sem driver Xdebug/pcov local).
+**HEAD**: `627218b` test: cover ParallelSafetyAssertions factory-definition checks
+**Branch**: `feat/patterns-engine-foundation` (**PR #1** aberto pra `main`; **pushed e sincronizado** — `origin == HEAD`, inclui codex fixes + CI fix + bump 8.5 + coverage). `origin/main` == `4b32886`.
+**Suite**: 498 tests / 1184 assertions (verde). Pint clean, PHPStan level 5 No errors (PHP 8.5, entrada órfã `StopwatchScopeTest` removida do baseline). **Coverage 80.1%** (gate ≥80% — o phpstan abortava antes e mascarava esse passo; com o FP corrigido o gate passou a rodar e estava 79.8% → cobertos os 2 métodos de `ParallelSafetyAssertions`).
 **Lint/Static**: Pint clean. PHPStan level 5 self-applied com baseline grandfathered (`156b297`) — R8 fechado. `composer ci` roda pint:test + phpstan + test:coverage; **CI em PHP 8.5** (min subiu 8.3→8.5 em 2026-06-03, `5f457c9`; matriz 8.3/8.4 removida) via `.github/workflows/ci.yml`.
 **Release publicado**: ✅ **`0.2.0` no Packagist desde 2026-05-04** (tag `0.2.0` @ `4b32886`, pushed). Arch consome via repo `vcs` GitHub pinado em `^0.2.0` (lock @ `4b32886`) — **NÃO** via path repo nem `dev-main`.
 
