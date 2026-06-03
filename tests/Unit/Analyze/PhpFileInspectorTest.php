@@ -49,3 +49,21 @@ it('detects class-like declarations for the structure guard', function (): void 
         ->and(PhpFileInspector::declaresClass("<?php\nreturn ['a' => 1];"))->toBeFalse()
         ->and(PhpFileInspector::declaresClass("<?php\nfunction helper() {}"))->toBeFalse();
 });
+
+it('builds the FQCN from namespace + declared type', function (): void {
+    expect(PhpFileInspector::fqcn("<?php\nnamespace App\\Services;\n\nfinal class OrderService {}\n"))
+        ->toBe('App\\Services\\OrderService');
+});
+
+it('builds the FQCN for a namespaced interface', function (): void {
+    expect(PhpFileInspector::fqcn("<?php\nnamespace App\\Contracts;\ninterface InventoryChecker {}\n"))
+        ->toBe('App\\Contracts\\InventoryChecker');
+});
+
+it('returns a bare class name when there is no namespace', function (): void {
+    expect(PhpFileInspector::fqcn("<?php\nclass Foo {}\n"))->toBe('Foo');
+});
+
+it('returns null when the file declares no type', function (): void {
+    expect(PhpFileInspector::fqcn("<?php\nreturn ['a' => 1];\n"))->toBeNull();
+});

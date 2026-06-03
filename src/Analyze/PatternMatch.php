@@ -19,6 +19,7 @@ final readonly class PatternMatch
         public Severity $severity,
         public float $confidence,
         public ?int $verifiedScore = null,
+        public ?string $relatedFile = null,
     ) {}
 
     /**
@@ -36,6 +37,7 @@ final readonly class PatternMatch
             $this->severity,
             $confidence,
             $this->verifiedScore,
+            $this->relatedFile,
         );
     }
 
@@ -87,6 +89,7 @@ final readonly class PatternMatch
             severity: $severity,
             confidence: $confidenceValue,
             verifiedScore: self::parseVerifiedScore($raw[FindingSchema::KEY_VERIFIED_SCORE] ?? null),
+            relatedFile: is_string($raw[FindingSchema::KEY_RELATED_FILE] ?? null) ? $raw[FindingSchema::KEY_RELATED_FILE] : null,
         );
     }
 

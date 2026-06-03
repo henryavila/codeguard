@@ -26,6 +26,9 @@ final class FindingSchema
     /** Optional critique-pass re-score, 0–10. A 0 drops the finding (R2). */
     public const KEY_VERIFIED_SCORE = 'verified_score';
 
+    /** Optional: the other end of a bad dependency, for architectural findings (R3). */
+    public const KEY_RELATED_FILE = 'related_file';
+
     /**
      * JSON schema for the array of findings the LLM must return.
      *
@@ -54,6 +57,8 @@ final class FindingSchema
                     self::KEY_CONFIDENCE => ['type' => 'number'],
                     // Optional: set only by a critique pass. 0 ⇒ the finding is dropped.
                     self::KEY_VERIFIED_SCORE => ['type' => 'integer', 'minimum' => 0, 'maximum' => 10],
+                    // Optional: the other end of a bad dependency (architectural findings).
+                    self::KEY_RELATED_FILE => ['type' => 'string'],
                 ],
             ],
         ];

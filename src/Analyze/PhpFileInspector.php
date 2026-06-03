@@ -58,6 +58,25 @@ final class PhpFileInspector
     }
 
     /**
+     * The fully-qualified name of the type this file declares — `namespace`
+     * (if any) + the first declared `class|interface|trait|enum`. The node id
+     * for the namespace graph (R3). Null when the file declares no type.
+     */
+    public static function fqcn(string $contents): ?string
+    {
+        if (preg_match('/\b(?:class|interface|trait|enum)\s+(\w+)/i', $contents, $cm) !== 1) {
+            return null;
+        }
+
+        $namespace = '';
+        if (preg_match('/^\s*namespace\s+([^;{]+)[;{]/mi', $contents, $nm) === 1) {
+            $namespace = trim($nm[1]);
+        }
+
+        return $namespace === '' ? $cm[1] : $namespace.'\\'.$cm[1];
+    }
+
+    /**
      * @return list<string>
      */
     private static function expandUseClause(string $clause): array

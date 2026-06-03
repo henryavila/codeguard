@@ -127,6 +127,38 @@ meaningful). Collect each pass's merged findings as a separate array; you will
 hand all of them back in Step 5. The package keeps only findings that ≥2/3 of the
 passes agree on, and sets each survivor's confidence to its vote-share.
 
+### Step 4b — Architectural review (only when `architecture.patterns` is non-empty)
+
+Three patterns judge *relationships between files* — dependency direction, module
+boundaries, dependency cycles — which a per-file pass cannot see. The work order
+carries them under `architecture.patterns`, plus a `graph` the package built from
+the files' real `use` statements:
+
+```json
+"graph": {
+  "nodes":  [ { "fqcn": "App\\Services\\OrderService", "file": "app/Services/OrderService.php" } ],
+  "edges":  [ { "from": "App\\Services\\OrderService", "to": "App\\Repositories\\OrderRepository" } ],
+  "cycles": [ [ "App\\Orders\\OrderService", "App\\Shipping\\ShippingService" ] ]
+}
+```
+
+Dispatch **one** subagent for the whole graph (not per file). Give it the
+`system_prompt`, the `graph`, and `architecture.patterns`, with this instruction:
+
+  > Judge the dependency `graph` against these architectural patterns. `edges` are
+  > real first-party `use` dependencies (`from` → `to`); `cycles` are dependency
+  > cycles already detected for you — treat each as a likely
+  > `no-circular-dependencies` violation and confirm it. READ a node's `file`
+  > before reporting it. Return a finding ONLY for a real violation, each:
+  > `{ "pattern_key", "file", "line", "message", "severity", "confidence",
+  > "related_file" }`, where `file` is the offending node's path (exactly as in
+  > the graph) and `related_file` is the FQCN at the other end of the bad
+  > dependency. Return `[]` when the architecture is clean.
+
+Add this subagent's findings to the same merged array as the per-file ones (and,
+when voting, to each pass's array). The package attributes them to the cited file
+through the same trust boundary — even a file that matched no per-file pattern.
+
 ### Step 5 — Merge findings
 
 **Single pass (`samples: 1`).** Concatenate every subagent's findings into one
@@ -220,3 +252,8 @@ status. Offer to open the flagged files at the cited lines.
   subagent re-judges each finding 0–10 and the package drops the 0s. Cheaper than
   voting (one extra pass, not `k`) and composes with it. Reach for it when you want
   a self-check without the cost of a full re-review.
+- **Architectural patterns** (R3, Step 4b) reach cross-file smells — wrong
+  dependency direction, module-boundary leaks, dependency cycles — using the
+  namespace `graph` the package builds from real `use` edges. The graph is only as
+  complete as the scope: under `--changed-only` it sees just the changed files, so
+  run `--all` (or `--path` over a module) for a trustworthy architectural pass.

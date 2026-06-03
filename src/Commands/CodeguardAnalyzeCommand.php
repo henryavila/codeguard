@@ -282,7 +282,7 @@ final class CodeguardAnalyzeCommand extends Command
 
         foreach ($result->matches as $match) {
             $this->line(sprintf(
-                '  %s %s:%d · %s · %s (%.2f)%s',
+                '  %s %s:%d · %s · %s (%.2f)%s%s',
                 $this->glyph($match->severity),
                 $match->file,
                 $match->line,
@@ -290,6 +290,7 @@ final class CodeguardAnalyzeCommand extends Command
                 $match->message,
                 $match->confidence,
                 $match->verifiedScore !== null ? sprintf(' [score %d/10]', $match->verifiedScore) : '',
+                $match->relatedFile !== null ? sprintf(' → %s', $match->relatedFile) : '',
             ));
         }
 

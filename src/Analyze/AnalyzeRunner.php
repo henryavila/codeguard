@@ -76,10 +76,12 @@ final class AnalyzeRunner
      * @param  list<string>  $presets
      * @param  int  $samples  How many independent review passes the skill should run (R1 voting).
      * @param  bool  $critique  Whether the skill should run a critique re-scoring pass (R2).
-     * @return array{system_prompt: string, finding_schema: array<string, mixed>, samples: int, critique: bool, units: list<array<string, mixed>>}
+     * @return array{system_prompt: string, finding_schema: array<string, mixed>, samples: int, critique: bool, graph: array<string, mixed>, architecture: array{patterns: list<array<string, mixed>>}, units: list<array<string, mixed>>}
      */
     public function buildWorkOrder(array $files, array $presets, int $samples = 1, bool $critique = false): array
     {
+        $patterns = $this->patterns->forPresets($presets);
+
         $units = array_map(
             static fn (AnalysisUnit $unit): array => [
                 'file' => $unit->file,
@@ -88,7 +90,12 @@ final class AnalyzeRunner
                     $unit->patterns,
                 ),
             ],
-            $this->units($files, $presets),
+            $this->matcher->match($files, $patterns),
+        );
+
+        $architecturePatterns = array_map(
+            static fn (Pattern $pattern): array => $pattern->toPromptArray(),
+            $this->matcher->graphLevel($patterns),
         );
 
         return [
@@ -96,6 +103,8 @@ final class AnalyzeRunner
             'finding_schema' => FindingSchema::jsonSchema(),
             'samples' => max(1, $samples),
             'critique' => $critique,
+            'graph' => (new NamespaceGraph)->build($files, $this->matcher->workingDirectory()),
+            'architecture' => ['patterns' => $architecturePatterns],
             'units' => $units,
         ];
     }
@@ -112,8 +121,10 @@ final class AnalyzeRunner
     {
         $start = hrtime(true);
 
-        $units = $this->units($files, $presets);
-        $checks = $this->checkCount($units);
+        $patterns = $this->patterns->forPresets($presets);
+        $perFileUnits = $this->matcher->match($files, $patterns);
+        $checks = $this->checkCount($perFileUnits);
+        $units = $this->withArchitecturalUnits($files, $patterns, $perFileUnits);
         $matches = $this->validate($units, $rawFindings);
 
         return $this->finish($matches, $checks, $start, $failOn, adjudicated: true);
@@ -133,8 +144,10 @@ final class AnalyzeRunner
     {
         $start = hrtime(true);
 
-        $units = $this->units($files, $presets);
-        $checks = $this->checkCount($units);
+        $patterns = $this->patterns->forPresets($presets);
+        $perFileUnits = $this->matcher->match($files, $patterns);
+        $checks = $this->checkCount($perFileUnits);
+        $units = $this->withArchitecturalUnits($files, $patterns, $perFileUnits);
 
         $validatedSamples = array_map(
             fn (array $rawFindings): array => $this->validate($units, $rawFindings),
@@ -144,6 +157,47 @@ final class AnalyzeRunner
         $matches = (new FindingVoter)->tally($validatedSamples, $minVotes);
 
         return $this->finish($matches, $checks, $start, $failOn, adjudicated: true);
+    }
+
+    /**
+     * Augment the per-file units with one architectural unit per scoped class
+     * file that matched no per-file pattern — so an architectural finding (whose
+     * graph-level pattern is never selected per file) still attributes to a
+     * real, in-scope file through the trust boundary. Attribution only; it does
+     * not change the per-file check count.
+     *
+     * @param  list<string>  $files
+     * @param  list<Pattern>  $patterns
+     * @param  list<AnalysisUnit>  $perFileUnits
+     * @return list<AnalysisUnit>
+     */
+    private function withArchitecturalUnits(array $files, array $patterns, array $perFileUnits): array
+    {
+        $graphLevel = $this->matcher->graphLevel($patterns);
+        if ($graphLevel === []) {
+            return $perFileUnits;
+        }
+
+        $covered = [];
+        foreach ($perFileUnits as $unit) {
+            $covered[$unit->file] = true;
+        }
+
+        $units = $perFileUnits;
+        foreach ($files as $file) {
+            if (isset($covered[$file])) {
+                continue;
+            }
+
+            $contents = is_file($file) ? (file_get_contents($file) ?: '') : '';
+            if (PhpFileInspector::fqcn($contents) === null) {
+                continue;
+            }
+
+            $units[] = new AnalysisUnit($file, $graphLevel);
+        }
+
+        return $units;
     }
 
     /**

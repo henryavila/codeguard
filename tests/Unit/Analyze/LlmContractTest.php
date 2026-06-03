@@ -32,3 +32,10 @@ it('exposes verified_score as an optional schema property (critique pass, not re
     expect($schema['items']['properties'])->toHaveKey(FindingSchema::KEY_VERIFIED_SCORE)
         ->and($schema['items']['required'])->not->toContain(FindingSchema::KEY_VERIFIED_SCORE);
 });
+
+it('exposes related_file as an optional schema property (architectural findings, not required)', function (): void {
+    $schema = FindingSchema::jsonSchema();
+
+    expect($schema['items']['properties'])->toHaveKey(FindingSchema::KEY_RELATED_FILE)
+        ->and($schema['items']['required'])->not->toContain(FindingSchema::KEY_RELATED_FILE);
+});

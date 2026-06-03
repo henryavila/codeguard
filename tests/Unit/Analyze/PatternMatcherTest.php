@@ -143,3 +143,16 @@ it('does not select architectural patterns whose only signal is the catch-all im
         pmCleanup($base);
     }
 });
+
+it('identifies catch-all-import patterns as graph-level and partitions them', function (): void {
+    $matcher = new PatternMatcher('/work');
+    $arch = pmPattern('layer-dependency-direction', [['type' => 'import', 'value' => '**/*']]);
+    $scoped = pmPattern('service-layer', [['type' => 'import', 'value' => 'App\\Services\\*']]);
+    $fileScoped = pmPattern('dry', [['type' => 'file', 'value' => '**/*.php']]);
+
+    expect($matcher->isGraphLevel($arch))->toBeTrue()
+        ->and($matcher->isGraphLevel($scoped))->toBeFalse()
+        ->and($matcher->isGraphLevel($fileScoped))->toBeFalse()
+        ->and($matcher->graphLevel([$arch, $scoped, $fileScoped]))->toHaveCount(1)
+        ->and($matcher->graphLevel([$arch, $scoped, $fileScoped])[0]->key)->toBe('layer-dependency-direction');
+});

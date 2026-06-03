@@ -113,3 +113,14 @@ it('ignores an out-of-range verified_score (treats it as uncritiqued)', function
     expect(PatternMatch::fromArray(pmtRaw(['verified_score' => 15]), pmtUnit(), pmtRepo())?->verifiedScore)->toBeNull()
         ->and(PatternMatch::fromArray(pmtRaw(['verified_score' => -3]), pmtUnit(), pmtRepo())?->verifiedScore)->toBeNull();
 });
+
+it('parses a related_file (the other end of a bad dependency) onto the match', function (): void {
+    $match = PatternMatch::fromArray(pmtRaw(['related_file' => 'App\\Http\\OrderController']), pmtUnit(), pmtRepo());
+
+    expect($match?->relatedFile)->toBe('App\\Http\\OrderController');
+});
+
+it('leaves related_file null when absent or not a string', function (): void {
+    expect(PatternMatch::fromArray(pmtRaw(), pmtUnit(), pmtRepo())?->relatedFile)->toBeNull()
+        ->and(PatternMatch::fromArray(pmtRaw(['related_file' => 123]), pmtUnit(), pmtRepo())?->relatedFile)->toBeNull();
+});

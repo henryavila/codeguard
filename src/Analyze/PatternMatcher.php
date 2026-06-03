@@ -36,7 +36,48 @@ final class PatternMatcher
         'no-constructor-many-params',
     ];
 
+    /**
+     * Catch-all import values — a whole-project architectural signal a per-file
+     * pass cannot satisfy.
+     *
+     * @var list<string>
+     */
+    private const CATCH_ALL_IMPORTS = ['*', '**', '**/*'];
+
     public function __construct(private readonly string $workingDirectory) {}
+
+    public function workingDirectory(): string
+    {
+        return $this->workingDirectory;
+    }
+
+    /**
+     * Graph-level patterns: their ONLY detection signals are catch-all imports,
+     * so they describe cross-file relationships reviewed against the namespace
+     * graph (R3) rather than per file. {@see match()} excludes them.
+     *
+     * @param  list<Pattern>  $patterns
+     * @return list<Pattern>
+     */
+    public function graphLevel(array $patterns): array
+    {
+        return array_values(array_filter($patterns, fn (Pattern $p): bool => $this->isGraphLevel($p)));
+    }
+
+    public function isGraphLevel(Pattern $pattern): bool
+    {
+        if ($pattern->detectionSignals === []) {
+            return false;
+        }
+
+        foreach ($pattern->detectionSignals as $signal) {
+            if ($signal->type !== 'import' || ! in_array($signal->value, self::CATCH_ALL_IMPORTS, true)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     /**
      * @param  list<string>  $files  Absolute paths.
@@ -106,7 +147,7 @@ final class PatternMatcher
     {
         // Catch-all import = whole-project architectural signal; a per-file pass
         // cannot judge it without the cross-file graph (R3), so it selects nothing.
-        if ($value === '*' || $value === '**' || $value === '**/*') {
+        if (in_array($value, self::CATCH_ALL_IMPORTS, true)) {
             return false;
         }
 
