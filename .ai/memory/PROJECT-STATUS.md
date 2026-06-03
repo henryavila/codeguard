@@ -9,9 +9,9 @@ type: project
 > **Para Claude**: Este é o documento vivo de estado. Leia na primeira ferramenta-call de toda sessão substantiva. Atualize ao completar qualquer commit que mude escopo, ou ao mudar de sprint/foco. Em caso de conflito com outro arquivo de memória, este ganha (pra resolver drift, corrija o outro arquivo, não aqui).
 
 **Última atualização**: 2026-06-03 (audit + replan + **Fase 1 traits** e **Fase 2 Patterns engine MVP** shippados na mesma sessão)
-**HEAD**: `18c4492` feat(analyze): context-emit driver — --emit/--ingest + codeguard-review skill
-**Branch**: `feat/patterns-engine-foundation` (pushed; **PR #1** aberto pra `main`). `origin/main` == `4b32886`.
-**Suite**: 435 tests / 1053 assertions (verde). Pint clean, PHPStan level 5 No errors. Coverage gate (≥80%) só roda no CI (sem driver Xdebug/pcov local).
+**HEAD**: `abfce20` feat(analyze): trust threshold — exact-path attribution, real use-parsing, baseline
+**Branch**: `feat/patterns-engine-foundation` (**PR #1** aberto pra `main`; **precisa push** do commit `abfce20`). `origin/main` == `4b32886`.
+**Suite**: 452 tests / 1090 assertions (verde). Pint clean, PHPStan level 5 No errors. Coverage gate (≥80%) só roda no CI (sem driver Xdebug/pcov local).
 **Lint/Static**: Pint clean. PHPStan level 5 self-applied com baseline grandfathered (`156b297`) — R8 fechado. `composer ci` roda pint:test + phpstan + test:coverage; CI ativa em PHP 8.3 + 8.4 via `.github/workflows/ci.yml` (`65893ab`).
 **Release publicado**: ✅ **`0.2.0` no Packagist desde 2026-05-04** (tag `0.2.0` @ `4b32886`, pushed). Arch consome via repo `vcs` GitHub pinado em `^0.2.0` (lock @ `4b32886`) — **NÃO** via path repo nem `dev-main`.
 
@@ -48,11 +48,13 @@ Track B original ("migrar Arch pro runtime / dogfood") sai do caminho crítico. 
 
 ### Próxima ação concreta
 
-🔜 **Validar o fluxo de review real**: rodar `/codeguard-review` num projeto (emit → subagentes em lote → ingest) e confirmar que findings reais aparecem + são validados pelo trust boundary. (Decisão de transporte RESOLVIDA: context-emit, `claude -p` fora porque vai virar API metered no próximo mês.)
+1. **`git push`** o commit `abfce20` (não pushed; atualiza o PR #1).
+2. **Validar em campo**: rodar `/codeguard-review` num projeto real (emit → subagentes em lote → ingest) e preencher `docs/patterns-recall.md` (o lado "será que pega o smell?" NÃO é testável em CI — só com sessão Claude Code real).
+3. **Tier 2 — profundidade** (torna "genuinamente alto valor", ~10d, validado à mão): R1 voting multi-sample (deriva confiança de vote-share) → R2 critique pass → R3 grafo namespace→layer (liga de verdade os 3 patterns arquiteturais) → R4 corpus de alto impacto p/ terceirizado (N+1, mass-assignment, missing transaction, SQL cru, missing authz, `->get()` sem limite). Detalhe completo: ver handoff + roadmap abaixo.
 
-**Decisão do usuário**: revisar/mergear **PR #1** (Fase 1 + Fase 2 MVP). O Increment D (`18c4492`) está no mesmo branch — entra no mesmo PR.
+**Decisão do usuário pendente**: revisar/mergear **PR #1** (Fases 1+2 + Increment D + trust threshold, tudo no mesmo branch).
 
-**Backlog package-side (sem bloquear)**: `coverage_percent -1` em `CodeguardTestCommand.php:102`; config morto `ai_rules`/`prepare` (o bloco `patterns` agora É consumido); Fase 3 (schema dump + ai-rules generator).
+**Backlog package-side (sem bloquear)**: `coverage_percent -1` em `CodeguardTestCommand.php:102`; config morto `ai_rules`/`prepare`; Fase 3 (schema dump + ai-rules generator); re-scope conservador dos patterns Laravel "invertidos" (precisa validação de campo — adiado por risco de FP).
 
 ---
 
@@ -102,7 +104,7 @@ Track B original ("migrar Arch pro runtime / dogfood") sai do caminho crítico. 
 | Perspectiva | Real | Justificativa |
 |---|:-:|---|
 | "install + rodar gates + rodar tests" | **~80%** | Commands reais, installer ~900 LOC, telemetria completa, 377 tests verdes. Descontado: traits lançam exception, `coverage_percent -1`, e o único consumer **não roda** check/test. |
-| "pattern-based LLM review" (o diferencial) | **~80%** | Engine + driver context-emit + skill codeguard-review shippados (37 tests). Funcionalmente completo pro modelo de assinatura. Falta só validação em campo real + polish (batch tuning). NÃO é gate CI autônomo — por design (CI = codeguard:check AST). |
+| "pattern-based LLM review" (o diferencial) | **~70%** | Camada determinística sólida + testada: seleção (use-parsing real), atribuição exata, baseline/supressão, scope-coverage test. Falta: **validação de campo** (recall manual, não testável em CI) + **Tier 2** (voting/critique/grafo arquitetural/corpus de segurança) que separa "confiável" de "alto valor". (Antes superestimei em ~80% — corrigido pelo audit de completude.) |
 | "AI rules generator" | **~3%** | duplo-morto: `src/AiRules/` ausente + `resources/rules/` vazia |
 | "schema dump multi-DB" | **~8%** | só `PrepareConfig` DTO |
 | "publicar/distribuir" | **~85%** | genuinamente no Packagist, tagged, lockável, Node-free. Descontado: footprint `.codeguard/` é git-ignored (não cruza máquinas), 0 downloads, único consumer bypassa a CLI |
@@ -145,7 +147,8 @@ Audit multi-agente verificou cada alegação contra git+FS. Corrigido neste arqu
 - **Spec canônico v5 arquitetural**: [`docs/specs/2026-04-16-codeguard-v2-architecture.md`](../../docs/specs/2026-04-16-codeguard-v2-architecture.md)
 - **Spec CaptainHook + Telemetry**: [`docs/specs/2026-04-17-captainhook-migration-and-telemetry.md`](../../docs/specs/2026-04-17-captainhook-migration-and-telemetry.md)
 - **Pivot npm→Composer**: [`docs/specs/2026-04-16-pivot-npm-to-composer.md`](../../docs/specs/2026-04-16-pivot-npm-to-composer.md)
-- **Design doc Patterns engine**: [`docs/specs/2026-06-03-patterns-engine-design.md`](../../docs/specs/2026-06-03-patterns-engine-design.md) — Thin Adjudicator (MVP 4.5d + driver 1.5d); Fork 4 (transporte LLM) aberto
+- **▶ Handoff da sessão atual**: [`SESSION-HANDOFF.md`](SESSION-HANDOFF.md) — narrativa + plano Tier 2; **ler pra continuar**
+- **Design doc Patterns engine**: [`docs/specs/2026-06-03-patterns-engine-design.md`](../../docs/specs/2026-06-03-patterns-engine-design.md) — Thin Adjudicator. Transporte = context-emit (Fork 4 resolvido)
 - **ADRs**: [`.ai/memory/architecture-decisions.md`](architecture-decisions.md)
 - **Open questions**: [`.ai/memory/open-questions.md`](open-questions.md)
 - **Conversation handoff**: [`.ai/memory/conversation-handoff.md`](conversation-handoff.md) — ⚠️ stale (sessão 7)
