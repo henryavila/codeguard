@@ -9,9 +9,9 @@ type: project
 > **Para Claude**: Este é o documento vivo de estado. Leia na primeira ferramenta-call de toda sessão substantiva. Atualize ao completar qualquer commit que mude escopo, ou ao mudar de sprint/foco. Em caso de conflito com outro arquivo de memória, este ganha (pra resolver drift, corrija o outro arquivo, não aqui).
 
 **Última atualização**: 2026-06-03 (audit + replan + **Fase 1 traits** e **Fase 2 Patterns engine MVP** shippados na mesma sessão)
-**HEAD**: `0dfb953` feat(analyze): pattern engine MVP — codeguard:analyze with pluggable LLM seam
-**Branch**: `feat/patterns-engine-foundation` (3 commits ahead de `main`, **não pushed**; working tree limpo). `origin/main` == `4b32886`.
-**Suite**: 433 tests / 1040 assertions (verde). Pint clean, PHPStan level 5 No errors. Coverage gate (≥80%) só roda no CI (sem driver Xdebug/pcov local).
+**HEAD**: `18c4492` feat(analyze): context-emit driver — --emit/--ingest + codeguard-review skill
+**Branch**: `feat/patterns-engine-foundation` (pushed; **PR #1** aberto pra `main`). `origin/main` == `4b32886`.
+**Suite**: 435 tests / 1053 assertions (verde). Pint clean, PHPStan level 5 No errors. Coverage gate (≥80%) só roda no CI (sem driver Xdebug/pcov local).
 **Lint/Static**: Pint clean. PHPStan level 5 self-applied com baseline grandfathered (`156b297`) — R8 fechado. `composer ci` roda pint:test + phpstan + test:coverage; CI ativa em PHP 8.3 + 8.4 via `.github/workflows/ci.yml` (`65893ab`).
 **Release publicado**: ✅ **`0.2.0` no Packagist desde 2026-05-04** (tag `0.2.0` @ `4b32886`, pushed). Arch consome via repo `vcs` GitHub pinado em `^0.2.0` (lock @ `4b32886`) — **NÃO** via path repo nem `dev-main`.
 
@@ -31,7 +31,7 @@ Track B original ("migrar Arch pro runtime / dogfood") sai do caminho crítico. 
 |:---:|---|:---:|---|
 | **0** | Limpeza canônica (este arquivo + docs stale) | ❌ | ✅ feito (status reescrito; handoff/specs ainda stale — backlog) |
 | **1** | Bug fixes package-side | ❌ (lê Arch só como ref) | 🟡 traits ✅; `coverage_percent -1` + dead config ainda fila |
-| **2** | **Patterns engine MVP** (`src/Analyze/*` + `codeguard:analyze`, Increments A–C) | ❌ | ✅ shippado (`0dfb953`); driver real = Increment D (pende decisão de transporte) |
+| **2** | **Patterns engine** (`src/Analyze/*` + `codeguard:analyze`) — MVP A–C **+ Increment D context-emit** | ❌ | ✅ shippado (`0dfb953` MVP, `18c4492` context-emit). Transporte = **context-emit** (assinatura, sem API metered) decidido + construído |
 | **3** | Schema dump (`codeguard:prepare`) + AI rules generator | ❌ (testáveis via fixtures/SQLite) | ⏸️ depois |
 | **4** | 🔒 Integração Arch + dogfood real | ✅ | ⛔ **ADIADO** (constraint do usuário) |
 
@@ -48,11 +48,11 @@ Track B original ("migrar Arch pro runtime / dogfood") sai do caminho crítico. 
 
 ### Próxima ação concreta
 
-🔜 **DECISÃO DO USUÁRIO PENDENTE — transporte LLM do Increment D** (driver real). Usuário descartou `claude -p` e pediu "usar Claude Code com assinatura, sem API externa". Realidade técnica: assinatura só via CLI `claude` headless OU modelo context-emit (package prepara, sessão Claude Code revisa). API metered (anthropic-ai/sdk) está fora. Ajudar a fechar isso antes de codar o driver.
+🔜 **Validar o fluxo de review real**: rodar `/codeguard-review` num projeto (emit → subagentes em lote → ingest) e confirmar que findings reais aparecem + são validados pelo trust boundary. (Decisão de transporte RESOLVIDA: context-emit, `claude -p` fora porque vai virar API metered no próximo mês.)
 
-**Sem bloquear**: itens menores da Fase 1 (`coverage_percent -1` em `CodeguardTestCommand.php:102`; decidir o que fazer com config morto ai_rules/prepare — o bloco `patterns` agora É consumido pelo Analyze).
+**Decisão do usuário**: revisar/mergear **PR #1** (Fase 1 + Fase 2 MVP). O Increment D (`18c4492`) está no mesmo branch — entra no mesmo PR.
 
-**Decisão pendente do usuário**: pushar o branch `feat/patterns-engine-foundation` / abrir PR / quando mergear em main.
+**Backlog package-side (sem bloquear)**: `coverage_percent -1` em `CodeguardTestCommand.php:102`; config morto `ai_rules`/`prepare` (o bloco `patterns` agora É consumido); Fase 3 (schema dump + ai-rules generator).
 
 ---
 
@@ -67,7 +67,7 @@ Track B original ("migrar Arch pro runtime / dogfood") sai do caminho crítico. 
 | `codeguard:check` | ✅ | src/Commands/CodeguardCheckCommand.php |
 | `codeguard:test` | ✅ | src/Commands/CodeguardTestCommand.php |
 | `codeguard:telemetry:enable\|disable\|clear` | ✅ | src/Commands/Telemetry/*.php |
-| `codeguard:analyze` | ✅ MVP | src/Commands/CodeguardAnalyzeCommand.php (NullLlmClient default; driver real = Increment D) |
+| `codeguard:analyze` | ✅ | src/Commands/CodeguardAnalyzeCommand.php — review síncrono (NullLlmClient default) + `--emit`/`--ingest` (context-emit via skill codeguard-review) |
 | `codeguard:prepare` | ⏸️ Fase 3 | — |
 | `codeguard:baseline` | ⏸️ pós-engines | — |
 
@@ -82,7 +82,7 @@ Track B original ("migrar Arch pro runtime / dogfood") sai do caminho crítico. 
 | `Hooks\*` | 🟡 parcial | StagedPhpFilesRunner existe |
 | `Testing\*` | ✅ completo | TestSuiteRunner generalizado + StageConfig (8 campos) + executors + DTOs |
 | `Assertions\*` | ✅ | AntiPatternScanner + 2 traits implementados (7 checks reais, 21 tests). `0dfb953`/`4c662a0`. |
-| `Analyze\*` | ✅ MVP | Severity/Pattern/DetectionSignal/PatternRepository/YamlPatternLoader/FileScopeResolver/PatternMatcher/FindingSchema/PatternMatch/AnalyzeResult/AnalyzeRunner/LlmClient/NullLlmClient. Consome os 28 patterns (de 30 YAMLs; 2 outliers pulados). Driver real pendente. |
+| `Analyze\*` | ✅ | 13 classes (loader/scope/matcher/trust-boundary/runner/command). Consome os 28 patterns (2 outliers pulados). Modos: review síncrono + `buildWorkOrder()`/`ingest()` (context-emit). 37 tests. |
 | `AiRules\*` | ❌ duplo-morto | config targets existe + `resources/rules/` VAZIA (0/7 markdowns, sem git history). Fase 3. |
 | `Schema\*` | ❌ ausente | só `PrepareConfig` DTO (4 campos). Fase 3. |
 
@@ -92,7 +92,7 @@ Track B original ("migrar Arch pro runtime / dogfood") sai do caminho crítico. 
 |---------|:-----:|
 | `resources/stubs/*.stub` | ✅ stubs (pint, phpstan, phpstan-test-quality, deptrac, infection, captainhook+README, phpunit, jscpd, CI workflow, TestQualityTest) |
 | `resources/patterns/**/*.yaml` | ✅ **30** (data dormente até Patterns engine) |
-| `resources/skills/*/SKILL.md` | 🔴 **stale Node-era** — os 3 mandam rodar `npx @henryavila/codeguard`, ler `node_modules`, `codeguard.yaml` (não existe no package PHP). Quebrariam um usuário real. Backlog cleanup. |
+| `resources/skills/*/SKILL.md` | ✅ `codeguard-review` (orquestra emit→subagentes→ingest). As 3 Node-era removidas (`18c4492`). Publicáveis via tag `codeguard-skills` → `.claude/skills`. |
 | `resources/rules/*.md` | ❌ 0/7 (dir vazia) |
 
 ---
@@ -102,7 +102,7 @@ Track B original ("migrar Arch pro runtime / dogfood") sai do caminho crítico. 
 | Perspectiva | Real | Justificativa |
 |---|:-:|---|
 | "install + rodar gates + rodar tests" | **~80%** | Commands reais, installer ~900 LOC, telemetria completa, 377 tests verdes. Descontado: traits lançam exception, `coverage_percent -1`, e o único consumer **não roda** check/test. |
-| "pattern-based LLM review" (o diferencial) | **~55%** | Engine MVP shippado (loader/scope/matcher/trust-boundary/comando/telemetria, 33 tests). Falta o driver real (adjudicação LLM via assinatura) = Increment D. Até lá o comando roda mas imprime aviso de degradação honesto. |
+| "pattern-based LLM review" (o diferencial) | **~80%** | Engine + driver context-emit + skill codeguard-review shippados (37 tests). Funcionalmente completo pro modelo de assinatura. Falta só validação em campo real + polish (batch tuning). NÃO é gate CI autônomo — por design (CI = codeguard:check AST). |
 | "AI rules generator" | **~3%** | duplo-morto: `src/AiRules/` ausente + `resources/rules/` vazia |
 | "schema dump multi-DB" | **~8%** | só `PrepareConfig` DTO |
 | "publicar/distribuir" | **~85%** | genuinamente no Packagist, tagged, lockável, Node-free. Descontado: footprint `.codeguard/` é git-ignored (não cruza máquinas), 0 downloads, único consumer bypassa a CLI |
@@ -131,10 +131,10 @@ Audit multi-agente verificou cada alegação contra git+FS. Corrigido neste arqu
 | # | Risco | Estado |
 |---|-------|--------|
 | R1 | Arch consome o package como **stub-seeder one-shot, não runtime**; dogfood real do check/test nunca rodou em campo | **ADIADO conscientemente** — constraint do usuário (não tocar Arch). Integração = Fase 4, quando liberado |
-| R7 | 30 YAMLs eram peso morto até Patterns engine | **QUASE FECHADO** — engine MVP consome os 28 patterns; só falta o driver LLM real (Increment D) pra adjudicar de verdade |
+| ~~R7~~ | ~~30 YAMLs eram peso morto até Patterns engine~~ | **FECHADO** — engine + driver context-emit + skill consomem os 28 patterns e adjudicam de verdade (assinatura) |
 | R9 | Marketing público (README:5, composer.json:3) vende features ausentes | **aceito (Q3)** — aposta que Track A torna verdade; reavaliar se Track A atrasar |
 | ~~R10~~ | ~~Assertion traits lançam exception num release PUBLICADO~~ | **FECHADO no código** (`4c662a0`) — traits implementados via AntiPatternScanner. Ainda no branch; chega ao público só no 0.3.0 (Q3: sem hotfix 0.2.1) |
-| R11 | Skills `resources/skills/*` são Node-era e quebrariam um usuário real | backlog cleanup |
+| ~~R11~~ | ~~Skills `resources/skills/*` são Node-era e quebrariam um usuário real~~ | **FECHADO** (`18c4492`) — 3 stale removidas; só `codeguard-review` (correta) fica |
 | ~~R5~~ | ~~README mínimo~~ | ✅ FECHADO (README existe + alinhado a 0.2.0) |
 | ~~R8~~ | ~~package não se autoanalisa~~ | ✅ FECHADO (`156b297`: phpstan level 5 + baseline) |
 
