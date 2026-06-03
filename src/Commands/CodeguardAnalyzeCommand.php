@@ -26,6 +26,7 @@ final class CodeguardAnalyzeCommand extends Command
         {--emit : Write a work order JSON (for the codeguard-review Claude skill) instead of calling an LLM.}
         {--ingest= : Validate + report findings from this JSON file (produced out-of-band by the skill).}
         {--samples=1 : Review passes the skill should run; a finding survives only if ≥2/3 of samples agree (R1 voting).}
+        {--critique : Ask the skill to run a critique re-scoring pass; findings scored 0 are dropped (R2).}
         {--out= : Output path for --emit (default .codeguard/analyze-request.json).}
         {--accept : Accept the surviving findings into the baseline so future runs suppress them.}';
 
@@ -95,8 +96,9 @@ final class CodeguardAnalyzeCommand extends Command
     private function handleEmit(CodeguardConfig $config, AnalyzeRunner $runner, FileScopeResolver $scope): int
     {
         $samples = $this->resolveSamples();
+        $critique = (bool) $this->option('critique');
         $files = $this->resolveFiles($scope);
-        $workOrder = $runner->buildWorkOrder($files, $config->enabledPresets, $samples);
+        $workOrder = $runner->buildWorkOrder($files, $config->enabledPresets, $samples, $critique);
 
         $out = (string) ($this->option('out') ?: base_path('.codeguard'.DIRECTORY_SEPARATOR.'analyze-request.json'));
         $dir = dirname($out);
@@ -280,13 +282,14 @@ final class CodeguardAnalyzeCommand extends Command
 
         foreach ($result->matches as $match) {
             $this->line(sprintf(
-                '  %s %s:%d · %s · %s (%.2f)',
+                '  %s %s:%d · %s · %s (%.2f)%s',
                 $this->glyph($match->severity),
                 $match->file,
                 $match->line,
                 $match->patternKey,
                 $match->message,
                 $match->confidence,
+                $match->verifiedScore !== null ? sprintf(' [score %d/10]', $match->verifiedScore) : '',
             ));
         }
 

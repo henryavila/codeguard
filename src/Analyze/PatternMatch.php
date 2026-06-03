@@ -18,6 +18,7 @@ final readonly class PatternMatch
         public string $message,
         public Severity $severity,
         public float $confidence,
+        public ?int $verifiedScore = null,
     ) {}
 
     /**
@@ -34,6 +35,7 @@ final readonly class PatternMatch
             $this->message,
             $this->severity,
             $confidence,
+            $this->verifiedScore,
         );
     }
 
@@ -84,6 +86,23 @@ final readonly class PatternMatch
             message: $message,
             severity: $severity,
             confidence: $confidenceValue,
+            verifiedScore: self::parseVerifiedScore($raw[FindingSchema::KEY_VERIFIED_SCORE] ?? null),
         );
+    }
+
+    /**
+     * A critique-pass score is optional. Absent or out-of-range ⇒ null
+     * (uncritiqued); a clean 0–10 is kept (the runner drops a 0). Lenient on
+     * the score itself — strictness lives in the structural checks above.
+     */
+    private static function parseVerifiedScore(mixed $value): ?int
+    {
+        if (! is_numeric($value)) {
+            return null;
+        }
+
+        $score = (int) $value;
+
+        return ($score >= 0 && $score <= 10) ? $score : null;
     }
 }

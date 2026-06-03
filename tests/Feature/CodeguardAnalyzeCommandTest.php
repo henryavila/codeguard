@@ -381,6 +381,55 @@ it('emits a work order carrying the requested sample count', function (): void {
     }
 });
 
+it('emits a work order flagging the critique pass when requested', function (): void {
+    $file = analyzeFixtureFile();
+    $out = sys_get_temp_dir().DIRECTORY_SEPARATOR.'codeguard-workorder-'.uniqid().'.json';
+
+    try {
+        Artisan::call('codeguard:analyze', ['--emit' => true, '--critique' => true, '--path' => $file, '--out' => $out]);
+
+        $decoded = json_decode((string) file_get_contents($out), true);
+
+        expect(is_array($decoded) ? ($decoded['critique'] ?? null) : null)->toBeTrue();
+    } finally {
+        analyzeCleanup($file, $out);
+    }
+});
+
+it('drops a critique-rejected finding on ingest and shows the verified score', function (): void {
+    $telemetry = analyzeTelemetryPath();
+    $file = analyzeFixtureFile();
+    $findingsPath = sys_get_temp_dir().DIRECTORY_SEPARATOR.'codeguard-critique-'.uniqid().'.json';
+
+    file_put_contents($findingsPath, (string) json_encode([
+        ['pattern_key' => 'no-god-object', 'file' => $file, 'line' => 3, 'message' => 'real', 'severity' => 'critical', 'confidence' => 0.9, 'verified_score' => 9],
+        ['pattern_key' => 'no-god-object', 'file' => $file, 'line' => 5, 'message' => 'rejected', 'severity' => 'critical', 'confidence' => 0.9, 'verified_score' => 0],
+    ]));
+
+    $fake = new FakeLlmClient(fn (AnalysisUnit $unit): array => []);
+    analyzeBind($telemetry, $fake);
+
+    try {
+        $exit = Artisan::call('codeguard:analyze', ['--ingest' => $findingsPath, '--path' => $file, '--context' => 'ci']);
+        $output = Artisan::output();
+
+        $analyzeEnded = array_values(array_filter(
+            analyzeReadEvents($telemetry),
+            static fn (array $event): bool => ($event['event'] ?? '') === 'analyze.ended',
+        ));
+
+        expect($exit)->toBe(1)
+            ->and($analyzeEnded[0]['matches_count'] ?? null)->toBe(1)
+            ->and($output)->toContain('9/10')
+            ->and($output)->not->toContain('rejected');
+    } finally {
+        if (is_file($findingsPath)) {
+            unlink($findingsPath);
+        }
+        analyzeCleanup($file, $telemetry);
+    }
+});
+
 it('accepts a finding into the baseline and suppresses it on the next run', function (): void {
     $telemetry = analyzeTelemetryPath();
     $baselinePath = sys_get_temp_dir().DIRECTORY_SEPARATOR.'codeguard-accept-'.uniqid().'.json';

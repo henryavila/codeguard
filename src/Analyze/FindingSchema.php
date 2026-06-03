@@ -23,6 +23,9 @@ final class FindingSchema
 
     public const KEY_CONFIDENCE = 'confidence';
 
+    /** Optional critique-pass re-score, 0–10. A 0 drops the finding (R2). */
+    public const KEY_VERIFIED_SCORE = 'verified_score';
+
     /**
      * JSON schema for the array of findings the LLM must return.
      *
@@ -49,6 +52,8 @@ final class FindingSchema
                     self::KEY_MESSAGE => ['type' => 'string'],
                     self::KEY_SEVERITY => ['type' => 'string', 'enum' => ['critical', 'warning', 'suggestion']],
                     self::KEY_CONFIDENCE => ['type' => 'number'],
+                    // Optional: set only by a critique pass. 0 ⇒ the finding is dropped.
+                    self::KEY_VERIFIED_SCORE => ['type' => 'integer', 'minimum' => 0, 'maximum' => 10],
                 ],
             ],
         ];

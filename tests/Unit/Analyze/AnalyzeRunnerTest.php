@@ -125,6 +125,30 @@ it('drops a finding below the vote threshold on ingestSamples', function (): voi
     expect($result->matchesCount())->toBe(0);
 });
 
+it('drops a finding the critique pass scored 0, keeping a positively-scored one', function (): void {
+    $files = ['/work/app/DTOs/User.php'];
+    $findings = [
+        arnFinding(['line' => 1, 'verified_score' => 0]),  // critique rejected
+        arnFinding(['line' => 2, 'verified_score' => 8]),  // critique kept
+    ];
+
+    $result = arnRunner()->ingest($files, ['core'], $findings, Severity::Warning);
+
+    expect($result->matchesCount())->toBe(1)
+        ->and($result->matches[0]->line)->toBe(2)
+        ->and($result->matches[0]->verifiedScore)->toBe(8);
+});
+
+it('applies the critique drop after voting on ingestSamples', function (): void {
+    $files = ['/work/app/DTOs/User.php'];
+    $rejected = arnFinding(['verified_score' => 0]);
+    $samples = [[$rejected], [$rejected], [$rejected]]; // unanimous, but critique killed it
+
+    $result = arnRunner()->ingestSamples($files, ['core'], $samples, Severity::Warning, minVotes: 2);
+
+    expect($result->matchesCount())->toBe(0);
+});
+
 it('runs ingestSamples findings through the same trust boundary (drops hallucinations before voting)', function (): void {
     $files = ['/work/app/DTOs/User.php'];
     $hallucinated = arnFinding(['pattern_key' => 'ghost-pattern']);

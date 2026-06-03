@@ -159,6 +159,31 @@ or dedupe them yourself):
 The reported `confidence` inside each pass is ignored — the package overwrites it
 with the calibrated vote-share (here 2/3 ≈ 0.67).
 
+### Step 5b — Critique pass (only when the work order has `critique: true`)
+
+A critique pass cuts false positives by making a *fresh* subagent re-judge each
+finding instead of trusting the pass that produced it. For every finding you are
+about to submit, dispatch a subagent that:
+
+- READS the cited `file` around the cited `line`.
+- Re-judges the finding against its pattern's rubric, with this instruction:
+
+  > Score how real and on-target this finding is, 0–10. **0 means it is wrong,
+  > a false positive, or not actually a violation of this pattern.** 10 means it
+  > is a clear, correct violation at that line. Return only the integer.
+
+Attach the integer to the finding as `verified_score`. A finding the critique
+scored **0 is dropped by the package**; any positive score is kept and shown as
+`[score N/10]`. Leave `verified_score` off a finding you did not critique.
+
+```json
+{ "pattern_key": "service-layer", "file": "/abs/.../OrderService.php", "line": 42, "message": "...", "severity": "critical", "confidence": 0.9, "verified_score": 8 }
+```
+
+If you are *also* voting (Step 4), critique each pass's findings before writing
+that pass's array into the `samples` envelope — the package votes first, then
+drops any survivor whose `verified_score` is 0.
+
 ### Step 6 — Ingest, validate, and gate
 
 ```bash
@@ -191,3 +216,7 @@ status. Offer to open the flagged files at the cited lines.
   (`pattern_key` + `file` + `line`); its confidence becomes the vote-share. Use it
   when a false positive would be expensive (e.g. gating a contractor's PR); skip it
   (default `1`) for a quick local pass.
+- **`--critique`** (R2) adds a second-opinion re-scoring pass (Step 5b): a fresh
+  subagent re-judges each finding 0–10 and the package drops the 0s. Cheaper than
+  voting (one extra pass, not `k`) and composes with it. Reach for it when you want
+  a self-check without the cost of a full re-review.

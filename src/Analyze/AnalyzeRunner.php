@@ -75,9 +75,10 @@ final class AnalyzeRunner
      * @param  list<string>  $files
      * @param  list<string>  $presets
      * @param  int  $samples  How many independent review passes the skill should run (R1 voting).
-     * @return array{system_prompt: string, finding_schema: array<string, mixed>, samples: int, units: list<array<string, mixed>>}
+     * @param  bool  $critique  Whether the skill should run a critique re-scoring pass (R2).
+     * @return array{system_prompt: string, finding_schema: array<string, mixed>, samples: int, critique: bool, units: list<array<string, mixed>>}
      */
-    public function buildWorkOrder(array $files, array $presets, int $samples = 1): array
+    public function buildWorkOrder(array $files, array $presets, int $samples = 1, bool $critique = false): array
     {
         $units = array_map(
             static fn (AnalysisUnit $unit): array => [
@@ -94,6 +95,7 @@ final class AnalyzeRunner
             'system_prompt' => $this->systemPrompt(),
             'finding_schema' => FindingSchema::jsonSchema(),
             'samples' => max(1, $samples),
+            'critique' => $critique,
             'units' => $units,
         ];
     }
@@ -189,6 +191,22 @@ final class AnalyzeRunner
     }
 
     /**
+     * R2 critique drop: a finding the critique pass scored 0 is rejected. A null
+     * score means uncritiqued (kept); any positive score is kept. Applied
+     * uniformly to every path (synchronous, ingest, voted ingest).
+     *
+     * @param  list<PatternMatch>  $matches
+     * @return list<PatternMatch>
+     */
+    private function surviveCritique(array $matches): array
+    {
+        return array_values(array_filter(
+            $matches,
+            static fn (PatternMatch $match): bool => $match->verifiedScore !== 0,
+        ));
+    }
+
+    /**
      * @param  list<string>  $files
      * @param  list<string>  $presets
      * @return list<AnalysisUnit>
@@ -230,7 +248,7 @@ final class AnalyzeRunner
     {
         $fresh = [];
         $suppressed = 0;
-        foreach ($matches as $match) {
+        foreach ($this->surviveCritique($matches) as $match) {
             if ($this->baseline->isAccepted($match)) {
                 $suppressed++;
 

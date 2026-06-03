@@ -25,3 +25,10 @@ it('exposes a finding json schema carrying the required keys', function (): void
             FindingSchema::KEY_CONFIDENCE,
         );
 });
+
+it('exposes verified_score as an optional schema property (critique pass, not required)', function (): void {
+    $schema = FindingSchema::jsonSchema();
+
+    expect($schema['items']['properties'])->toHaveKey(FindingSchema::KEY_VERIFIED_SCORE)
+        ->and($schema['items']['required'])->not->toContain(FindingSchema::KEY_VERIFIED_SCORE);
+});

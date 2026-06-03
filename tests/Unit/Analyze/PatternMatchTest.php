@@ -91,3 +91,25 @@ it('drops a finding with out-of-range confidence', function (): void {
 it('drops a finding with a non-numeric line', function (): void {
     expect(PatternMatch::fromArray(pmtRaw(['line' => 'abc']), pmtUnit(), pmtRepo()))->toBeNull();
 });
+
+it('parses a verified_score into the match', function (): void {
+    $match = PatternMatch::fromArray(pmtRaw(['verified_score' => 7]), pmtUnit(), pmtRepo());
+
+    expect($match?->verifiedScore)->toBe(7);
+});
+
+it('keeps a verified_score of 0 on the match (the runner, not the trust boundary, drops it)', function (): void {
+    $match = PatternMatch::fromArray(pmtRaw(['verified_score' => 0]), pmtUnit(), pmtRepo());
+
+    expect($match)->toBeInstanceOf(PatternMatch::class)
+        ->and($match?->verifiedScore)->toBe(0);
+});
+
+it('treats an absent verified_score as uncritiqued (null)', function (): void {
+    expect(PatternMatch::fromArray(pmtRaw(), pmtUnit(), pmtRepo())?->verifiedScore)->toBeNull();
+});
+
+it('ignores an out-of-range verified_score (treats it as uncritiqued)', function (): void {
+    expect(PatternMatch::fromArray(pmtRaw(['verified_score' => 15]), pmtUnit(), pmtRepo())?->verifiedScore)->toBeNull()
+        ->and(PatternMatch::fromArray(pmtRaw(['verified_score' => -3]), pmtUnit(), pmtRepo())?->verifiedScore)->toBeNull();
+});
