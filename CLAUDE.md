@@ -48,7 +48,7 @@ Depois de ler o status, carregar conforme necessidade:
 - **NUNCA reintroduza Node.js** — decisão arquitetural após 10 reviews. Se precisar de JS/Node para algo, questione primeiro.
 - **Trabalhe com o Arch como laboratório** — `/home/henry/arch` é o primeiro consumidor real; use path repository
 - **Declare `declare(strict_types=1)`** em todo arquivo PHP
-- **PHP 8.3+** como mínimo (match, readonly, enum)
+- **PHP 8.5+** como mínimo (match, readonly, enum)
 - **Pest 4** para testes
 - **Composer scripts** para tooling (não bash ad-hoc)
 - **Semver** rigoroso — v0.x para dev, v1.0 quando estável em 2+ projetos reais

@@ -37,7 +37,7 @@ The installer auto-detects your environment, recommends a preset, shows you exac
 CodeGuard — Laravel quality gates installer
 
 Detecting environment...
-  PHP                   8.3.12
+  PHP                   8.5.5
   Composer              2.7.0
   Node.js               20.10.0
   package.json          found
@@ -168,7 +168,7 @@ php artisan codeguard:install --refresh-stubs       # update stubs (diff-aware)
 
 ## Stack Requirements
 
-- PHP **8.3+**
+- PHP **8.5+**
 - Laravel **11** or **12**
 - Pest **3** or **4** (dev only)
 - Composer **2.x**
