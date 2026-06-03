@@ -1,0 +1,55 @@
+name: mass-assignment
+description: Never persist unfiltered request input — write only validated, whitelisted attributes
+category: framework
+layer: laravel
+severity: critical
+classification: mvp
+
+detection:
+  signals:
+    - type: file
+      value: "app/**/*.php"
+    - type: directory
+      value: app/Http/Controllers
+  confidence: high
+
+verification:
+  rules:
+    - never pass unfiltered request data to create()/update()/fill() (e.g. Model::create($request->all()))
+    - write only validated, explicitly-listed attributes — FormRequest::validated() or a typed DTO, never $request->all()
+    - a model that accepts writes must define an explicit $fillable allowlist (an empty $guarded = [] re-opens every column)
+    - a privileged column (is_admin, role, user_id, account_id) must never be settable from request input
+
+examples:
+  correct: |
+    // Only validated, named fields reach the model
+    public function store(StoreOrderRequest $request): RedirectResponse
+    {
+        $data = $request->validated();              // whitelisted by the FormRequest
+        $order = Order::create([
+            'reference' => $data['reference'],
+            'total'     => $data['total'],
+            'user_id'   => $request->user()->id,     // set server-side, not from input
+        ]);
+
+        return redirect()->route('orders.show', $order);
+    }
+  violation: |
+    // The whole request body is trusted — a crafted `is_admin` / `user_id` is persisted
+    public function store(Request $request): RedirectResponse
+    {
+        $order = Order::create($request->all());     // mass-assignment vulnerability
+        $request->user()->update($request->all());   // same flaw on update
+
+        return redirect()->route('orders.index');
+    }
+
+    // Model that re-opens every attribute
+    class Order extends Model
+    {
+        protected $guarded = [];                      // nothing is protected
+    }
+
+related_patterns:
+  - form-requests
+  - dto

@@ -1,0 +1,51 @@
+name: missing-authorization
+description: State-changing actions must authorize the user before they write
+category: framework
+layer: laravel
+severity: critical
+classification: mvp
+
+detection:
+  signals:
+    - type: directory
+      value: app/Http/Controllers
+    - type: file
+      value: "app/Http/Controllers/**/*.php"
+  confidence: high
+
+verification:
+  rules:
+    - every state-changing action (store, update, destroy, and custom writes) must authorize the user via authorize(), Gate, a Policy, $user->can(), or a FormRequest authorize() that actually checks
+    - ownership must be enforced server-side — a record fetched by id must be checked to belong to (or be permitted for) the current user before it is mutated
+    - authentication (logged in) is not authorization (allowed to do THIS) — a route behind `auth` still needs a per-record permission check
+    - never rely on a hidden form field, a non-guessable id, or the UI hiding a button as the access control
+
+examples:
+  correct: |
+    // Authorizes against a policy, and only then mutates the owned record
+    public function update(UpdateOrderRequest $request, Order $order): RedirectResponse
+    {
+        $this->authorize('update', $order);          // Policy decides; throws 403 otherwise
+
+        $order->update($request->validated());
+
+        return redirect()->route('orders.show', $order);
+    }
+  violation: |
+    // Any authenticated user can update or delete ANY order by guessing the id
+    public function update(Request $request, int $id): RedirectResponse
+    {
+        $order = Order::findOrFail($id);             // no ownership / policy check
+        $order->update($request->validated());
+
+        return redirect()->route('orders.index');
+    }
+
+    public function destroy(int $id): RedirectResponse
+    {
+        Order::findOrFail($id)->delete();            // no authorization at all
+        return back();
+    }
+
+related_patterns:
+  - policies

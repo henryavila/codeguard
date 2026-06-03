@@ -1,0 +1,43 @@
+name: raw-sql-injection
+description: Never interpolate request data into raw SQL — use bindings or the query builder
+category: framework
+layer: laravel
+severity: critical
+classification: mvp
+
+detection:
+  signals:
+    - type: file
+      value: "app/**/*.php"
+    - type: file
+      value: "database/**/*.php"
+  confidence: high
+
+verification:
+  rules:
+    - never concatenate or interpolate request input into whereRaw / selectRaw / orderByRaw / havingRaw / DB::raw / DB::statement / DB::select
+    - pass user values as bindings (the second argument array), or use the fluent query builder, so the driver parameterizes them
+    - column and table names cannot be bound — validate them against a fixed allowlist, never pass raw user input as an identifier
+    - a raw fragment built only from constant strings is acceptable; a raw fragment containing a variable derived from input is a SQL-injection risk
+
+examples:
+  correct: |
+    // User value travels as a binding; the column is taken from a fixed allowlist
+    $sort = in_array($request->input('sort'), ['name', 'created_at'], true)
+        ? $request->input('sort')
+        : 'created_at';
+
+    $users = User::whereRaw('LOWER(email) = ?', [strtolower($request->input('email'))])
+        ->orderBy($sort)
+        ->get();
+  violation: |
+    // Request input concatenated straight into the SQL string — classic injection
+    $email = $request->input('email');
+    $users = User::whereRaw("email = '{$email}'")->get();
+
+    DB::statement("UPDATE users SET role = '{$request->input('role')}' WHERE id = {$request->input('id')}");
+
+    $users = DB::select('select * from users order by '.$request->input('sort'));
+
+related_patterns:
+  - mass-assignment

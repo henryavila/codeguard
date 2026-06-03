@@ -1,0 +1,53 @@
+name: missing-database-transaction
+description: Wrap multiple related writes in a transaction so they all succeed or all roll back
+category: framework
+layer: laravel
+severity: warning
+classification: mvp
+
+detection:
+  signals:
+    - type: file
+      value: "app/**/*.php"
+    - type: directory
+      value: app/Actions
+  confidence: medium
+
+verification:
+  rules:
+    - two or more writes that must be consistent (parent + children, debit + credit, order + stock decrement) must run inside DB::transaction()
+    - a failure between separate save()/create()/update() calls without a transaction can leave partial, corrupt data
+    - external side effects (mail, dispatched jobs, HTTP calls) must fire AFTER the transaction commits, not inside it
+    - a single isolated write does not need a transaction — do not flag it
+
+examples:
+  correct: |
+    // Both writes commit together or not at all; the email fires after commit
+    public function place(OrderData $data): Order
+    {
+        $order = DB::transaction(function () use ($data) {
+            $order = Order::create($data->toArray());
+            $order->lines()->createMany($data->lines);
+            Inventory::where('product_id', $data->productId)->decrement('stock', $data->quantity);
+
+            return $order;
+        });
+
+        OrderPlaced::dispatch($order);              // side effect AFTER commit
+
+        return $order;
+    }
+  violation: |
+    // A failure on the second/third write leaves an order with no lines and untouched stock
+    public function place(OrderData $data): Order
+    {
+        $order = Order::create($data->toArray());
+        $order->lines()->createMany($data->lines);  // if this throws, the order above is orphaned
+        Inventory::where('product_id', $data->productId)->decrement('stock', $data->quantity);
+
+        return $order;
+    }
+
+related_patterns:
+  - service-layer
+  - action-classes

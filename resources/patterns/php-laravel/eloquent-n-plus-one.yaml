@@ -1,0 +1,44 @@
+name: eloquent-n-plus-one
+description: Eager-load relationships instead of querying them inside loops (N+1)
+category: framework
+layer: laravel
+severity: warning
+classification: mvp
+
+detection:
+  signals:
+    - type: file
+      value: "app/**/*.php"
+    - type: directory
+      value: app/Http/Resources
+  confidence: medium
+
+verification:
+  rules:
+    - accessing an Eloquent relationship inside a loop without eager-loading runs one query per iteration
+    - list/index endpoints that render related data must eager-load those relations with ->with('relation') or ->load()
+    - count related rows with withCount() instead of calling ->count() on a relation per row
+    - a query builder call (where/first/get) inside a foreach over models is a strong N+1 signal
+
+examples:
+  correct: |
+    // Relations eager-loaded once, then read from memory in the loop
+    $orders = Order::with(['customer', 'lines.product'])
+        ->withCount('shipments')
+        ->get();
+
+    foreach ($orders as $order) {
+        echo $order->customer->name;         // no query — already loaded
+        echo $order->shipments_count;        // no query — aggregated up front
+    }
+  violation: |
+    // One query for customer AND one for shipments on EVERY iteration
+    $orders = Order::all();
+
+    foreach ($orders as $order) {
+        echo $order->customer->name;                 // N queries
+        echo $order->shipments()->count();           // N more queries
+    }
+
+related_patterns:
+  - unbounded-query

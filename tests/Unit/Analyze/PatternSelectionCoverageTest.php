@@ -89,3 +89,27 @@ it('attaches the right patterns to the right files from the real corpus', functi
         pscCleanup($base);
     }
 });
+
+it('attaches the high-impact contractor-dev patterns to a controller (R4 corpus)', function (): void {
+    $base = sys_get_temp_dir().DIRECTORY_SEPARATOR.'codeguard-psc-r4-'.uniqid();
+    pscWrite($base, 'app/Http/Controllers/OrderController.php', "<?php\nnamespace App\\Http\\Controllers;\nclass OrderController { public function store(): void {} }\n");
+
+    try {
+        $patterns = (new YamlPatternLoader(new Filesystem, pscPatternsPath()))
+            ->forPresets(['core', 'php', 'php-laravel']);
+
+        $units = (new PatternMatcher($base))->match([$base.'/app/Http/Controllers/OrderController.php'], $patterns);
+        $keys = $units[0]->patternKeys() ?? [];
+
+        expect($keys)->toContain(
+            'mass-assignment',
+            'missing-authorization',
+            'raw-sql-injection',
+            'eloquent-n-plus-one',
+            'unbounded-query',
+            'missing-database-transaction',
+        );
+    } finally {
+        pscCleanup($base);
+    }
+});
