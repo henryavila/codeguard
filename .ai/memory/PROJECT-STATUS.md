@@ -8,11 +8,11 @@ type: project
 
 > **Para Claude**: Este é o documento vivo de estado. Leia na primeira ferramenta-call de toda sessão substantiva. Atualize ao completar qualquer commit que mude escopo, ou ao mudar de sprint/foco. Em caso de conflito com outro arquivo de memória, este ganha (pra resolver drift, corrija o outro arquivo, não aqui).
 
-**Última atualização**: 2026-06-03 (audit + replan + Fase 1 traits + Fase 2 MVP + **Tier 2 R1–R4 completo** + **review cross-model codex de PR #1 → 3 fixes** — tudo na mesma sessão)
-**HEAD**: `104d867` fix(analyze): close trust-boundary, attribution & lint gaps (codex review)
-**Branch**: `feat/patterns-engine-foundation` (**PR #1** aberto pra `main`; **pushed e sincronizado** — `origin == HEAD` @ `cd1c3be`, inclui os 3 fixes da review codex). `origin/main` == `4b32886`.
-**Suite**: 496 tests / 1180 assertions (verde). Pint clean, PHPStan level 5 No errors. Coverage gate (≥80%) só roda no CI (sem driver Xdebug/pcov local).
-**Lint/Static**: Pint clean. PHPStan level 5 self-applied com baseline grandfathered (`156b297`) — R8 fechado. `composer ci` roda pint:test + phpstan + test:coverage; CI ativa em PHP 8.3 + 8.4 via `.github/workflows/ci.yml` (`65893ab`).
+**Última atualização**: 2026-06-03 (audit + replan + Fase 1 traits + Fase 2 MVP + **Tier 2 R1–R4 completo** + **review cross-model codex de PR #1 → 3 fixes** + **CI verde: FP PHPStan-8.5 corrigido + bump PHP 8.5+** — tudo na mesma sessão)
+**HEAD**: `5f457c9` chore!: require PHP 8.5+, drop 8.3/8.4 support
+**Branch**: `feat/patterns-engine-foundation` (**PR #1** aberto pra `main`; **pushed e sincronizado** — `origin == HEAD`, inclui codex fixes + CI fix + bump 8.5). `origin/main` == `4b32886`.
+**Suite**: 496 tests / 1180 assertions (verde). Pint clean, PHPStan level 5 No errors (no PHP 8.5 com a entrada órfã `StopwatchScopeTest` removida do baseline). Coverage gate (≥80%) só roda no CI (sem driver Xdebug/pcov local).
+**Lint/Static**: Pint clean. PHPStan level 5 self-applied com baseline grandfathered (`156b297`) — R8 fechado. `composer ci` roda pint:test + phpstan + test:coverage; **CI em PHP 8.5** (min subiu 8.3→8.5 em 2026-06-03, `5f457c9`; matriz 8.3/8.4 removida) via `.github/workflows/ci.yml`.
 **Release publicado**: ✅ **`0.2.0` no Packagist desde 2026-05-04** (tag `0.2.0` @ `4b32886`, pushed). Arch consome via repo `vcs` GitHub pinado em `^0.2.0` (lock @ `4b32886`) — **NÃO** via path repo nem `dev-main`.
 
 > ⚠️ **Correção de drift (2026-06-03)**: este arquivo ficou congelado 30 dias num snapshot pré-release e estava ERRADO em 4 fatos load-bearing (dizia "não publicado", "68 commits ahead", "Arch via path repo/dev-main", "Arch usa codeguard:check produtivamente"). Tudo corrigido abaixo via audit verificado contra git+FS. Detalhe da correção na seção "Drift corrigido".
