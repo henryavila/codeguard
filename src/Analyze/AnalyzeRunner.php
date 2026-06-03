@@ -74,9 +74,10 @@ final class AnalyzeRunner
      *
      * @param  list<string>  $files
      * @param  list<string>  $presets
-     * @return array{system_prompt: string, finding_schema: array<string, mixed>, units: list<array<string, mixed>>}
+     * @param  int  $samples  How many independent review passes the skill should run (R1 voting).
+     * @return array{system_prompt: string, finding_schema: array<string, mixed>, samples: int, units: list<array<string, mixed>>}
      */
-    public function buildWorkOrder(array $files, array $presets): array
+    public function buildWorkOrder(array $files, array $presets, int $samples = 1): array
     {
         $units = array_map(
             static fn (AnalysisUnit $unit): array => [
@@ -92,6 +93,7 @@ final class AnalyzeRunner
         return [
             'system_prompt' => $this->systemPrompt(),
             'finding_schema' => FindingSchema::jsonSchema(),
+            'samples' => max(1, $samples),
             'units' => $units,
         ];
     }
@@ -109,10 +111,56 @@ final class AnalyzeRunner
         $start = hrtime(true);
 
         $units = $this->units($files, $presets);
-        $checks = array_sum(array_map(static fn (AnalysisUnit $unit): int => count($unit->patterns), $units));
+        $checks = $this->checkCount($units);
+        $matches = $this->validate($units, $rawFindings);
 
+        return $this->finish($matches, $checks, $start, $failOn, adjudicated: true);
+    }
+
+    /**
+     * R1 voting: validate each of the k samples through the trust boundary, then
+     * keep only findings that ≥ $minVotes samples agree on, with confidence set
+     * to the vote-share. Hallucinations are dropped per-sample BEFORE voting, so
+     * a finding can never accrue a vote it was not entitled to.
+     *
+     * @param  list<string>  $files
+     * @param  list<string>  $presets
+     * @param  list<list<array<string, mixed>>>  $sampleSets  raw findings, one list per sample
+     */
+    public function ingestSamples(array $files, array $presets, array $sampleSets, ?Severity $failOn, int $minVotes): AnalyzeResult
+    {
+        $start = hrtime(true);
+
+        $units = $this->units($files, $presets);
+        $checks = $this->checkCount($units);
+
+        $validatedSamples = array_map(
+            fn (array $rawFindings): array => $this->validate($units, $rawFindings),
+            $sampleSets,
+        );
+
+        $matches = (new FindingVoter)->tally($validatedSamples, $minVotes);
+
+        return $this->finish($matches, $checks, $start, $failOn, adjudicated: true);
+    }
+
+    /**
+     * Validate a list of raw findings against the scoped units through the
+     * {@see PatternMatch} trust boundary. Shared by {@see ingest()} and each
+     * sample of {@see ingestSamples()}.
+     *
+     * @param  list<AnalysisUnit>  $units
+     * @param  list<array<string, mixed>>  $rawFindings
+     * @return list<PatternMatch>
+     */
+    private function validate(array $units, array $rawFindings): array
+    {
         $matches = [];
         foreach ($rawFindings as $raw) {
+            if (! is_array($raw)) {
+                continue;
+            }
+
             $file = $raw[FindingSchema::KEY_FILE] ?? null;
             if (! is_string($file)) {
                 continue;
@@ -129,7 +177,15 @@ final class AnalyzeRunner
             }
         }
 
-        return $this->finish($matches, $checks, $start, $failOn, adjudicated: true);
+        return $matches;
+    }
+
+    /**
+     * @param  list<AnalysisUnit>  $units
+     */
+    private function checkCount(array $units): int
+    {
+        return array_sum(array_map(static fn (AnalysisUnit $unit): int => count($unit->patterns), $units));
     }
 
     /**

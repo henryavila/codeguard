@@ -296,6 +296,91 @@ it('ingests findings, drops hallucinations via the trust boundary, and gates the
     }
 });
 
+it('votes across a samples envelope on ingest and keeps a majority finding with vote-share confidence', function (): void {
+    $telemetry = analyzeTelemetryPath();
+    $file = analyzeFixtureFile();
+    $findingsPath = sys_get_temp_dir().DIRECTORY_SEPARATOR.'codeguard-samples-'.uniqid().'.json';
+
+    $finding = ['pattern_key' => 'no-god-object', 'file' => $file, 'line' => 3, 'message' => 'too many responsibilities', 'severity' => 'critical', 'confidence' => 0.99];
+    file_put_contents($findingsPath, (string) json_encode([
+        'samples' => [
+            [$finding],
+            [$finding],
+            [], // absent in the third sample
+        ],
+    ]));
+
+    $fake = new FakeLlmClient(fn (AnalysisUnit $unit): array => []);
+    analyzeBind($telemetry, $fake);
+
+    try {
+        $exit = Artisan::call('codeguard:analyze', ['--ingest' => $findingsPath, '--path' => $file, '--context' => 'ci']);
+        $output = Artisan::output();
+
+        $analyzeEnded = array_values(array_filter(
+            analyzeReadEvents($telemetry),
+            static fn (array $event): bool => ($event['event'] ?? '') === 'analyze.ended',
+        ));
+
+        expect($exit)->toBe(1) // critical meets the default fail-on
+            ->and($analyzeEnded[0]['matches_count'] ?? null)->toBe(1)
+            ->and($output)->toContain('0.67'); // vote-share 2/3, NOT the model's 0.99
+    } finally {
+        if (is_file($findingsPath)) {
+            unlink($findingsPath);
+        }
+        analyzeCleanup($file, $telemetry);
+    }
+});
+
+it('drops a finding that misses the sample vote threshold on ingest', function (): void {
+    $telemetry = analyzeTelemetryPath();
+    $file = analyzeFixtureFile();
+    $findingsPath = sys_get_temp_dir().DIRECTORY_SEPARATOR.'codeguard-samples-'.uniqid().'.json';
+
+    $finding = ['pattern_key' => 'no-god-object', 'file' => $file, 'line' => 3, 'message' => 'maybe', 'severity' => 'critical', 'confidence' => 0.99];
+    file_put_contents($findingsPath, (string) json_encode([
+        'samples' => [[$finding], [], []], // only 1 of 3 votes
+    ]));
+
+    $fake = new FakeLlmClient(fn (AnalysisUnit $unit): array => []);
+    analyzeBind($telemetry, $fake);
+
+    try {
+        $exit = Artisan::call('codeguard:analyze', ['--ingest' => $findingsPath, '--path' => $file, '--context' => 'ci']);
+
+        $analyzeEnded = array_values(array_filter(
+            analyzeReadEvents($telemetry),
+            static fn (array $event): bool => ($event['event'] ?? '') === 'analyze.ended',
+        ));
+
+        expect($exit)->toBe(0)
+            ->and($analyzeEnded[0]['matches_count'] ?? null)->toBe(0);
+    } finally {
+        if (is_file($findingsPath)) {
+            unlink($findingsPath);
+        }
+        analyzeCleanup($file, $telemetry);
+    }
+});
+
+it('emits a work order carrying the requested sample count', function (): void {
+    $file = analyzeFixtureFile();
+    $out = sys_get_temp_dir().DIRECTORY_SEPARATOR.'codeguard-workorder-'.uniqid().'.json';
+
+    try {
+        $exit = Artisan::call('codeguard:analyze', ['--emit' => true, '--samples' => 3, '--path' => $file, '--out' => $out]);
+
+        expect($exit)->toBe(0);
+
+        $decoded = json_decode((string) file_get_contents($out), true);
+
+        expect(is_array($decoded) ? ($decoded['samples'] ?? null) : null)->toBe(3);
+    } finally {
+        analyzeCleanup($file, $out);
+    }
+});
+
 it('accepts a finding into the baseline and suppresses it on the next run', function (): void {
     $telemetry = analyzeTelemetryPath();
     $baselinePath = sys_get_temp_dir().DIRECTORY_SEPARATOR.'codeguard-accept-'.uniqid().'.json';

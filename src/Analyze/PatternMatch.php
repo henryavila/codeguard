@@ -21,6 +21,23 @@ final readonly class PatternMatch
     ) {}
 
     /**
+     * Immutable copy with a different confidence. Used by {@see FindingVoter} to
+     * overwrite the model's self-reported confidence with the calibrated
+     * vote-share across samples.
+     */
+    public function withConfidence(float $confidence): self
+    {
+        return new self(
+            $this->patternKey,
+            $this->file,
+            $this->line,
+            $this->message,
+            $this->severity,
+            $confidence,
+        );
+    }
+
+    /**
      * @param  array<string, mixed>  $raw
      */
     public static function fromArray(array $raw, AnalysisUnit $unit, PatternRepository $patterns): ?self

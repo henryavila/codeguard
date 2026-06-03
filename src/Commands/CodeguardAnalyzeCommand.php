@@ -25,6 +25,7 @@ final class CodeguardAnalyzeCommand extends Command
         {--context=manual : Telemetry context — pre-commit|pre-push|ci|manual.}
         {--emit : Write a work order JSON (for the codeguard-review Claude skill) instead of calling an LLM.}
         {--ingest= : Validate + report findings from this JSON file (produced out-of-band by the skill).}
+        {--samples=1 : Review passes the skill should run; a finding survives only if ≥2/3 of samples agree (R1 voting).}
         {--out= : Output path for --emit (default .codeguard/analyze-request.json).}
         {--accept : Accept the surviving findings into the baseline so future runs suppress them.}';
 
@@ -93,8 +94,9 @@ final class CodeguardAnalyzeCommand extends Command
 
     private function handleEmit(CodeguardConfig $config, AnalyzeRunner $runner, FileScopeResolver $scope): int
     {
+        $samples = $this->resolveSamples();
         $files = $this->resolveFiles($scope);
-        $workOrder = $runner->buildWorkOrder($files, $config->enabledPresets);
+        $workOrder = $runner->buildWorkOrder($files, $config->enabledPresets, $samples);
 
         $out = (string) ($this->option('out') ?: base_path('.codeguard'.DIRECTORY_SEPARATOR.'analyze-request.json'));
         $dir = dirname($out);
@@ -105,7 +107,12 @@ final class CodeguardAnalyzeCommand extends Command
         $json = json_encode($workOrder, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         file_put_contents($out, ($json !== false ? $json : '{}')."\n");
 
-        $this->components->info(sprintf('Wrote %d analysis unit(s) to %s', count($workOrder['units']), $out));
+        $this->components->info(sprintf(
+            'Wrote %d analysis unit(s)%s to %s',
+            count($workOrder['units']),
+            $samples > 1 ? sprintf(' (×%d voting samples)', $samples) : '',
+            $out,
+        ));
 
         return self::SUCCESS;
     }
@@ -135,10 +142,22 @@ final class CodeguardAnalyzeCommand extends Command
         }
 
         $contents = file_get_contents($ingestPath);
-        $findings = $this->normalizeRawFindings($contents === false ? null : json_decode($contents, true));
+        $decoded = $contents === false ? null : json_decode($contents, true);
 
         $files = $this->resolveFiles($scope);
-        $result = $runner->ingest($files, $config->enabledPresets, $findings, $failOn);
+
+        $samples = $this->extractSamples($decoded);
+        if ($samples !== null) {
+            $result = $runner->ingestSamples(
+                $files,
+                $config->enabledPresets,
+                $samples,
+                $failOn,
+                $this->minVotesFor(count($samples)),
+            );
+        } else {
+            $result = $runner->ingest($files, $config->enabledPresets, $this->normalizeRawFindings($decoded), $failOn);
+        }
 
         $this->maybeAccept($baseline, $result);
         $this->renderFindings($result);
@@ -147,6 +166,50 @@ final class CodeguardAnalyzeCommand extends Command
         $this->emitCommandEnd($recorder, $exitCode, $startHrtime);
 
         return $exitCode;
+    }
+
+    /**
+     * Number of voting samples to request on --emit. Capped so a typo cannot
+     * fan out an absurd number of subagent passes.
+     */
+    private function resolveSamples(): int
+    {
+        $raw = $this->option('samples');
+        $n = is_numeric($raw) ? (int) $raw : 1;
+
+        return max(1, min(9, $n));
+    }
+
+    /**
+     * Votes required for a finding to survive: ≥2/3 of the samples (R1). For
+     * k=1 this is 1 (single-sample behaves like the legacy ingest path).
+     */
+    private function minVotesFor(int $sampleCount): int
+    {
+        return max(1, (int) ceil($sampleCount * 2 / 3));
+    }
+
+    /**
+     * Detect a multi-sample ballot — a `{ "samples": [[...], [...]] }` envelope.
+     * Returns one normalized findings list per sample, or null when the payload
+     * is a single-sample findings array (handled by {@see normalizeRawFindings}).
+     *
+     * @return list<list<array<string, mixed>>>|null
+     */
+    private function extractSamples(mixed $decoded): ?array
+    {
+        if (! is_array($decoded) || ! isset($decoded['samples']) || ! is_array($decoded['samples'])) {
+            return null;
+        }
+
+        $samples = [];
+        foreach ($decoded['samples'] as $sample) {
+            if (is_array($sample)) {
+                $samples[] = $this->normalizeRawFindings($sample);
+            }
+        }
+
+        return $samples;
     }
 
     /**

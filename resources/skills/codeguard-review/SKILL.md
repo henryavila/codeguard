@@ -54,12 +54,22 @@ on ingest, so they must match.
 php artisan codeguard:analyze --emit --out=.codeguard/analyze-request.json <scope-flag>
 ```
 
-This calls no LLM. It writes JSON:
+For a higher-confidence review, request **voting** with `--samples=3` — run the
+review 3 independent times and keep only what the passes agree on (Step 4). This
+trades ~3× the subagent tokens for a finding's confidence becoming a *calibrated
+vote-share* instead of the model's self-reported (and easily inflated) number:
+
+```bash
+php artisan codeguard:analyze --emit --samples=3 --out=.codeguard/analyze-request.json <scope-flag>
+```
+
+Emit calls no LLM. It writes JSON:
 
 ```json
 {
   "system_prompt": "You are a senior code reviewer ...",
   "finding_schema": { "type": "array", "items": { "...": "..." } },
+  "samples": 1,
   "units": [
     {
       "file": "/abs/path/app/Services/OrderService.php",
@@ -77,7 +87,9 @@ This calls no LLM. It writes JSON:
 }
 ```
 
-Read the file. If `units` is empty, tell the user nothing matched the scope and stop.
+Read the file. If `units` is empty, tell the user nothing matched the scope and
+stop. Note the `samples` value — it tells you how many review passes to run in
+Step 4 (1 = single pass, the default).
 
 ### Step 3 — Batch the units
 
@@ -108,9 +120,17 @@ deterministic fan-out). Give each subagent:
 Subagents are independent — they cannot see each other's files. That isolation is
 intended (one file's review never bleeds into another's).
 
+**Voting (`samples` > 1):** run this whole batched fan-out `samples` times. Each
+pass is a *fresh, independent* set of subagents over the same units — do NOT show
+one pass the previous pass's findings (independence is what makes the vote
+meaningful). Collect each pass's merged findings as a separate array; you will
+hand all of them back in Step 5. The package keeps only findings that ≥2/3 of the
+passes agree on, and sets each survivor's confidence to its vote-share.
+
 ### Step 5 — Merge findings
 
-Concatenate every subagent's findings into one array and write it:
+**Single pass (`samples: 1`).** Concatenate every subagent's findings into one
+array and write it:
 
 ```bash
 # write the merged array to .codeguard/analyze-findings.json
@@ -121,6 +141,23 @@ Concatenate every subagent's findings into one array and write it:
 ```
 
 A bare top-level array is also accepted.
+
+**Voting (`samples` > 1).** Write one merged array *per pass* under a `samples`
+envelope — the package does the voting, so keep the passes separate (do not merge
+or dedupe them yourself):
+
+```json
+{
+  "samples": [
+    [ { "pattern_key": "service-layer", "file": "/abs/.../OrderService.php", "line": 42, "message": "...", "severity": "critical", "confidence": 0.9 } ],
+    [ { "pattern_key": "service-layer", "file": "/abs/.../OrderService.php", "line": 42, "message": "...", "severity": "critical", "confidence": 0.8 } ],
+    [ ]
+  ]
+}
+```
+
+The reported `confidence` inside each pass is ignored — the package overwrites it
+with the calibrated vote-share (here 2/3 ≈ 0.67).
 
 ### Step 6 — Ingest, validate, and gate
 
@@ -149,3 +186,8 @@ status. Offer to open the flagged files at the cited lines.
   autonomous enforcement; `analyze` is the deeper assisted review.
 - **`--fail-on`** accepts `critical` (default), `warning`, `suggestion`, or `never`
   (report-only).
+- **`--samples=k`** (R1 voting) raises precision by agreement, not by trusting a
+  single pass. A finding survives only if ≥2/3 of the `k` passes report it
+  (`pattern_key` + `file` + `line`); its confidence becomes the vote-share. Use it
+  when a false positive would be expensive (e.g. gating a contractor's PR); skip it
+  (default `1`) for a quick local pass.

@@ -96,5 +96,47 @@ it('builds a work order with one unit per matched file', function (): void {
 
     expect($order['units'])->toHaveCount(1)
         ->and($order['units'][0]['file'])->toBe('/work/app/Foo.php')
-        ->and($order['system_prompt'])->toBeString();
+        ->and($order['system_prompt'])->toBeString()
+        ->and($order['samples'])->toBe(1);
+});
+
+it('carries the requested sample count into the work order', function (): void {
+    $order = arnRunner()->buildWorkOrder(['/work/app/Foo.php'], ['core'], 3);
+
+    expect($order['samples'])->toBe(3);
+});
+
+it('votes across samples on ingest — keeps a majority finding with vote-share confidence', function (): void {
+    $files = ['/work/app/DTOs/User.php'];
+    $samples = [[arnFinding()], [arnFinding()], []];
+
+    $result = arnRunner()->ingestSamples($files, ['core'], $samples, Severity::Warning, minVotes: 2);
+
+    expect($result->matchesCount())->toBe(1)
+        ->and($result->matches[0]->confidence)->toBe(2 / 3);
+});
+
+it('drops a finding below the vote threshold on ingestSamples', function (): void {
+    $files = ['/work/app/DTOs/User.php'];
+    $samples = [[arnFinding()], [], []];
+
+    $result = arnRunner()->ingestSamples($files, ['core'], $samples, Severity::Warning, minVotes: 2);
+
+    expect($result->matchesCount())->toBe(0);
+});
+
+it('runs ingestSamples findings through the same trust boundary (drops hallucinations before voting)', function (): void {
+    $files = ['/work/app/DTOs/User.php'];
+    $hallucinated = arnFinding(['pattern_key' => 'ghost-pattern']);
+    $samples = [
+        [arnFinding(), $hallucinated],
+        [arnFinding(), $hallucinated],
+        [$hallucinated],
+    ];
+
+    $result = arnRunner()->ingestSamples($files, ['core'], $samples, Severity::Warning, minVotes: 2);
+
+    // The real finding has 2 votes and survives; the ghost is dropped before voting.
+    expect($result->matchesCount())->toBe(1)
+        ->and($result->matches[0]->patternKey)->toBe('p');
 });
