@@ -382,5 +382,9 @@ final class CodeguardServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__.'/../resources/patterns' => $this->app->basePath('.codeguard/patterns-vendor'),
         ], 'codeguard-patterns');
+
+        $this->publishes([
+            __DIR__.'/../resources/skills' => $this->app->basePath('.claude/skills'),
+        ], 'codeguard-skills');
     }
 }

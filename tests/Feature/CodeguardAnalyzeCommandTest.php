@@ -224,3 +224,63 @@ it('reports a clean result and exits 0 when the driver returns no findings', fun
         analyzeCleanup($file, $telemetry);
     }
 });
+
+it('emits a work order JSON with units and prompt-ready patterns', function (): void {
+    $file = analyzeFixtureFile();
+    $out = sys_get_temp_dir().DIRECTORY_SEPARATOR.'codeguard-workorder-'.uniqid().'.json';
+
+    try {
+        $exit = Artisan::call('codeguard:analyze', ['--emit' => true, '--path' => $file, '--out' => $out]);
+
+        expect($exit)->toBe(0)
+            ->and(is_file($out))->toBeTrue();
+
+        $decoded = json_decode((string) file_get_contents($out), true);
+        $units = (is_array($decoded) && is_array($decoded['units'] ?? null)) ? $decoded['units'] : [];
+
+        expect($units)->toHaveCount(1);
+
+        $first = is_array($units[0] ?? null) ? $units[0] : [];
+        $patterns = is_array($first['patterns'] ?? null) ? $first['patterns'] : [];
+        $patternZero = is_array($patterns[0] ?? null) ? $patterns[0] : [];
+
+        expect($first['file'] ?? null)->toBe($file)
+            ->and(count($patterns))->toBeGreaterThan(0)
+            ->and($patternZero)->toHaveKeys(['key', 'description', 'severity', 'verification_rules', 'examples']);
+    } finally {
+        analyzeCleanup($file, $out);
+    }
+});
+
+it('ingests findings, drops hallucinations via the trust boundary, and gates the exit code', function (): void {
+    $telemetry = analyzeTelemetryPath();
+    $file = analyzeFixtureFile();
+    $findingsPath = sys_get_temp_dir().DIRECTORY_SEPARATOR.'codeguard-findings-'.uniqid().'.json';
+
+    file_put_contents($findingsPath, (string) json_encode([
+        ['pattern_key' => 'no-god-object', 'file' => $file, 'line' => 3, 'message' => 'too many responsibilities', 'severity' => 'critical', 'confidence' => 0.9],
+        ['pattern_key' => 'ghost-pattern', 'file' => $file, 'line' => 1, 'message' => 'hallucinated', 'severity' => 'critical', 'confidence' => 0.9],
+    ]));
+
+    $fake = new FakeLlmClient(fn (AnalysisUnit $unit): array => []);
+    analyzeBind($telemetry, $fake);
+
+    try {
+        $exit = Artisan::call('codeguard:analyze', ['--ingest' => $findingsPath, '--path' => $file, '--context' => 'ci']);
+
+        $events = analyzeReadEvents($telemetry);
+        $analyzeEnded = array_values(array_filter(
+            $events,
+            static fn (array $event): bool => ($event['event'] ?? '') === 'analyze.ended',
+        ));
+
+        expect($exit)->toBe(1)
+            ->and($analyzeEnded[0]['matches_count'] ?? null)->toBe(1)
+            ->and($fake->calls)->toHaveCount(0);
+    } finally {
+        if (is_file($findingsPath)) {
+            unlink($findingsPath);
+        }
+        analyzeCleanup($file, $telemetry);
+    }
+});

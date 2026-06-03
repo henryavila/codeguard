@@ -80,6 +80,26 @@ final readonly class Pattern
     }
 
     /**
+     * The LLM-facing projection: only the fields a reviewer needs to judge a
+     * file. Metadata and detection signals are intentionally omitted.
+     *
+     * @return array{key: string, description: string, severity: string, verification_rules: list<string>, examples: array{correct: string, violation: string}}
+     */
+    public function toPromptArray(): array
+    {
+        return [
+            'key' => $this->key,
+            'description' => $this->description,
+            'severity' => $this->severity->value,
+            'verification_rules' => $this->verificationRules,
+            'examples' => [
+                'correct' => $this->examplesCorrect,
+                'violation' => $this->examplesViolation,
+            ],
+        ];
+    }
+
+    /**
      * @return array<array-key, mixed>
      */
     private static function asArray(mixed $value): array

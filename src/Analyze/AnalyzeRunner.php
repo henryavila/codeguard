@@ -9,12 +9,18 @@ use Henryavila\Codeguard\Telemetry\EventStatus;
 use Henryavila\Codeguard\Telemetry\Recorder;
 
 /**
- * Orchestrates an analyze run: load patterns for the presets, match them to
- * the scoped files, ask the {@see LlmClient} to review each unit, validate
- * findings through the {@see PatternMatch} trust boundary, and emit the
- * `analyze.ended` telemetry event.
+ * Orchestrates an analyze run. Three entry points share the same deterministic
+ * scope+match core ({@see units()}):
  *
- * Makes ONE LLM call per file (the file is the expensive shared context).
+ *  - run()            — synchronous: call the {@see LlmClient} per file (used by
+ *                       a future API driver; NullLlmClient yields the honest
+ *                       no-driver degradation path).
+ *  - buildWorkOrder() — context-emit: serialize units for a Claude Code skill to
+ *                       review with subagents (subscription, no external API).
+ *  - ingest()         — validate findings produced out-of-band through the same
+ *                       {@see PatternMatch} trust boundary, then gate + telemeter.
+ *
+ * Findings are validated identically regardless of who produced them.
  */
 final class AnalyzeRunner
 {
@@ -34,9 +40,7 @@ final class AnalyzeRunner
     {
         $start = hrtime(true);
 
-        $patterns = $this->patterns->forPresets($presets);
-        $units = $this->matcher->match($files, $patterns);
-
+        $units = $this->units($files, $presets);
         $adjudicated = $this->llm->isConfigured();
         $matches = [];
         $checks = 0;
@@ -60,6 +64,102 @@ final class AnalyzeRunner
             }
         }
 
+        return $this->finish($matches, $checks, $start, $failOn, $adjudicated);
+    }
+
+    /**
+     * Serialize the scoped units + patterns into a work order for a Claude Code
+     * skill to review (one subagent per batch of files). No LLM is called here.
+     *
+     * @param  list<string>  $files
+     * @param  list<string>  $presets
+     * @return array{system_prompt: string, finding_schema: array<string, mixed>, units: list<array<string, mixed>>}
+     */
+    public function buildWorkOrder(array $files, array $presets): array
+    {
+        $units = array_map(
+            static fn (AnalysisUnit $unit): array => [
+                'file' => $unit->file,
+                'patterns' => array_map(
+                    static fn (Pattern $pattern): array => $pattern->toPromptArray(),
+                    $unit->patterns,
+                ),
+            ],
+            $this->units($files, $presets),
+        );
+
+        return [
+            'system_prompt' => $this->systemPrompt(),
+            'finding_schema' => FindingSchema::jsonSchema(),
+            'units' => $units,
+        ];
+    }
+
+    /**
+     * Validate findings produced out-of-band (by the Claude Code subagents)
+     * against a fresh scope+match, through the same trust boundary.
+     *
+     * @param  list<string>  $files
+     * @param  list<string>  $presets
+     * @param  list<array<string, mixed>>  $rawFindings
+     */
+    public function ingest(array $files, array $presets, array $rawFindings, ?Severity $failOn): AnalyzeResult
+    {
+        $start = hrtime(true);
+
+        $units = $this->units($files, $presets);
+        $checks = array_sum(array_map(static fn (AnalysisUnit $unit): int => count($unit->patterns), $units));
+
+        $matches = [];
+        foreach ($rawFindings as $raw) {
+            $file = $raw[FindingSchema::KEY_FILE] ?? null;
+            if (! is_string($file)) {
+                continue;
+            }
+
+            $unit = $this->findUnit($units, $file);
+            if ($unit === null) {
+                continue;
+            }
+
+            $match = PatternMatch::fromArray($raw, $unit, $this->patterns);
+            if ($match !== null) {
+                $matches[] = $match;
+            }
+        }
+
+        return $this->finish($matches, $checks, $start, $failOn, adjudicated: true);
+    }
+
+    /**
+     * @param  list<string>  $files
+     * @param  list<string>  $presets
+     * @return list<AnalysisUnit>
+     */
+    private function units(array $files, array $presets): array
+    {
+        return $this->matcher->match($files, $this->patterns->forPresets($presets));
+    }
+
+    /**
+     * @param  list<AnalysisUnit>  $units
+     */
+    private function findUnit(array $units, string $file): ?AnalysisUnit
+    {
+        foreach ($units as $unit) {
+            if ($unit->file === $file || basename($unit->file) === basename($file)) {
+                return $unit;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  list<PatternMatch>  $matches
+     */
+    private function finish(array $matches, int $checks, float $start, ?Severity $failOn, bool $adjudicated): AnalyzeResult
+    {
         $durationMs = (int) round((hrtime(true) - $start) / 1_000_000);
 
         $result = new AnalyzeResult(

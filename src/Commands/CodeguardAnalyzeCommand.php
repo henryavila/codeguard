@@ -21,9 +21,12 @@ final class CodeguardAnalyzeCommand extends Command
         {--path= : Narrow scope to a file or subtree.}
         {--all : Full scan of every detection-matched file (CI/manual).}
         {--fail-on=critical : Exit non-zero at/above this severity — critical|warning|suggestion|never.}
-        {--context=manual : Telemetry context — pre-commit|pre-push|ci|manual.}';
+        {--context=manual : Telemetry context — pre-commit|pre-push|ci|manual.}
+        {--emit : Write a work order JSON (for the codeguard-review Claude skill) instead of calling an LLM.}
+        {--ingest= : Validate + report findings from this JSON file (produced out-of-band by the skill).}
+        {--out= : Output path for --emit (default .codeguard/analyze-request.json).}';
 
-    protected $description = 'Run pattern-based LLM review over scoped files and report findings.';
+    protected $description = 'Run pattern-based review over scoped files and report findings.';
 
     private const ALLOWED_CONTEXTS = ['pre-commit', 'pre-push', 'ci', 'manual'];
 
@@ -33,6 +36,15 @@ final class CodeguardAnalyzeCommand extends Command
         FileScopeResolver $scope,
         Recorder $recorder,
     ): int {
+        if ((bool) $this->option('emit')) {
+            return $this->handleEmit($config, $runner, $scope);
+        }
+
+        $ingest = $this->option('ingest');
+        if (is_string($ingest) && $ingest !== '') {
+            return $this->handleIngest($config, $runner, $scope, $recorder, $ingest);
+        }
+
         $context = $this->resolveContext();
         $failOn = $this->resolveFailOn();
 
@@ -65,6 +77,88 @@ final class CodeguardAnalyzeCommand extends Command
         $this->emitCommandEnd($recorder, $exitCode, $startHrtime);
 
         return $exitCode;
+    }
+
+    private function handleEmit(CodeguardConfig $config, AnalyzeRunner $runner, FileScopeResolver $scope): int
+    {
+        $files = $this->resolveFiles($scope);
+        $workOrder = $runner->buildWorkOrder($files, $config->enabledPresets);
+
+        $out = (string) ($this->option('out') ?: base_path('.codeguard'.DIRECTORY_SEPARATOR.'analyze-request.json'));
+        $dir = dirname($out);
+        if (! is_dir($dir)) {
+            mkdir($dir, 0o755, true);
+        }
+
+        $json = json_encode($workOrder, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        file_put_contents($out, ($json !== false ? $json : '{}')."\n");
+
+        $this->components->info(sprintf('Wrote %d analysis unit(s) to %s', count($workOrder['units']), $out));
+
+        return self::SUCCESS;
+    }
+
+    private function handleIngest(
+        CodeguardConfig $config,
+        AnalyzeRunner $runner,
+        FileScopeResolver $scope,
+        Recorder $recorder,
+        string $ingestPath,
+    ): int {
+        $failOn = $this->resolveFailOn();
+        $startHrtime = hrtime(true);
+        $recorder->record(
+            event: EventName::CommandStart,
+            status: EventStatus::Ok,
+            durationMs: 0,
+            extras: ['command' => 'analyze', 'preset_flag' => null],
+        );
+
+        if (! is_file($ingestPath)) {
+            $this->components->error(sprintf('Findings file not found: %s', $ingestPath));
+            $this->emitCommandEnd($recorder, self::FAILURE, $startHrtime);
+
+            return self::FAILURE;
+        }
+
+        $contents = file_get_contents($ingestPath);
+        $findings = $this->normalizeRawFindings($contents === false ? null : json_decode($contents, true));
+
+        $files = $this->resolveFiles($scope);
+        $result = $runner->ingest($files, $config->enabledPresets, $findings, $failOn);
+
+        $this->renderFindings($result);
+
+        $exitCode = $result->failed($failOn) ? self::FAILURE : self::SUCCESS;
+        $this->emitCommandEnd($recorder, $exitCode, $startHrtime);
+
+        return $exitCode;
+    }
+
+    /**
+     * Accepts either a bare findings array or a `{ "findings": [...] }` envelope.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function normalizeRawFindings(mixed $decoded): array
+    {
+        if (! is_array($decoded)) {
+            return [];
+        }
+
+        $list = array_is_list($decoded) ? $decoded : ($decoded['findings'] ?? []);
+        if (! is_array($list)) {
+            return [];
+        }
+
+        $findings = [];
+        foreach ($list as $item) {
+            if (is_array($item)) {
+                $findings[] = $item;
+            }
+        }
+
+        return $findings;
     }
 
     /**
