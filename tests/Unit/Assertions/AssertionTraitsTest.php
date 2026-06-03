@@ -166,3 +166,51 @@ it('ParallelSafetyAssertions honours the allowlist', function (): void {
         aptCleanup($base);
     }
 });
+
+it('ParallelSafetyAssertions fails on a DB query inside a factory definition()', function (): void {
+    $base = aptBase();
+
+    try {
+        aptWrite(
+            $base,
+            'database/factories/UserFactory.php',
+            "class UserFactory\n{\n    public function definition(): array\n    {\n        return ['role' => DB::table('roles')->first()];\n    }\n}",
+        );
+        $subject = aptParallelSafetySubject($base);
+
+        $threw = false;
+        try {
+            $subject->assertNoDbQueriesInFactoryDefinition();
+        } catch (ExpectationFailedException) {
+            $threw = true;
+        }
+
+        expect($threw)->toBeTrue();
+    } finally {
+        aptCleanup($base);
+    }
+});
+
+it('ParallelSafetyAssertions fails on eager create() inside a factory definition()', function (): void {
+    $base = aptBase();
+
+    try {
+        aptWrite(
+            $base,
+            'database/factories/UserFactory.php',
+            "class UserFactory\n{\n    public function definition(): array\n    {\n        return ['role_id' => Role::factory()->create()->id];\n    }\n}",
+        );
+        $subject = aptParallelSafetySubject($base);
+
+        $threw = false;
+        try {
+            $subject->assertNoEagerCreateInFactoryDefinition();
+        } catch (ExpectationFailedException) {
+            $threw = true;
+        }
+
+        expect($threw)->toBeTrue();
+    } finally {
+        aptCleanup($base);
+    }
+});
