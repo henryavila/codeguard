@@ -146,6 +146,22 @@ it('does not flag assertNotNull on a property access', function (): void {
     }
 });
 
+it('does not flag assertNotNull followed by a behavioural assertion on the same value', function (): void {
+    $base = apsBase();
+
+    try {
+        apsWrite(
+            $base,
+            'tests/Unit/FooTest.php',
+            "\$this->assertNotNull(\$user);\n        expect(\$user->id)->toBe(1);",
+        );
+
+        expect((new AntiPatternScanner($base))->bareAssertNotNull())->toBe([]);
+    } finally {
+        apsCleanup($base);
+    }
+});
+
 // ── truncate / forceDelete in tests ────────────────────────────────
 
 it('flags truncate() in a test', function (): void {

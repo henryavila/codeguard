@@ -91,6 +91,18 @@ it('drops a finding whose file is an ambiguous basename with no exact match', fu
     expect($result->matchesCount())->toBe(0);
 });
 
+it('attributes a finding citing a working-dir-relative path to its absolute-path unit despite a basename twin', function (): void {
+    // The namespace graph emits working-dir-relative paths (e.g. app/Models/User.php);
+    // a subagent echoes one back for an architectural finding. With two User.php units
+    // the basename fallback is ambiguous, so attribution must resolve the relative path.
+    $files = ['/work/app/Models/User.php', '/work/app/DTOs/User.php'];
+
+    $result = arnRunner()->ingest($files, ['core'], [arnFinding(['file' => 'app/Models/User.php'])], Severity::Warning);
+
+    expect($result->matchesCount())->toBe(1)
+        ->and($result->matches[0]->file)->toBe('/work/app/Models/User.php');
+});
+
 it('builds a work order with one unit per matched file', function (): void {
     $order = arnRunner()->buildWorkOrder(['/work/app/Foo.php'], ['core']);
 

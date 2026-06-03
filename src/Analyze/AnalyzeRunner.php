@@ -42,6 +42,7 @@ final class AnalyzeRunner
         $start = hrtime(true);
 
         $units = $this->units($files, $presets);
+        $graphKeys = $this->graphLevelKeys($this->patterns->forPresets($presets));
         $adjudicated = $this->llm->isConfigured();
         $matches = [];
         $checks = 0;
@@ -57,7 +58,7 @@ final class AnalyzeRunner
                         continue;
                     }
 
-                    $match = PatternMatch::fromArray($raw, $unit, $this->patterns);
+                    $match = PatternMatch::fromArray($raw, $unit, $graphKeys);
                     if ($match !== null) {
                         $matches[] = $match;
                     }
@@ -125,7 +126,7 @@ final class AnalyzeRunner
         $perFileUnits = $this->matcher->match($files, $patterns);
         $checks = $this->checkCount($perFileUnits);
         $units = $this->withArchitecturalUnits($files, $patterns, $perFileUnits);
-        $matches = $this->validate($units, $rawFindings);
+        $matches = $this->validate($units, $rawFindings, $this->graphLevelKeys($patterns));
 
         return $this->finish($matches, $checks, $start, $failOn, adjudicated: true);
     }
@@ -148,9 +149,10 @@ final class AnalyzeRunner
         $perFileUnits = $this->matcher->match($files, $patterns);
         $checks = $this->checkCount($perFileUnits);
         $units = $this->withArchitecturalUnits($files, $patterns, $perFileUnits);
+        $graphKeys = $this->graphLevelKeys($patterns);
 
         $validatedSamples = array_map(
-            fn (array $rawFindings): array => $this->validate($units, $rawFindings),
+            fn (array $rawFindings): array => $this->validate($units, $rawFindings, $graphKeys),
             $sampleSets,
         );
 
@@ -207,9 +209,10 @@ final class AnalyzeRunner
      *
      * @param  list<AnalysisUnit>  $units
      * @param  list<array<string, mixed>>  $rawFindings
+     * @param  list<string>  $graphKeys  graph-level pattern keys admissible on any in-scope unit
      * @return list<PatternMatch>
      */
-    private function validate(array $units, array $rawFindings): array
+    private function validate(array $units, array $rawFindings, array $graphKeys): array
     {
         $matches = [];
         foreach ($rawFindings as $raw) {
@@ -227,7 +230,7 @@ final class AnalyzeRunner
                 continue;
             }
 
-            $match = PatternMatch::fromArray($raw, $unit, $this->patterns);
+            $match = PatternMatch::fromArray($raw, $unit, $graphKeys);
             if ($match !== null) {
                 $matches[] = $match;
             }
@@ -271,10 +274,14 @@ final class AnalyzeRunner
     }
 
     /**
-     * Attribute a finding to its unit. Exact absolute-path first (the subagent
-     * echoes the path it was given); basename only as a fallback AND only when
-     * unambiguous — otherwise two `User.php` in different dirs would silently
-     * cross-attribute, which reads as a hallucination and poisons trust.
+     * Attribute a finding to its unit. Exact absolute-path first (the per-file
+     * subagent echoes the path it was given). An architectural finding instead
+     * cites a working-dir-RELATIVE path (the namespace graph emits relative
+     * node paths), so resolve that against the working directory and retry the
+     * exact match before the basename fallback — otherwise two `User.php` in
+     * different dirs make the basename ambiguous and the finding is dropped.
+     * Basename is the last resort AND only when unambiguous, so a genuinely
+     * unattributable finding still reads as a hallucination and is rejected.
      *
      * @param  list<AnalysisUnit>  $units
      */
@@ -286,6 +293,15 @@ final class AnalyzeRunner
             }
         }
 
+        $resolved = $this->resolveAgainstWorkingDirectory($file);
+        if ($resolved !== $file) {
+            foreach ($units as $unit) {
+                if ($unit->file === $resolved) {
+                    return $unit;
+                }
+            }
+        }
+
         $base = basename($file);
         $candidates = array_values(array_filter(
             $units,
@@ -293,6 +309,38 @@ final class AnalyzeRunner
         ));
 
         return count($candidates) === 1 ? $candidates[0] : null;
+    }
+
+    /**
+     * Resolve a possibly-relative finding path to an absolute path under the
+     * scan's working directory. An already-absolute path (the per-file subagent
+     * echoes the absolute path it was given) is returned unchanged.
+     */
+    private function resolveAgainstWorkingDirectory(string $file): string
+    {
+        if (str_starts_with($file, DIRECTORY_SEPARATOR)) {
+            return $file;
+        }
+
+        $prefix = rtrim($this->matcher->workingDirectory(), DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR;
+
+        return $prefix.ltrim(str_replace('\\', '/', $file), '/');
+    }
+
+    /**
+     * Graph-level pattern keys for the selected patterns. These are dispatched
+     * at graph scope (not per file), so the trust boundary admits them on any
+     * in-scope unit in addition to that unit's own dispatched patterns.
+     *
+     * @param  list<Pattern>  $patterns
+     * @return list<string>
+     */
+    private function graphLevelKeys(array $patterns): array
+    {
+        return array_map(
+            static fn (Pattern $pattern): string => $pattern->key,
+            $this->matcher->graphLevel($patterns),
+        );
     }
 
     /**

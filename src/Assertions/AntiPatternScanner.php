@@ -35,11 +35,6 @@ final class AntiPatternScanner
     ];
 
     /** @var list<string> */
-    private const BARE_ASSERT_NOT_NULL_PATTERNS = [
-        '/->assertNotNull\(\$[a-zA-Z_]+\)\s*;/',
-    ];
-
-    /** @var list<string> */
     private const TRUNCATE_PATTERNS = [
         '/->truncate\(\s*\)/',
     ];
@@ -110,18 +105,68 @@ final class AntiPatternScanner
     }
 
     /**
-     * `assertNotNull($var)` used as the only assertion on a value.
+     * `assertNotNull($var)` used as the only assertion on a value. A follow-up
+     * `assert*`/`expect()` referencing the same variable clears it — the guard
+     * is then a precondition, not the whole test.
      *
      * @param  list<string>  $allowlist
      * @return list<string>
      */
     public function bareAssertNotNull(array $allowlist = []): array
     {
-        return $this->scanTestFiles(
-            self::BARE_ASSERT_NOT_NULL_PATTERNS,
-            'bare assertNotNull — follow with a behavioural assertion (or use expect()->not->toBeNull())',
-            $allowlist,
-        );
+        $violations = [];
+
+        foreach ($this->testFiles() as $file) {
+            $relative = $this->testsDir.'/'.$this->normalizeSlashes($file->getRelativePathname());
+            if (in_array($relative, $allowlist, true)) {
+                continue;
+            }
+
+            if ($this->hasUnfollowedAssertNotNull($this->readFile($file->getPathname()))) {
+                $violations[] = sprintf(
+                    '%s: %s',
+                    $relative,
+                    'bare assertNotNull — follow with a behavioural assertion (or use expect()->not->toBeNull())',
+                );
+            }
+        }
+
+        return $violations;
+    }
+
+    /**
+     * True when the file has at least one `assertNotNull($var);` whose value is
+     * never referenced by a later assertion in the same file — i.e. a bare null
+     * guard rather than a precondition for a real assertion.
+     */
+    private function hasUnfollowedAssertNotNull(string $content): bool
+    {
+        if (preg_match_all('/->assertNotNull\((\$[a-zA-Z_]\w*)\)\s*;/', $content, $matches, PREG_OFFSET_CAPTURE) < 1) {
+            return false;
+        }
+
+        foreach ($matches[1] as $index => $capture) {
+            $variable = $capture[0];
+            $statementEnd = $matches[0][$index][1] + strlen($matches[0][$index][0]);
+            $rest = substr($content, $statementEnd);
+
+            if (! $this->assertionReferences($rest, $variable)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Whether $haystack contains an `assert*`/`expect()` call that references
+     * the given variable (before the next statement terminator).
+     */
+    private function assertionReferences(string $haystack, string $variable): bool
+    {
+        $pattern = '/(?:->assert[A-Za-z]+|expect)\s*\([^;]*'.preg_quote($variable, '/').'\b/';
+
+        return preg_match($pattern, $haystack) === 1;
     }
 
     /**

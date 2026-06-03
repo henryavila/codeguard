@@ -43,8 +43,12 @@ final readonly class PatternMatch
 
     /**
      * @param  array<string, mixed>  $raw
+     * @param  list<string>  $extraAllowedKeys  Pattern keys admissible beyond the
+     *                                          unit's dispatched set — the graph-level patterns selected for the
+     *                                          run, which are reviewed at graph scope and so never appear in the
+     *                                          unit's per-file {@see AnalysisUnit::patternKeys()}.
      */
-    public static function fromArray(array $raw, AnalysisUnit $unit, PatternRepository $patterns): ?self
+    public static function fromArray(array $raw, AnalysisUnit $unit, array $extraAllowedKeys = []): ?self
     {
         $key = $raw[FindingSchema::KEY_PATTERN] ?? null;
         $file = $raw[FindingSchema::KEY_FILE] ?? null;
@@ -71,8 +75,10 @@ final readonly class PatternMatch
             return null;
         }
 
-        // patternKey must be one dispatched for this unit, or a real corpus key.
-        if (! in_array($key, $unit->patternKeys(), true) && ! $patterns->has($key)) {
+        // patternKey must be one dispatched for this unit, or an allowed graph-level
+        // key. A merely-known corpus key is NOT enough: it would let a subagent
+        // return a finding for a pattern the file was never scoped to review.
+        if (! in_array($key, $unit->patternKeys(), true) && ! in_array($key, $extraAllowedKeys, true)) {
             return null;
         }
 
