@@ -4,6 +4,14 @@ declare(strict_types=1);
 
 namespace Henryavila\Codeguard;
 
+use Henryavila\Codeguard\Analyze\AnalyzeRunner;
+use Henryavila\Codeguard\Analyze\Drivers\NullLlmClient;
+use Henryavila\Codeguard\Analyze\FileScopeResolver;
+use Henryavila\Codeguard\Analyze\LlmClient;
+use Henryavila\Codeguard\Analyze\PatternMatcher;
+use Henryavila\Codeguard\Analyze\PatternRepository;
+use Henryavila\Codeguard\Analyze\YamlPatternLoader;
+use Henryavila\Codeguard\Commands\CodeguardAnalyzeCommand;
 use Henryavila\Codeguard\Commands\CodeguardCheckCommand;
 use Henryavila\Codeguard\Commands\CodeguardInstallCommand;
 use Henryavila\Codeguard\Commands\CodeguardInstallOverrideCommand;
@@ -66,6 +74,7 @@ final class CodeguardServiceProvider extends ServiceProvider
         $this->registerInstallServices();
         $this->registerTelemetryServices();
         $this->registerTestingServices();
+        $this->registerAnalyzeServices();
     }
 
     public function boot(): void
@@ -297,6 +306,58 @@ final class CodeguardServiceProvider extends ServiceProvider
         });
     }
 
+    private function registerAnalyzeServices(): void
+    {
+        $patternsSourcePath = realpath(__DIR__.'/../resources/patterns') ?: __DIR__.'/../resources/patterns';
+        $systemPromptPath = realpath(__DIR__.'/../resources/prompts/system.md') ?: __DIR__.'/../resources/prompts/system.md';
+
+        $this->app->singleton(PatternRepository::class, static function (Application $app) use ($patternsSourcePath): PatternRepository {
+            /** @var Filesystem $filesystem */
+            $filesystem = $app->make(Filesystem::class);
+
+            /** @var CodeguardConfig $config */
+            $config = $app->make(CodeguardConfig::class);
+
+            $customPaths = $config->customPatternPaths;
+            $autoDiscovered = $app->basePath('.codeguard'.DIRECTORY_SEPARATOR.'patterns');
+            if ($filesystem->isDirectory($autoDiscovered)) {
+                $customPaths[] = $autoDiscovered;
+            }
+
+            return new YamlPatternLoader(
+                filesystem: $filesystem,
+                packagePatternsPath: $patternsSourcePath,
+                customPaths: array_values($customPaths),
+            );
+        });
+
+        // Default driver: NullLlmClient adjudicates nothing — the command then
+        // prints an honest degradation notice. A real driver lands in a later
+        // increment behind this same LlmClient seam.
+        $this->app->singleton(LlmClient::class, NullLlmClient::class);
+
+        $this->app->singleton(FileScopeResolver::class, static function (Application $app): FileScopeResolver {
+            return new FileScopeResolver(
+                executor: $app->make(CommandExecutor::class),
+                workingDirectory: $app->basePath(),
+            );
+        });
+
+        $this->app->singleton(PatternMatcher::class, static function (Application $app): PatternMatcher {
+            return new PatternMatcher(workingDirectory: $app->basePath());
+        });
+
+        $this->app->singleton(AnalyzeRunner::class, static function (Application $app) use ($systemPromptPath): AnalyzeRunner {
+            return new AnalyzeRunner(
+                recorder: $app->make(Recorder::class),
+                patterns: $app->make(PatternRepository::class),
+                matcher: $app->make(PatternMatcher::class),
+                llm: $app->make(LlmClient::class),
+                systemPromptPath: $systemPromptPath,
+            );
+        });
+    }
+
     private function bootConsole(): void
     {
         $this->commands([
@@ -304,6 +365,7 @@ final class CodeguardServiceProvider extends ServiceProvider
             CodeguardInstallOverrideCommand::class,
             CodeguardCheckCommand::class,
             CodeguardTestCommand::class,
+            CodeguardAnalyzeCommand::class,
             TelemetryEnableCommand::class,
             TelemetryDisableCommand::class,
             TelemetryClearCommand::class,
