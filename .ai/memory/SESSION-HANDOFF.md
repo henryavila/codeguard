@@ -16,13 +16,14 @@ type: project
    - **A primeiro** (Patterns engine = o diferencial).
    - **Transporte LLM = context-emit** (assinatura Claude Code, SEM API metered). `claude -p` está **fora** (vira API metered no próximo mês). `anthropic-ai/sdk` está fora (metered).
    - **Reverter o "AI findings never baselined"** (explícito + auditável).
-3. **Shippado nesta sessão** (branch `feat/patterns-engine-foundation`, PR #1, 6 commits):
+3. **Shippado nesta sessão** (branch `feat/patterns-engine-foundation`, PR #1, **pushed e sincronizado** em `ddc8d61`):
    - `4c662a0` Fase 1 — assertion traits reais (`AntiPatternScanner`); eram landmine que lançava exception.
    - `0dfb953` Patterns engine MVP (`src/Analyze/*` + `codeguard:analyze`, Thin Adjudicator).
    - `18c4492` context-emit (`--emit`/`--ingest` + skill `codeguard-review`; removeu 3 skills Node-era → fechou R11).
-   - `abfce20` **trust threshold (Tier 0+1)** — ver abaixo. ⚠️ **não pushed ainda**.
-   - + 2 commits docs.
-   - Suite **452 verdes / 1090 assertions**, Pint clean, PHPStan level 5 No errors.
+   - `abfce20` **trust threshold (Tier 0+1)** — atribuição exata, use-parsing real, baseline.
+   - `a3202fb` `f8a7e0e` `cdca3b5` `ddc8d61` — **Tier 2 R1–R4** (ver seção dedicada abaixo).
+   - + commits docs.
+   - Suite **493 verdes / 1175 assertions**, Pint clean, PHPStan level 5 No errors.
 
 ## Arquitetura do Patterns engine (já construída)
 
@@ -39,16 +40,22 @@ Incorpora as correções do crítico adversarial do workflow `patterns-engine-co
 - **T4 baseline** — `AnalyzeBaseline`, `--accept`, mostra "N suprimidos". Fingerprint = `sha1(pattern_key + arquivo_relativo)` — **sem mensagem, sem linha** (correção do crítico: senão o LLM reformula e o finding ressurge).
 - **Teste de cobertura de seleção** (parte honesta automatizável) + `docs/patterns-recall.md` (recall manual).
 
+## Tier 2 — TODOS shippados (mesma sessão, 4 commits)
+
+Construído depois do trust threshold; PR #1 atualizado e pushed (`origin == HEAD ddc8d61`). Mecânica 100% testada em CI; **qualidade do julgamento NÃO**.
+
+- **R1 voting multi-sample** (`a3202fb`) — `FindingVoter` agrega k samples (identidade `pattern_key|file|line`; dup no mesmo sample = 1 voto), mantém ≥`ceil(2k/3)`, confiança = vote-share (NÃO a verbalizada). `--samples=k` (cap 1–9) no emit; ingest detecta envelope `{samples:[[...]]}` vs `{findings:[...]}` legado (backward-compat). `ingestSamples()` valida cada sample no trust boundary ANTES de votar.
+- **R2 critique pass** (`f8a7e0e`) — `verified_score` 0–10 opcional no FindingSchema/PatternMatch; `surviveCritique()` dropa score 0 em `finish()` (uniforme aos 3 paths). `--critique` flag → `critique:true` no work order. Compõe com voting (vota → dropa 0). Display `[score N/10]`.
+- **R3 grafo namespace→layer** (`cdca3b5`) — `NamespaceGraph` parseia use-edges first-party (vendor fora) → adjacência + cycle detection (DFS back-edge). `PhpFileInspector::fqcn()`. `matcher->graphLevel()/isGraphLevel()` (catch-all import = arquitetural). Work order emite `graph{nodes,edges,cycles}` + `architecture.patterns`. Ingest cria architectural unit por class-file scoped sem per-file unit → atribui os 3 patterns arquiteturais via trust boundary. `related_file` opcional.
+- **R4 corpus alto-impacto** (`ddc8d61`) — 6 YAMLs em `resources/patterns/php-laravel/`: mass-assignment, raw-sql-injection, missing-authorization (critical/gate), eloquent-n-plus-one, missing-database-transaction, unbounded-query (warning/report). Signals file/directory (nunca catch-all import → ficam per-file). Corpus 28→34.
+
+Skill `codeguard-review` atualizada com Steps de voting (4 + envelope samples), critique (5b) e architecture (4b).
+
 ## PRÓXIMO (em ordem)
 
-1. **`git push`** (`abfce20` não pushed → atualiza PR #1).
-2. **Validação de campo**: rodar `/codeguard-review` num projeto real, preencher `docs/patterns-recall.md`. ⚠️ **A qualidade do julgamento NÃO é testável em CI** (assinatura, sem API metered) — só com sessão Claude Code real. Toda melhoria de precisão (Tier 2) só se valida à mão.
-3. **Tier 2 — profundidade (~10d, "genuinamente alto valor")**, nesta ordem (cada um reusa infra do anterior):
-   - **R1 voting multi-sample** (~2,5d): emitir k=3, manter findings ≥2/3, derivar confiança de vote-share (NÃO da confiança verbalizada — é miscalibrada). Default `--samples=1`, opt-in `--samples=3` (Fork A).
-   - **R2 critique pass** (~2d): 2º subagente re-pontua 0–10, dropa 0. `verified_score` no FindingSchema.
-   - **R3 grafo namespace→layer** (~3d): parsear `use` edges (reusa PhpFileInspector) num mapa de adjacência; emitir no work order; ligar de verdade bounded-contexts/layer-dependency-direction/no-circular-dependencies (hoje excluídos). `related_file` opcional no FindingSchema.
-   - **R4 corpus de alto impacto** (~3d): N+1, mass-assignment (`Model::create($request->all())`), missing transaction, SQL cru/`DB::raw` interpolado, missing authz em writes, `->get()` sem limite. Invisível ao AST, no centro da meta G3.
-4. **Backlog menor**: `coverage_percent -1` (`CodeguardTestCommand.php:102`); config morto `ai_rules`/`prepare`; Fase 3 (schema dump + ai-rules generator).
+1. **Validação de campo** — o ÚNICO gap restante do Track A. Rodar `/codeguard-review` num projeto real (idealmente `--samples=3 --critique` + `--all` pro grafo) e preencher `docs/patterns-recall.md` (já tem tabela R4 priorizada). ⚠️ recall/precision NÃO é testável em CI — só sessão Claude Code com assinatura.
+2. **Revisar/mergear PR #1** (decisão do usuário).
+3. **Backlog**: `coverage_percent -1` (`CodeguardTestCommand.php:102`); config morto `ai_rules`/`prepare`; Fase 3 (schema dump + ai-rules generator); Fase 4 (Arch, quando liberado).
 
 ## NÃO construir (decidido)
 API metered como caminho default · embeddings p/ dry · calibrador de confiança (derive de voto) · cache de resultado · `--format=github` (sem CI confirmado) · auto-fix · UI de config por-pattern. Re-scope agressivo dos patterns Laravel "invertidos" = adiado (risco de FP, precisa campo).

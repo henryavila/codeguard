@@ -8,10 +8,10 @@ type: project
 
 > **Para Claude**: Este é o documento vivo de estado. Leia na primeira ferramenta-call de toda sessão substantiva. Atualize ao completar qualquer commit que mude escopo, ou ao mudar de sprint/foco. Em caso de conflito com outro arquivo de memória, este ganha (pra resolver drift, corrija o outro arquivo, não aqui).
 
-**Última atualização**: 2026-06-03 (audit + replan + **Fase 1 traits** e **Fase 2 Patterns engine MVP** shippados na mesma sessão)
-**HEAD**: `abfce20` feat(analyze): trust threshold — exact-path attribution, real use-parsing, baseline
-**Branch**: `feat/patterns-engine-foundation` (**PR #1** aberto pra `main`; **precisa push** do commit `abfce20`). `origin/main` == `4b32886`.
-**Suite**: 452 tests / 1090 assertions (verde). Pint clean, PHPStan level 5 No errors. Coverage gate (≥80%) só roda no CI (sem driver Xdebug/pcov local).
+**Última atualização**: 2026-06-03 (audit + replan + Fase 1 traits + Fase 2 MVP + **Tier 2 R1–R4 completo** — tudo na mesma sessão)
+**HEAD**: `ddc8d61` feat(patterns): R4 high-impact corpus for contractor-dev review (G3)
+**Branch**: `feat/patterns-engine-foundation` (**PR #1** aberto pra `main`; **pushed e sincronizado** — `origin == HEAD`). `origin/main` == `4b32886`.
+**Suite**: 493 tests / 1175 assertions (verde). Pint clean, PHPStan level 5 No errors. Coverage gate (≥80%) só roda no CI (sem driver Xdebug/pcov local).
 **Lint/Static**: Pint clean. PHPStan level 5 self-applied com baseline grandfathered (`156b297`) — R8 fechado. `composer ci` roda pint:test + phpstan + test:coverage; CI ativa em PHP 8.3 + 8.4 via `.github/workflows/ci.yml` (`65893ab`).
 **Release publicado**: ✅ **`0.2.0` no Packagist desde 2026-05-04** (tag `0.2.0` @ `4b32886`, pushed). Arch consome via repo `vcs` GitHub pinado em `^0.2.0` (lock @ `4b32886`) — **NÃO** via path repo nem `dev-main`.
 
@@ -19,7 +19,7 @@ type: project
 
 ---
 
-## 🎯 Sprint Atual: Track A — Patterns engine (package-side) (2026-06-03 — em curso)
+## 🎯 Sprint Atual: Track A — Patterns engine (package-side) (2026-06-03 — **construção completa; aguarda validação de campo**)
 
 **Decisão estratégica do usuário (2026-06-03)**: construir o **diferencial primeiro** (Patterns/LLM review — o lado *reviewer* da meta G3, "policiar dev terceirizado que não usa IA"). + **constraint dura**: *NÃO tocar no Arch agora* (projeto grande em dev lá). Implementar **tudo que for package-side** antes de tratar integração.
 
@@ -32,6 +32,7 @@ Track B original ("migrar Arch pro runtime / dogfood") sai do caminho crítico. 
 | **0** | Limpeza canônica (este arquivo + docs stale) | ❌ | ✅ feito (status reescrito; handoff/specs ainda stale — backlog) |
 | **1** | Bug fixes package-side | ❌ (lê Arch só como ref) | 🟡 traits ✅; `coverage_percent -1` + dead config ainda fila |
 | **2** | **Patterns engine** (`src/Analyze/*` + `codeguard:analyze`) — MVP A–C **+ Increment D context-emit** | ❌ | ✅ shippado (`0dfb953` MVP, `18c4492` context-emit). Transporte = **context-emit** (assinatura, sem API metered) decidido + construído |
+| **2.5** | **Tier 2 — profundidade** (R1 voting · R2 critique · R3 grafo namespace · R4 corpus alto-impacto) | ❌ | ✅ **shippado** (`a3202fb` R1, `f8a7e0e` R2, `cdca3b5` R3, `ddc8d61` R4). Mecânica testada em CI; **qualidade do julgamento = validação de campo manual pendente** |
 | **3** | Schema dump (`codeguard:prepare`) + AI rules generator | ❌ (testáveis via fixtures/SQLite) | ⏸️ depois |
 | **4** | 🔒 Integração Arch + dogfood real | ✅ | ⛔ **ADIADO** (constraint do usuário) |
 
@@ -48,11 +49,11 @@ Track B original ("migrar Arch pro runtime / dogfood") sai do caminho crítico. 
 
 ### Próxima ação concreta
 
-1. **`git push`** o commit `abfce20` (não pushed; atualiza o PR #1).
-2. **Validar em campo**: rodar `/codeguard-review` num projeto real (emit → subagentes em lote → ingest) e preencher `docs/patterns-recall.md` (o lado "será que pega o smell?" NÃO é testável em CI — só com sessão Claude Code real).
-3. **Tier 2 — profundidade** (torna "genuinamente alto valor", ~10d, validado à mão): R1 voting multi-sample (deriva confiança de vote-share) → R2 critique pass → R3 grafo namespace→layer (liga de verdade os 3 patterns arquiteturais) → R4 corpus de alto impacto p/ terceirizado (N+1, mass-assignment, missing transaction, SQL cru, missing authz, `->get()` sem limite). Detalhe completo: ver handoff + roadmap abaixo.
+1. **Validação de campo (Tier 2)** — único caminho pra fechar o gap restante. Rodar `/codeguard-review` num projeto real (de preferência com `--samples=3 --critique` e `--all` pro grafo arquitetural) e preencher `docs/patterns-recall.md`. **A qualidade do julgamento NÃO é testável em CI** (assinatura, sem API metered) — só sessão Claude Code real. Prioridade: os 6 patterns R4 (mass-assignment, raw-sql-injection, missing-authorization, N+1, missing-transaction, unbounded-query) — centro da meta G3.
+2. **Revisar/mergear PR #1** (Fases 1+2 + Increment D + trust threshold + **Tier 2 R1–R4**, tudo no mesmo branch). Decisão do usuário.
+3. **Depois**: Fase 3 (schema dump `codeguard:prepare` + ai-rules generator) ou Fase 4 (integração Arch, quando o usuário liberar). Backlog menor: `coverage_percent -1`, config morto.
 
-**Decisão do usuário pendente**: revisar/mergear **PR #1** (Fases 1+2 + Increment D + trust threshold, tudo no mesmo branch).
+**Decisão do usuário pendente**: revisar/mergear **PR #1**.
 
 **Backlog package-side (sem bloquear)**: `coverage_percent -1` em `CodeguardTestCommand.php:102`; config morto `ai_rules`/`prepare`; Fase 3 (schema dump + ai-rules generator); re-scope conservador dos patterns Laravel "invertidos" (precisa validação de campo — adiado por risco de FP).
 
@@ -84,7 +85,7 @@ Track B original ("migrar Arch pro runtime / dogfood") sai do caminho crítico. 
 | `Hooks\*` | 🟡 parcial | StagedPhpFilesRunner existe |
 | `Testing\*` | ✅ completo | TestSuiteRunner generalizado + StageConfig (8 campos) + executors + DTOs |
 | `Assertions\*` | ✅ | AntiPatternScanner + 2 traits implementados (7 checks reais, 21 tests). `0dfb953`/`4c662a0`. |
-| `Analyze\*` | ✅ | 13 classes (loader/scope/matcher/trust-boundary/runner/command). Consome os 28 patterns (2 outliers pulados). Modos: review síncrono + `buildWorkOrder()`/`ingest()` (context-emit). 37 tests. |
+| `Analyze\*` | ✅ | 15 classes (loader/scope/matcher/trust-boundary/runner/command + **FindingVoter** R1 + **NamespaceGraph** R3). Consome 34 patterns (2 outliers pulados). Modos: review síncrono + `buildWorkOrder()`/`ingest()`/`ingestSamples()` (context-emit). **Tier 2**: voting (`--samples`, vote-share confidence), critique (`--critique`, `verified_score`, dropa 0), grafo namespace→layer (`graph` no work order, cycle detection, liga os 3 patterns arquiteturais), `related_file`. ~95 tests Analyze. |
 | `AiRules\*` | ❌ duplo-morto | config targets existe + `resources/rules/` VAZIA (0/7 markdowns, sem git history). Fase 3. |
 | `Schema\*` | ❌ ausente | só `PrepareConfig` DTO (4 campos). Fase 3. |
 
@@ -93,7 +94,7 @@ Track B original ("migrar Arch pro runtime / dogfood") sai do caminho crítico. 
 | Caminho | Status |
 |---------|:-----:|
 | `resources/stubs/*.stub` | ✅ stubs (pint, phpstan, phpstan-test-quality, deptrac, infection, captainhook+README, phpunit, jscpd, CI workflow, TestQualityTest) |
-| `resources/patterns/**/*.yaml` | ✅ **30** (data dormente até Patterns engine) |
+| `resources/patterns/**/*.yaml` | ✅ **36** YAMLs (34 patterns + 2 outliers) — +6 high-impact R4 (mass-assignment, raw-sql-injection, missing-authorization, eloquent-n-plus-one, missing-database-transaction, unbounded-query) |
 | `resources/skills/*/SKILL.md` | ✅ `codeguard-review` (orquestra emit→subagentes→ingest). As 3 Node-era removidas (`18c4492`). Publicáveis via tag `codeguard-skills` → `.claude/skills`. |
 | `resources/rules/*.md` | ❌ 0/7 (dir vazia) |
 
@@ -104,7 +105,7 @@ Track B original ("migrar Arch pro runtime / dogfood") sai do caminho crítico. 
 | Perspectiva | Real | Justificativa |
 |---|:-:|---|
 | "install + rodar gates + rodar tests" | **~80%** | Commands reais, installer ~900 LOC, telemetria completa, 377 tests verdes. Descontado: traits lançam exception, `coverage_percent -1`, e o único consumer **não roda** check/test. |
-| "pattern-based LLM review" (o diferencial) | **~70%** | Camada determinística sólida + testada: seleção (use-parsing real), atribuição exata, baseline/supressão, scope-coverage test. Falta: **validação de campo** (recall manual, não testável em CI) + **Tier 2** (voting/critique/grafo arquitetural/corpus de segurança) que separa "confiável" de "alto valor". (Antes superestimei em ~80% — corrigido pelo audit de completude.) |
+| "pattern-based LLM review" (o diferencial) | **~80%** | Camada determinística agora **completa + testada**: seleção (use-parsing real), atribuição exata, baseline/supressão, **+ Tier 2**: voting multi-sample (vote-share), critique pass (verified_score), grafo namespace→layer + cycle detection (liga os 3 patterns arquiteturais), corpus de alto impacto R4 (6 smells AST-invisíveis no centro de G3). Tudo coberto por ~95 tests Analyze. **Único gap restante: validação de campo** (recall/precision real — não testável em CI, só sessão Claude Code com assinatura). Teto em 80% até medir recall à mão. |
 | "AI rules generator" | **~3%** | duplo-morto: `src/AiRules/` ausente + `resources/rules/` vazia |
 | "schema dump multi-DB" | **~8%** | só `PrepareConfig` DTO |
 | "publicar/distribuir" | **~85%** | genuinamente no Packagist, tagged, lockável, Node-free. Descontado: footprint `.codeguard/` é git-ignored (não cruza máquinas), 0 downloads, único consumer bypassa a CLI |
