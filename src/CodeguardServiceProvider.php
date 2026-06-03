@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Henryavila\Codeguard;
 
+use Henryavila\Codeguard\Analyze\AnalyzeBaseline;
 use Henryavila\Codeguard\Analyze\AnalyzeRunner;
 use Henryavila\Codeguard\Analyze\Drivers\NullLlmClient;
 use Henryavila\Codeguard\Analyze\FileScopeResolver;
@@ -336,6 +337,24 @@ final class CodeguardServiceProvider extends ServiceProvider
         // increment behind this same LlmClient seam.
         $this->app->singleton(LlmClient::class, NullLlmClient::class);
 
+        $this->app->singleton(AnalyzeBaseline::class, static function (Application $app): AnalyzeBaseline {
+            /** @var Filesystem $filesystem */
+            $filesystem = $app->make(Filesystem::class);
+
+            /** @var CodeguardConfig $config */
+            $config = $app->make(CodeguardConfig::class);
+
+            $path = $config->baselinePath !== ''
+                ? $config->baselinePath
+                : $app->basePath('.codeguard'.DIRECTORY_SEPARATOR.'analyze-baseline.json');
+
+            return new AnalyzeBaseline(
+                filesystem: $filesystem,
+                path: $path,
+                workingDirectory: $app->basePath(),
+            );
+        });
+
         $this->app->singleton(FileScopeResolver::class, static function (Application $app): FileScopeResolver {
             return new FileScopeResolver(
                 executor: $app->make(CommandExecutor::class),
@@ -353,6 +372,7 @@ final class CodeguardServiceProvider extends ServiceProvider
                 patterns: $app->make(PatternRepository::class),
                 matcher: $app->make(PatternMatcher::class),
                 llm: $app->make(LlmClient::class),
+                baseline: $app->make(AnalyzeBaseline::class),
                 systemPromptPath: $systemPromptPath,
             );
         });

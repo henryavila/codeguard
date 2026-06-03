@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Henryavila\Codeguard\Commands;
 
+use Henryavila\Codeguard\Analyze\AnalyzeBaseline;
 use Henryavila\Codeguard\Analyze\AnalyzeResult;
 use Henryavila\Codeguard\Analyze\AnalyzeRunner;
 use Henryavila\Codeguard\Analyze\FileScopeResolver;
@@ -24,7 +25,8 @@ final class CodeguardAnalyzeCommand extends Command
         {--context=manual : Telemetry context — pre-commit|pre-push|ci|manual.}
         {--emit : Write a work order JSON (for the codeguard-review Claude skill) instead of calling an LLM.}
         {--ingest= : Validate + report findings from this JSON file (produced out-of-band by the skill).}
-        {--out= : Output path for --emit (default .codeguard/analyze-request.json).}';
+        {--out= : Output path for --emit (default .codeguard/analyze-request.json).}
+        {--accept : Accept the surviving findings into the baseline so future runs suppress them.}';
 
     protected $description = 'Run pattern-based review over scoped files and report findings.';
 
@@ -35,6 +37,7 @@ final class CodeguardAnalyzeCommand extends Command
         AnalyzeRunner $runner,
         FileScopeResolver $scope,
         Recorder $recorder,
+        AnalyzeBaseline $baseline,
     ): int {
         if ((bool) $this->option('emit')) {
             return $this->handleEmit($config, $runner, $scope);
@@ -42,7 +45,7 @@ final class CodeguardAnalyzeCommand extends Command
 
         $ingest = $this->option('ingest');
         if (is_string($ingest) && $ingest !== '') {
-            return $this->handleIngest($config, $runner, $scope, $recorder, $ingest);
+            return $this->handleIngest($config, $runner, $scope, $recorder, $baseline, $ingest);
         }
 
         $context = $this->resolveContext();
@@ -71,12 +74,21 @@ final class CodeguardAnalyzeCommand extends Command
             return self::SUCCESS;
         }
 
+        $this->maybeAccept($baseline, $result);
         $this->renderFindings($result);
 
         $exitCode = $result->failed($failOn) ? self::FAILURE : self::SUCCESS;
         $this->emitCommandEnd($recorder, $exitCode, $startHrtime);
 
         return $exitCode;
+    }
+
+    private function maybeAccept(AnalyzeBaseline $baseline, AnalyzeResult $result): void
+    {
+        if ((bool) $this->option('accept') && $result->matches !== []) {
+            $added = $baseline->accept($result->matches);
+            $this->components->info(sprintf('Accepted %d finding(s) into the baseline.', $added));
+        }
     }
 
     private function handleEmit(CodeguardConfig $config, AnalyzeRunner $runner, FileScopeResolver $scope): int
@@ -103,6 +115,7 @@ final class CodeguardAnalyzeCommand extends Command
         AnalyzeRunner $runner,
         FileScopeResolver $scope,
         Recorder $recorder,
+        AnalyzeBaseline $baseline,
         string $ingestPath,
     ): int {
         $failOn = $this->resolveFailOn();
@@ -127,6 +140,7 @@ final class CodeguardAnalyzeCommand extends Command
         $files = $this->resolveFiles($scope);
         $result = $runner->ingest($files, $config->enabledPresets, $findings, $failOn);
 
+        $this->maybeAccept($baseline, $result);
         $this->renderFindings($result);
 
         $exitCode = $result->failed($failOn) ? self::FAILURE : self::SUCCESS;
@@ -192,7 +206,11 @@ final class CodeguardAnalyzeCommand extends Command
     private function renderFindings(AnalyzeResult $result): void
     {
         if ($result->matches === []) {
-            $this->components->info(sprintf('No pattern findings (%d checks).', $result->patternsChecked));
+            $this->components->info(sprintf(
+                'No pattern findings (%d checks).%s',
+                $result->patternsChecked,
+                $this->suppressedSuffix($result),
+            ));
 
             return;
         }
@@ -211,10 +229,18 @@ final class CodeguardAnalyzeCommand extends Command
 
         $this->line('');
         $this->components->info(sprintf(
-            '%d finding(s) across %d checks.',
+            '%d finding(s) across %d checks.%s',
             count($result->matches),
             $result->patternsChecked,
+            $this->suppressedSuffix($result),
         ));
+    }
+
+    private function suppressedSuffix(AnalyzeResult $result): string
+    {
+        return $result->suppressedCount > 0
+            ? sprintf(' %d suppressed via baseline.', $result->suppressedCount)
+            : '';
     }
 
     private function glyph(Severity $severity): string

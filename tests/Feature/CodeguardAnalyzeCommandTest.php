@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Henryavila\Codeguard\Analyze\AnalysisUnit;
+use Henryavila\Codeguard\Analyze\AnalyzeBaseline;
 use Henryavila\Codeguard\Analyze\AnalyzeRunner;
 use Henryavila\Codeguard\Analyze\LlmClient;
 use Henryavila\Codeguard\Telemetry\ConfigGate;
@@ -11,6 +12,7 @@ use Henryavila\Codeguard\Telemetry\JsonlWriter;
 use Henryavila\Codeguard\Telemetry\Recorder;
 use Henryavila\Codeguard\Telemetry\Rotator;
 use Henryavila\Codeguard\Tests\Support\FakeLlmClient;
+use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Facades\Artisan;
 
 /*
@@ -53,7 +55,7 @@ function analyzeCleanup(string $fixtureFile, string $telemetryPath): void
     }
 }
 
-function analyzeBind(string $telemetryPath, FakeLlmClient $fake): void
+function analyzeBind(string $telemetryPath, FakeLlmClient $fake, ?string $baselinePath = null): void
 {
     app()->forgetInstance(Recorder::class);
     app()->singleton(Recorder::class, fn (): Recorder => new Recorder(
@@ -67,7 +69,16 @@ function analyzeBind(string $telemetryPath, FakeLlmClient $fake): void
     app()->forgetInstance(LlmClient::class);
     app()->singleton(LlmClient::class, fn (): FakeLlmClient => $fake);
 
-    // Force the runner to rebuild with the rebound Recorder + LlmClient.
+    // Isolate the baseline to a temp path so accept-tests don't touch the skeleton.
+    $resolvedBaseline = $baselinePath ?? sys_get_temp_dir().DIRECTORY_SEPARATOR.'codeguard-analyze-baseline-'.uniqid().'.json';
+    app()->forgetInstance(AnalyzeBaseline::class);
+    app()->singleton(AnalyzeBaseline::class, fn (): AnalyzeBaseline => new AnalyzeBaseline(
+        new Filesystem,
+        $resolvedBaseline,
+        (string) base_path(),
+    ));
+
+    // Force the runner to rebuild with the rebound Recorder + LlmClient + baseline.
     app()->forgetInstance(AnalyzeRunner::class);
 }
 
@@ -280,6 +291,38 @@ it('ingests findings, drops hallucinations via the trust boundary, and gates the
     } finally {
         if (is_file($findingsPath)) {
             unlink($findingsPath);
+        }
+        analyzeCleanup($file, $telemetry);
+    }
+});
+
+it('accepts a finding into the baseline and suppresses it on the next run', function (): void {
+    $telemetry = analyzeTelemetryPath();
+    $baselinePath = sys_get_temp_dir().DIRECTORY_SEPARATOR.'codeguard-accept-'.uniqid().'.json';
+    $file = analyzeFixtureFile();
+    $fake = new FakeLlmClient(analyzeFindingHandler('warning'));
+    analyzeBind($telemetry, $fake, $baselinePath);
+
+    try {
+        // Run 1: --accept records the finding's fingerprint.
+        Artisan::call('codeguard:analyze', ['--path' => $file, '--context' => 'ci', '--accept' => true]);
+        expect(is_file($baselinePath))->toBeTrue();
+
+        // Run 2: the same finding is now suppressed.
+        Artisan::call('codeguard:analyze', ['--path' => $file, '--context' => 'ci']);
+
+        $analyzeEnded = array_values(array_filter(
+            analyzeReadEvents($telemetry),
+            static fn (array $event): bool => ($event['event'] ?? '') === 'analyze.ended',
+        ));
+        $lastRun = end($analyzeEnded);
+
+        expect($analyzeEnded)->toHaveCount(2)
+            ->and(is_array($lastRun) ? ($lastRun['matches_count'] ?? null) : null)->toBe(0)
+            ->and($fake->calls)->toHaveCount(2);
+    } finally {
+        if (is_file($baselinePath)) {
+            unlink($baselinePath);
         }
         analyzeCleanup($file, $telemetry);
     }

@@ -29,6 +29,7 @@ final class AnalyzeRunner
         private readonly PatternRepository $patterns,
         private readonly PatternMatcher $matcher,
         private readonly LlmClient $llm,
+        private readonly AnalyzeBaseline $baseline,
         private readonly string $systemPromptPath,
     ) {}
 
@@ -142,17 +143,28 @@ final class AnalyzeRunner
     }
 
     /**
+     * Attribute a finding to its unit. Exact absolute-path first (the subagent
+     * echoes the path it was given); basename only as a fallback AND only when
+     * unambiguous — otherwise two `User.php` in different dirs would silently
+     * cross-attribute, which reads as a hallucination and poisons trust.
+     *
      * @param  list<AnalysisUnit>  $units
      */
     private function findUnit(array $units, string $file): ?AnalysisUnit
     {
         foreach ($units as $unit) {
-            if ($unit->file === $file || basename($unit->file) === basename($file)) {
+            if ($unit->file === $file) {
                 return $unit;
             }
         }
 
-        return null;
+        $base = basename($file);
+        $candidates = array_values(array_filter(
+            $units,
+            static fn (AnalysisUnit $unit): bool => basename($unit->file) === $base,
+        ));
+
+        return count($candidates) === 1 ? $candidates[0] : null;
     }
 
     /**
@@ -160,13 +172,25 @@ final class AnalyzeRunner
      */
     private function finish(array $matches, int $checks, float $start, ?Severity $failOn, bool $adjudicated): AnalyzeResult
     {
+        $fresh = [];
+        $suppressed = 0;
+        foreach ($matches as $match) {
+            if ($this->baseline->isAccepted($match)) {
+                $suppressed++;
+
+                continue;
+            }
+            $fresh[] = $match;
+        }
+
         $durationMs = (int) round((hrtime(true) - $start) / 1_000_000);
 
         $result = new AnalyzeResult(
             patternsChecked: $checks,
-            matches: $matches,
+            matches: $fresh,
             durationMs: $durationMs,
             adjudicated: $adjudicated,
+            suppressedCount: $suppressed,
         );
 
         $this->recorder->record(
@@ -175,7 +199,7 @@ final class AnalyzeRunner
             durationMs: $durationMs,
             extras: [
                 'patterns_checked_count' => $checks,
-                'matches_count' => count($matches),
+                'matches_count' => count($fresh),
             ],
         );
 

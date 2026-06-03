@@ -21,6 +21,7 @@ final readonly class AnalyzeResult
         public array $matches,
         public int $durationMs,
         public bool $adjudicated = true,
+        public int $suppressedCount = 0,
     ) {}
 
     /**
