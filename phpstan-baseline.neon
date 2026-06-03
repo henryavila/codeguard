@@ -1,18 +1,6 @@
 parameters:
 	ignoreErrors:
 		-
-			message: '#^Trait Henryavila\\Codeguard\\Assertions\\ParallelSafetyAssertions is used zero times and is not analysed\.$#'
-			identifier: trait.unused
-			count: 1
-			path: src/Assertions/ParallelSafetyAssertions.php
-
-		-
-			message: '#^Trait Henryavila\\Codeguard\\Assertions\\TestQualityAssertions is used zero times and is not analysed\.$#'
-			identifier: trait.unused
-			count: 1
-			path: src/Assertions/TestQualityAssertions.php
-
-		-
 			message: '#^Strict comparison using \=\=\= between \(int\|string\) and null will always evaluate to false\.$#'
 			identifier: identical.alwaysFalse
 			count: 1
