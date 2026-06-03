@@ -98,11 +98,19 @@ it('records fail status and rethrows when the callable throws', function (): voi
     try {
         $scope = stopwatchMakeScope($path);
 
-        expect(fn () => $scope->measure(
-            endEvent: EventName::AnalyzeEnded,
-            extras: ['patterns_checked_count' => 0, 'matches_count' => 0],
-            callable: static fn () => throw new RuntimeException('boom'),
-        ))->toThrow(RuntimeException::class, 'boom');
+        $thrown = null;
+        try {
+            $scope->measure(
+                endEvent: EventName::AnalyzeEnded,
+                extras: ['patterns_checked_count' => 0, 'matches_count' => 0],
+                callable: static fn () => throw new RuntimeException('boom'),
+            );
+        } catch (RuntimeException $e) {
+            $thrown = $e;
+        }
+
+        expect($thrown)->toBeInstanceOf(RuntimeException::class)
+            ->and($thrown->getMessage())->toBe('boom');
 
         $lines = stopwatchReadLines($path);
         expect($lines)->toHaveCount(1)
