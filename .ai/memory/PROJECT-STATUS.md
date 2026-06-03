@@ -8,10 +8,10 @@ type: project
 
 > **Para Claude**: Este é o documento vivo de estado. Leia na primeira ferramenta-call de toda sessão substantiva. Atualize ao completar qualquer commit que mude escopo, ou ao mudar de sprint/foco. Em caso de conflito com outro arquivo de memória, este ganha (pra resolver drift, corrija o outro arquivo, não aqui).
 
-**Última atualização**: 2026-06-03 (audit profundo multi-agente + replan colaborativo — corrigiu drift acumulado de 30 dias; foco vira **Patterns engine package-side**; integração Arch ADIADA por constraint do usuário)
-**HEAD**: `4b32886` docs(memory): pivot sprint 9 → 0.2.0 release; close R5 + R8
-**Branch**: `main`, **sincronizado com `origin/main`** (0 commits ahead, working tree limpo)
-**Suite**: 377 tests / 928 assertions (verde — verificado via `vendor/bin/pest --ci` no audit 2026-06-03)
+**Última atualização**: 2026-06-03 (audit + replan + **Fase 1 traits** e **Fase 2 Patterns engine MVP** shippados na mesma sessão)
+**HEAD**: `0dfb953` feat(analyze): pattern engine MVP — codeguard:analyze with pluggable LLM seam
+**Branch**: `feat/patterns-engine-foundation` (3 commits ahead de `main`, **não pushed**; working tree limpo). `origin/main` == `4b32886`.
+**Suite**: 433 tests / 1040 assertions (verde). Pint clean, PHPStan level 5 No errors. Coverage gate (≥80%) só roda no CI (sem driver Xdebug/pcov local).
 **Lint/Static**: Pint clean. PHPStan level 5 self-applied com baseline grandfathered (`156b297`) — R8 fechado. `composer ci` roda pint:test + phpstan + test:coverage; CI ativa em PHP 8.3 + 8.4 via `.github/workflows/ci.yml` (`65893ab`).
 **Release publicado**: ✅ **`0.2.0` no Packagist desde 2026-05-04** (tag `0.2.0` @ `4b32886`, pushed). Arch consome via repo `vcs` GitHub pinado em `^0.2.0` (lock @ `4b32886`) — **NÃO** via path repo nem `dev-main`.
 
@@ -29,9 +29,9 @@ Track B original ("migrar Arch pro runtime / dogfood") sai do caminho crítico. 
 
 | Fase | Trabalho | Precisa Arch? | Estado |
 |:---:|---|:---:|---|
-| **0** | Limpeza canônica (este arquivo + docs stale) | ❌ | 🟡 em curso |
-| **1** | Bug fixes package-side (ver abaixo) | ❌ (lê Arch só como referência) | 🔜 fila |
-| **2** | **Patterns engine** (`src/Patterns/*` + `codeguard:analyze`) | ❌ | 🟡 design rodando |
+| **0** | Limpeza canônica (este arquivo + docs stale) | ❌ | ✅ feito (status reescrito; handoff/specs ainda stale — backlog) |
+| **1** | Bug fixes package-side | ❌ (lê Arch só como ref) | 🟡 traits ✅; `coverage_percent -1` + dead config ainda fila |
+| **2** | **Patterns engine MVP** (`src/Analyze/*` + `codeguard:analyze`, Increments A–C) | ❌ | ✅ shippado (`0dfb953`); driver real = Increment D (pende decisão de transporte) |
 | **3** | Schema dump (`codeguard:prepare`) + AI rules generator | ❌ (testáveis via fixtures/SQLite) | ⏸️ depois |
 | **4** | 🔒 Integração Arch + dogfood real | ✅ | ⛔ **ADIADO** (constraint do usuário) |
 
@@ -48,11 +48,11 @@ Track B original ("migrar Arch pro runtime / dogfood") sai do caminho crítico. 
 
 ### Próxima ação concreta
 
-🔜 **Aguardando design doc do Patterns engine** (workflow `patterns-engine-design` rodando: research da data contract dos 30 YAMLs + research externo de LLM-review + judge-panel de 3 arquiteturas → spec + task list TDD). Output salvo em `docs/specs/`.
+🔜 **DECISÃO DO USUÁRIO PENDENTE — transporte LLM do Increment D** (driver real). Usuário descartou `claude -p` e pediu "usar Claude Code com assinatura, sem API externa". Realidade técnica: assinatura só via CLI `claude` headless OU modelo context-emit (package prepara, sessão Claude Code revisa). API metered (anthropic-ai/sdk) está fora. Ajudar a fechar isso antes de codar o driver.
 
-**Em paralelo / assim que o design voltar**: começar Fase 1 (assertion traits via TDD) — independe do design e é package-side puro.
+**Sem bloquear**: itens menores da Fase 1 (`coverage_percent -1` em `CodeguardTestCommand.php:102`; decidir o que fazer com config morto ai_rules/prepare — o bloco `patterns` agora É consumido pelo Analyze).
 
-**Fork em aberto pro design resolver**: transporte LLM (SDK PHP Anthropic vs shell-out a CLI vs interface pluggable sem driver). Default proposto: **interface pluggable, sem Node** (respeita ADRs). Confirmar quando o design apresentar com recomendação.
+**Decisão pendente do usuário**: pushar o branch `feat/patterns-engine-foundation` / abrir PR / quando mergear em main.
 
 ---
 
@@ -67,7 +67,7 @@ Track B original ("migrar Arch pro runtime / dogfood") sai do caminho crítico. 
 | `codeguard:check` | ✅ | src/Commands/CodeguardCheckCommand.php |
 | `codeguard:test` | ✅ | src/Commands/CodeguardTestCommand.php |
 | `codeguard:telemetry:enable\|disable\|clear` | ✅ | src/Commands/Telemetry/*.php |
-| `codeguard:analyze` | 🟡 **Track A (sprint atual)** | — |
+| `codeguard:analyze` | ✅ MVP | src/Commands/CodeguardAnalyzeCommand.php (NullLlmClient default; driver real = Increment D) |
 | `codeguard:prepare` | ⏸️ Fase 3 | — |
 | `codeguard:baseline` | ⏸️ pós-engines | — |
 
@@ -81,8 +81,8 @@ Track B original ("migrar Arch pro runtime / dogfood") sai do caminho crítico. 
 | `Gates\*` | ✅ | GateRunner + GateRunResult; consumido pelo CheckCommand + Layer 3 telemetry |
 | `Hooks\*` | 🟡 parcial | StagedPhpFilesRunner existe |
 | `Testing\*` | ✅ completo | TestSuiteRunner generalizado + StageConfig (8 campos) + executors + DTOs |
-| `Assertions\*` | 🔴 **broken** | 2 traits existem mas **lançam `RuntimeException('Not yet implemented')` em 7/7 métodos**. Fase 1 corrige. |
-| `Patterns\*` | ❌ ausente | **30** YAMLs em resources/patterns/ (13 core + 6 php + 11 php-laravel incl. preset.yaml) mas ZERO código consumidor. **Track A constrói.** |
+| `Assertions\*` | ✅ | AntiPatternScanner + 2 traits implementados (7 checks reais, 21 tests). `0dfb953`/`4c662a0`. |
+| `Analyze\*` | ✅ MVP | Severity/Pattern/DetectionSignal/PatternRepository/YamlPatternLoader/FileScopeResolver/PatternMatcher/FindingSchema/PatternMatch/AnalyzeResult/AnalyzeRunner/LlmClient/NullLlmClient. Consome os 28 patterns (de 30 YAMLs; 2 outliers pulados). Driver real pendente. |
 | `AiRules\*` | ❌ duplo-morto | config targets existe + `resources/rules/` VAZIA (0/7 markdowns, sem git history). Fase 3. |
 | `Schema\*` | ❌ ausente | só `PrepareConfig` DTO (4 campos). Fase 3. |
 
@@ -102,7 +102,7 @@ Track B original ("migrar Arch pro runtime / dogfood") sai do caminho crítico. 
 | Perspectiva | Real | Justificativa |
 |---|:-:|---|
 | "install + rodar gates + rodar tests" | **~80%** | Commands reais, installer ~900 LOC, telemetria completa, 377 tests verdes. Descontado: traits lançam exception, `coverage_percent -1`, e o único consumer **não roda** check/test. |
-| "pattern-based LLM review" (o diferencial) | **~15%** | 30 YAMLs + slots de telemetria existem como dado inerte/scaffolding. Zero engine. **Track A ataca.** (status antigo dizia ~30%, super-creditava dado dormente) |
+| "pattern-based LLM review" (o diferencial) | **~55%** | Engine MVP shippado (loader/scope/matcher/trust-boundary/comando/telemetria, 33 tests). Falta o driver real (adjudicação LLM via assinatura) = Increment D. Até lá o comando roda mas imprime aviso de degradação honesto. |
 | "AI rules generator" | **~3%** | duplo-morto: `src/AiRules/` ausente + `resources/rules/` vazia |
 | "schema dump multi-DB" | **~8%** | só `PrepareConfig` DTO |
 | "publicar/distribuir" | **~85%** | genuinamente no Packagist, tagged, lockável, Node-free. Descontado: footprint `.codeguard/` é git-ignored (não cruza máquinas), 0 downloads, único consumer bypassa a CLI |
@@ -131,9 +131,9 @@ Audit multi-agente verificou cada alegação contra git+FS. Corrigido neste arqu
 | # | Risco | Estado |
 |---|-------|--------|
 | R1 | Arch consome o package como **stub-seeder one-shot, não runtime**; dogfood real do check/test nunca rodou em campo | **ADIADO conscientemente** — constraint do usuário (não tocar Arch). Integração = Fase 4, quando liberado |
-| R7 | 30 YAMLs eram peso morto até Patterns engine | **SENDO ATACADO** — Track A é a sprint atual |
+| R7 | 30 YAMLs eram peso morto até Patterns engine | **QUASE FECHADO** — engine MVP consome os 28 patterns; só falta o driver LLM real (Increment D) pra adjudicar de verdade |
 | R9 | Marketing público (README:5, composer.json:3) vende features ausentes | **aceito (Q3)** — aposta que Track A torna verdade; reavaliar se Track A atrasar |
-| R10 | Assertion traits lançam exception num release PUBLICADO + wired no stub → consumer que use crasha | **mitigando** — Fase 1 implementa; SEM hotfix 0.2.1 (Q3), vai no 0.3.0. Único consumer (Arch) já contornou inline |
+| ~~R10~~ | ~~Assertion traits lançam exception num release PUBLICADO~~ | **FECHADO no código** (`4c662a0`) — traits implementados via AntiPatternScanner. Ainda no branch; chega ao público só no 0.3.0 (Q3: sem hotfix 0.2.1) |
 | R11 | Skills `resources/skills/*` são Node-era e quebrariam um usuário real | backlog cleanup |
 | ~~R5~~ | ~~README mínimo~~ | ✅ FECHADO (README existe + alinhado a 0.2.0) |
 | ~~R8~~ | ~~package não se autoanalisa~~ | ✅ FECHADO (`156b297`: phpstan level 5 + baseline) |
