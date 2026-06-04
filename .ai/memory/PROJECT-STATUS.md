@@ -8,9 +8,9 @@ type: project
 
 > **Para Claude**: Este é o documento vivo de estado. Leia na primeira ferramenta-call de toda sessão substantiva. Atualize ao completar qualquer commit que mude escopo, ou ao mudar de sprint/foco. Em caso de conflito com outro arquivo de memória, este ganha (pra resolver drift, corrija o outro arquivo, não aqui).
 
-**Última atualização**: 2026-06-03 (audit + replan + Fase 1 traits + Fase 2 MVP + **Tier 2 R1–R4 completo** + **review cross-model codex de PR #1 → 3 fixes** + **CI verde: FP PHPStan-8.5 corrigido + bump PHP 8.5+** — tudo na mesma sessão)
-**HEAD**: `627218b` test: cover ParallelSafetyAssertions factory-definition checks
-**Branch**: `feat/patterns-engine-foundation` (**PR #1** aberto pra `main`; **pushed e sincronizado** — `origin == HEAD`, inclui codex fixes + CI fix + bump 8.5 + coverage). `origin/main` == `4b32886`.
+**Última atualização**: 2026-06-03 (audit + replan + Fase 1 traits + Fase 2 MVP + **Tier 2 R1–R4 completo** + **review cross-model codex → 3 fixes** + **CI verde: FP PHPStan-8.5 + bump PHP 8.5+** + **PR #1 MERGED → main** — tudo na mesma sessão)
+**HEAD**: `ff26dd9` Merge PR #1: assertion traits + Patterns engine (codeguard:analyze)
+**Branch**: `main` (**PR #1 MERGED** em 2026-06-04 via merge commit `ff26dd9`; branch `feat/patterns-engine-foundation` preservada, não deletada). `origin/main` == `ff26dd9` (sincronizado). Inclui Fases 1+2, Tier 2 R1–R4, codex fixes, CI fix + bump PHP 8.5, coverage 80.1%.
 **Suite**: 498 tests / 1184 assertions (verde). Pint clean, PHPStan level 5 No errors (PHP 8.5, entrada órfã `StopwatchScopeTest` removida do baseline). **Coverage 80.1%** (gate ≥80% — o phpstan abortava antes e mascarava esse passo; com o FP corrigido o gate passou a rodar e estava 79.8% → cobertos os 2 métodos de `ParallelSafetyAssertions`).
 **Lint/Static**: Pint clean. PHPStan level 5 self-applied com baseline grandfathered (`156b297`) — R8 fechado. `composer ci` roda pint:test + phpstan + test:coverage; **CI em PHP 8.5** (min subiu 8.3→8.5 em 2026-06-03, `5f457c9`; matriz 8.3/8.4 removida) via `.github/workflows/ci.yml`.
 **Release publicado**: ✅ **`0.2.0` no Packagist desde 2026-05-04** (tag `0.2.0` @ `4b32886`, pushed). Arch consome via repo `vcs` GitHub pinado em `^0.2.0` (lock @ `4b32886`) — **NÃO** via path repo nem `dev-main`.
@@ -50,10 +50,10 @@ Track B original ("migrar Arch pro runtime / dogfood") sai do caminho crítico. 
 ### Próxima ação concreta
 
 1. **Validação de campo (Tier 2)** — único caminho pra fechar o gap restante. Rodar `/codeguard-review` num projeto real (de preferência com `--samples=3 --critique` e `--all` pro grafo arquitetural) e preencher `docs/patterns-recall.md`. **A qualidade do julgamento NÃO é testável em CI** (assinatura, sem API metered) — só sessão Claude Code real. Prioridade: os 6 patterns R4 (mass-assignment, raw-sql-injection, missing-authorization, N+1, missing-transaction, unbounded-query) — centro da meta G3.
-2. **Revisar/mergear PR #1** (Fases 1+2 + Increment D + trust threshold + **Tier 2 R1–R4** + **3 fixes da review codex**, tudo no mesmo branch). **Review adversarial cross-model já rodada** (codex `gpt-5-codex`, 2 passes) — achou 4 major, 1 dropado no pass informado (fingerprint = trade-off documentado), **3 corrigidos com TDD** (`104d867`): F-001 trust boundary aceitava qualquer chave do corpus via `has()`; F-002 findings arquiteturais sumiam em colisão de basename (graph relativo vs unit absoluto); F-003 `bareAssertNotNull` sem look-ahead. Artefato: `.atomic-skills/reviews/2026-06-03-1647-patterns-engine-foundation.md`. **Pushed** — PR #1 atualizada e pronta pra review/merge. Decisão do usuário.
-3. **Depois**: Fase 3 (schema dump `codeguard:prepare` + ai-rules generator) ou Fase 4 (integração Arch, quando o usuário liberar). Backlog menor: `coverage_percent -1`, config morto.
+2. ✅ **PR #1 MERGED** (2026-06-04, merge commit `ff26dd9`) — Fases 1+2 + Increment D + trust threshold + Tier 2 R1–R4 + 3 fixes da review codex (`104d867`: F-001 trust boundary via `has()`, F-002 atribuição de path relativo do grafo, F-003 `bareAssertNotNull` look-ahead) + CI fix (FP PHPStan-8.5) + bump PHP 8.5+. CI verde, coverage 80.1%. Artefato da review: `.atomic-skills/reviews/2026-06-03-1647-patterns-engine-foundation.md`.
+3. **Release `0.3.0`?** — `main` agora contém Patterns engine + traits + bump PHP 8.5 (**breaking**: min PHP subiu). Avaliar tag `0.3.0` + Packagist quando quiser (decisão do usuário). Depois: Fase 3 (schema dump + ai-rules generator) ou Fase 4 (integração Arch). Backlog menor: `coverage_percent -1`, config morto.
 
-**Decisão do usuário pendente**: revisar/mergear **PR #1**.
+**Decisão do usuário pendente**: validação de campo (Tier 2, item 1) + eventual release `0.3.0` (item 3).
 
 **Backlog package-side (sem bloquear)**: `coverage_percent -1` em `CodeguardTestCommand.php:102`; config morto `ai_rules`/`prepare`; Fase 3 (schema dump + ai-rules generator); re-scope conservador dos patterns Laravel "invertidos" (precisa validação de campo — adiado por risco de FP).
 
