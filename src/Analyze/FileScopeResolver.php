@@ -19,6 +19,15 @@ use Symfony\Component\Finder\Finder;
  */
 final class FileScopeResolver
 {
+    /**
+     * Directories never reviewed by a broad scan — dependencies and generated
+     * output. Excluded relative to each scanned root, so an explicit
+     * `--path=vendor/foo` still works; only `--all` / directory scans skip them.
+     *
+     * @var list<string>
+     */
+    private const EXCLUDED_DIRS = ['vendor', 'node_modules', 'storage', 'bootstrap/cache'];
+
     public function __construct(
         private readonly CommandExecutor $executor,
         private readonly string $workingDirectory,
@@ -110,7 +119,8 @@ final class FileScopeResolver
     private function phpFilesIn(string $dir): array
     {
         $files = [];
-        foreach (Finder::create()->files()->in($dir)->name('*.php')->sortByName() as $file) {
+        $finder = Finder::create()->files()->in($dir)->name('*.php')->exclude(self::EXCLUDED_DIRS)->sortByName();
+        foreach ($finder as $file) {
             $files[] = $file->getRealPath() ?: $file->getPathname();
         }
 

@@ -123,3 +123,36 @@ it('returns every php file under the working directory for --all', function (): 
         fsrCleanup($base);
     }
 });
+
+it('excludes vendor, node_modules and generated dirs from --all', function (): void {
+    $base = fsrBase();
+
+    try {
+        fsrWrite($base, 'app/Real.php');
+        fsrWrite($base, 'vendor/acme/lib/Dep.php');
+        fsrWrite($base, 'node_modules/pkg/index.php');
+        fsrWrite($base, 'storage/framework/views/cached.php');
+        fsrWrite($base, 'bootstrap/cache/packages.php');
+        $resolver = new FileScopeResolver(fsrExecutor(''), $base);
+
+        $all = $resolver->all();
+
+        expect($all)->toHaveCount(1)
+            ->and($all[0])->toContain('Real.php');
+    } finally {
+        fsrCleanup($base);
+    }
+});
+
+it('still scans an explicitly-requested vendor subtree (exclusion is for broad scans)', function (): void {
+    $base = fsrBase();
+
+    try {
+        fsrWrite($base, 'vendor/acme/lib/Dep.php');
+        $resolver = new FileScopeResolver(fsrExecutor(''), $base);
+
+        expect($resolver->path('vendor/acme/lib'))->toHaveCount(1);
+    } finally {
+        fsrCleanup($base);
+    }
+});

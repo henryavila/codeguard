@@ -189,25 +189,32 @@ it('emits command.start, analyze.ended, command.end and one LLM call per file', 
     }
 });
 
-it('does not adjudicate or fake a clean repo when no driver is configured', function (): void {
+it('falls back to context-emit (work order) when no LLM driver is configured', function (): void {
     $telemetry = analyzeTelemetryPath();
     $file = analyzeFixtureFile();
+    $out = sys_get_temp_dir().DIRECTORY_SEPARATOR.'codeguard-fallback-'.uniqid().'.json';
     $fake = new FakeLlmClient(analyzeFindingHandler('critical'), configured: false);
     analyzeBind($telemetry, $fake);
 
     try {
-        $exit = Artisan::call('codeguard:analyze', ['--path' => $file, '--context' => 'ci']);
+        $exit = Artisan::call('codeguard:analyze', ['--path' => $file, '--out' => $out, '--context' => 'ci']);
+        $output = Artisan::output();
 
-        $events = analyzeReadEvents($telemetry);
-        $analyzeEnded = array_values(array_filter(
-            $events,
-            static fn (array $event): bool => ($event['event'] ?? '') === 'analyze.ended',
-        ));
-
+        // No synchronous adjudication is attempted, and instead of a dead-end
+        // notice the command emits a work order for the context-emit review path.
         expect($exit)->toBe(0)
             ->and($fake->calls)->toHaveCount(0)
-            ->and($analyzeEnded[0]['status'] ?? null)->toBe('skip');
+            ->and(is_file($out))->toBeTrue()
+            ->and($output)->toContain('context-emit');
+
+        $decoded = json_decode((string) file_get_contents($out), true);
+        $units = (is_array($decoded) && is_array($decoded['units'] ?? null)) ? $decoded['units'] : [];
+
+        expect($units)->toHaveCount(1);
     } finally {
+        if (is_file($out)) {
+            unlink($out);
+        }
         analyzeCleanup($file, $telemetry);
     }
 });
@@ -231,6 +238,24 @@ it('reports a clean result and exits 0 when the driver returns no findings', fun
             ->and($fake->calls)->toHaveCount(1)
             ->and($analyzeEnded[0]['status'] ?? null)->toBe('ok')
             ->and($analyzeEnded[0]['matches_count'] ?? null)->toBe(0);
+    } finally {
+        analyzeCleanup($file, $telemetry);
+    }
+});
+
+it('fails with a clear error when the --ingest findings file does not exist', function (): void {
+    $telemetry = analyzeTelemetryPath();
+    $file = analyzeFixtureFile();
+    $missing = sys_get_temp_dir().DIRECTORY_SEPARATOR.'codeguard-missing-'.uniqid().'.json';
+    $fake = new FakeLlmClient(fn (AnalysisUnit $unit): array => []);
+    analyzeBind($telemetry, $fake);
+
+    try {
+        $exit = Artisan::call('codeguard:analyze', ['--ingest' => $missing, '--path' => $file, '--context' => 'ci']);
+
+        expect($exit)->toBe(1)
+            ->and(Artisan::output())->toContain('not found')
+            ->and($fake->calls)->toHaveCount(0);
     } finally {
         analyzeCleanup($file, $telemetry);
     }

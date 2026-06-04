@@ -8,6 +8,7 @@ use Henryavila\Codeguard\Analyze\AnalyzeBaseline;
 use Henryavila\Codeguard\Analyze\AnalyzeResult;
 use Henryavila\Codeguard\Analyze\AnalyzeRunner;
 use Henryavila\Codeguard\Analyze\FileScopeResolver;
+use Henryavila\Codeguard\Analyze\LlmClient;
 use Henryavila\Codeguard\Analyze\Severity;
 use Henryavila\Codeguard\Telemetry\EventName;
 use Henryavila\Codeguard\Telemetry\EventStatus;
@@ -40,6 +41,7 @@ final class CodeguardAnalyzeCommand extends Command
         FileScopeResolver $scope,
         Recorder $recorder,
         AnalyzeBaseline $baseline,
+        LlmClient $llm,
     ): int {
         if ((bool) $this->option('emit')) {
             return $this->handleEmit($config, $runner, $scope);
@@ -48,6 +50,19 @@ final class CodeguardAnalyzeCommand extends Command
         $ingest = $this->option('ingest');
         if (is_string($ingest) && $ingest !== '') {
             return $this->handleIngest($config, $runner, $scope, $recorder, $baseline, $ingest);
+        }
+
+        // No real adjudicating driver → context-emit is the supported transport.
+        // Inform and fall back to writing a work order for /codeguard-review,
+        // instead of a dead-end notice. The synchronous path below runs only
+        // when a driver (e.g. an API client) is bound in place of NullLlmClient.
+        if (! $llm->isConfigured()) {
+            $this->components->info(
+                'No LLM driver configured — emitting a work order for context-emit review '
+                .'(run /codeguard-review, or --ingest its findings). Uses your Claude Code subscription, no metered API.',
+            );
+
+            return $this->handleEmit($config, $runner, $scope);
         }
 
         $context = $this->resolveContext();
@@ -66,15 +81,6 @@ final class CodeguardAnalyzeCommand extends Command
 
         $files = $this->resolveFiles($scope);
         $result = $runner->run($files, $config->enabledPresets, $failOn, $context);
-
-        if (! $result->adjudicated) {
-            $this->components->warn(
-                'LLM driver not configured — set config(\'codeguard.patterns.driver\'). No patterns adjudicated.',
-            );
-            $this->emitCommandEnd($recorder, self::SUCCESS, $startHrtime);
-
-            return self::SUCCESS;
-        }
 
         $this->maybeAccept($baseline, $result);
         $this->renderFindings($result);
