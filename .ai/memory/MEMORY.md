@@ -35,7 +35,7 @@ Memória persistente do projeto — leia antes de qualquer trabalho substantivo.
 - npm registry: `@henryavila/codeguard@0.1.1` continua publicado (não deprecated formalmente)
 
 ### Decisões Fixas (não reabrir sem razão forte)
-- Stack: PHP 8.3+ / Laravel 11+ / Composer (core PHP-native; preset Full referencia jscpd/Node)
+- Stack: PHP 8.5+ / Laravel 11+ / Composer (core PHP-native; preset Full referencia jscpd/Node). **Min PHP subiu 8.3→8.5 em 2026-06-03** (próximo minor; drop 8.3/8.4)
 - 2 packages: `henryavila/codeguard` (Composer) + `henryavila/codeguard-hooks` (Claude plugin bash)
 - Namespace: `Henryavila\Codeguard\*`
 - Commands: `codeguard:*` (install, check, test, prepare, analyze, baseline)

@@ -1,0 +1,48 @@
+name: unbounded-query
+description: Paginate or chunk large result sets — never load an unbounded table into memory
+category: framework
+layer: laravel
+severity: warning
+classification: mvp
+
+detection:
+  signals:
+    - type: file
+      value: "app/**/*.php"
+    - type: directory
+      value: app/Http/Controllers
+  confidence: medium
+
+verification:
+  rules:
+    - user-facing listings must paginate (paginate() / cursorPaginate() / simplePaginate()) instead of returning ->get() or ->all()
+    - never return Model::all() (or an unconstrained ->get()) for a table that grows with usage
+    - background processing over a large table must chunk() / chunkById() / lazy() instead of loading every row at once
+    - a query already bounded by a clear constraint (a unique key, a small fixed lookup table, ->limit()/->take()) is acceptable
+
+examples:
+  correct: |
+    // The list endpoint pages the result; the batch job streams in chunks
+    public function index(): View
+    {
+        $orders = Order::latest()->paginate(25);
+        return view('orders.index', compact('orders'));
+    }
+
+    Order::where('status', 'pending')->chunkById(500, function ($orders) {
+        $orders->each->process();
+    });
+  violation: |
+    // Loads the entire (unbounded, growing) orders table into memory on every hit
+    public function index(): View
+    {
+        $orders = Order::all();                       // or ->get() with no limit
+        return view('orders.index', compact('orders'));
+    }
+
+    foreach (User::all() as $user) {                  // whole table in memory for a batch job
+        $user->recalculateStats();
+    }
+
+related_patterns:
+  - eloquent-n-plus-one
