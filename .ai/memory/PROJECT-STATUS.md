@@ -8,10 +8,10 @@ type: project
 
 > **Para Claude**: Este é o documento vivo de estado. Leia na primeira ferramenta-call de toda sessão substantiva. Atualize ao completar qualquer commit que mude escopo, ou ao mudar de sprint/foco. Em caso de conflito com outro arquivo de memória, este ganha (pra resolver drift, corrija o outro arquivo, não aqui).
 
-**Última atualização**: 2026-06-03 (audit + replan + Fase 1 traits + Fase 2 MVP + **Tier 2 R1–R4 completo** + **review cross-model codex → 3 fixes** + **CI verde: FP PHPStan-8.5 + bump PHP 8.5+** + **PR #1 MERGED → main** — tudo na mesma sessão)
+**Última atualização**: 2026-06-09 (**MutationGateResolver**: gate `infection` agora roda via `pest --mutate` quando o consumer usa Pest — fix package-side, zero mudança no Arch). Histórico: 2026-06-03 (audit + replan + Fase 1 traits + Fase 2 MVP + **Tier 2 R1–R4 completo** + **review cross-model codex → 3 fixes** + **CI verde: FP PHPStan-8.5 + bump PHP 8.5+** + **PR #1 MERGED → main**)
 **HEAD**: `ff26dd9` Merge PR #1: assertion traits + Patterns engine (codeguard:analyze)
 **Branch**: `main` (**PR #1 MERGED** em 2026-06-04 via merge commit `ff26dd9`; branch `feat/patterns-engine-foundation` preservada, não deletada). `origin/main` == `ff26dd9` (sincronizado). Inclui Fases 1+2, Tier 2 R1–R4, codex fixes, CI fix + bump PHP 8.5, coverage 80.1%.
-**Suite**: 498 tests / 1184 assertions (verde). Pint clean, PHPStan level 5 No errors (PHP 8.5, entrada órfã `StopwatchScopeTest` removida do baseline). **Coverage 80.1%** (gate ≥80% — o phpstan abortava antes e mascarava esse passo; com o FP corrigido o gate passou a rodar e estava 79.8% → cobertos os 2 métodos de `ParallelSafetyAssertions`).
+**Suite**: 511 tests / 1206 assertions (verde). Pint clean, PHPStan level 5 No errors (PHP 8.5, entrada órfã `StopwatchScopeTest` removida do baseline). **Coverage 80.1%** (gate ≥80% — o phpstan abortava antes e mascarava esse passo; com o FP corrigido o gate passou a rodar e estava 79.8% → cobertos os 2 métodos de `ParallelSafetyAssertions`).
 **Lint/Static**: Pint clean. PHPStan level 5 self-applied com baseline grandfathered (`156b297`) — R8 fechado. `composer ci` roda pint:test + phpstan + test:coverage; **CI em PHP 8.5** (min subiu 8.3→8.5 em 2026-06-03, `5f457c9`; matriz 8.3/8.4 removida) via `.github/workflows/ci.yml`.
 **Release publicado**: ✅ **`0.2.0` no Packagist desde 2026-05-04** (tag `0.2.0` @ `4b32886`, pushed). Arch consome via repo `vcs` GitHub pinado em `^0.2.0` (lock @ `4b32886`) — **NÃO** via path repo nem `dev-main`.
 
@@ -81,7 +81,7 @@ Track B original ("migrar Arch pro runtime / dogfood") sai do caminho crítico. 
 | `Install\*` | ✅ completo | ~900 LOC no command + ~40 classes de suporte; testado |
 | `Telemetry\*` | ✅ completo | Subsistema mais coberto (Recorder/FieldAllowlist/JsonlWriter/Rotator/MeasuredAction/...) |
 | `Commands\Telemetry\*` | ✅ completo | 3 commands |
-| `Gates\*` | ✅ | GateRunner + GateRunResult; consumido pelo CheckCommand + Layer 3 telemetry |
+| `Gates\*` | ✅ | GateRunner + GateRunResult + **MutationGateResolver** (detecta Pest via `InstalledVersions` e reescreve o gate `infection` → `pest --mutate --min=N`, pois Infection roda PHPUnit cru e não executa arquivos Pest); consumido pelo CheckCommand + Layer 3 telemetry |
 | `Hooks\*` | 🟡 parcial | StagedPhpFilesRunner existe |
 | `Testing\*` | ✅ completo | TestSuiteRunner generalizado + StageConfig (8 campos) + executors + DTOs |
 | `Assertions\*` | ✅ | AntiPatternScanner + 2 traits implementados (7 checks reais, 21 tests). `0dfb953`/`4c662a0`. |

@@ -187,7 +187,7 @@ final class CodeguardInstallCommand extends Command
 
         $this->line('');
         $this->components->info('Next steps:');
-        $nextStepsCount = $this->renderNextSteps($preset, $reporter);
+        $nextStepsCount = $this->renderNextSteps($preset, $reporter, $environment->usesPest);
         $telemetry->nextStepsRendered($nextStepsCount);
 
         $this->line('');
@@ -885,10 +885,10 @@ final class CodeguardInstallCommand extends Command
         }
     }
 
-    private function renderNextSteps(Preset $preset, NextStepsReporter $reporter): int
+    private function renderNextSteps(Preset $preset, NextStepsReporter $reporter, bool $usesPest): int
     {
         $count = 0;
-        foreach ($reporter->nextSteps($preset) as $step) {
+        foreach ($reporter->nextSteps($preset, $usesPest) as $step) {
             $this->components->twoColumnDetail(
                 $step['gate'],
                 $step['action'],

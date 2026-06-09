@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Henryavila\Codeguard;
 
+use Composer\InstalledVersions;
 use Henryavila\Codeguard\Analyze\AnalyzeBaseline;
 use Henryavila\Codeguard\Analyze\AnalyzeRunner;
 use Henryavila\Codeguard\Analyze\Drivers\NullLlmClient;
@@ -21,6 +22,7 @@ use Henryavila\Codeguard\Commands\Telemetry\ClearCommand as TelemetryClearComman
 use Henryavila\Codeguard\Commands\Telemetry\DisableCommand as TelemetryDisableCommand;
 use Henryavila\Codeguard\Commands\Telemetry\EnableCommand as TelemetryEnableCommand;
 use Henryavila\Codeguard\Gates\GateRunner;
+use Henryavila\Codeguard\Gates\MutationGateResolver;
 use Henryavila\Codeguard\Install\CaptainhookInstaller;
 use Henryavila\Codeguard\Install\CodeguardDirectoryInitializer;
 use Henryavila\Codeguard\Install\ComposerAllowPluginsCheck;
@@ -287,6 +289,14 @@ final class CodeguardServiceProvider extends ServiceProvider
 
     private function registerTestingServices(): void
     {
+        // Drive mutation testing through Pest's native runner when the consumer
+        // uses Pest — Infection cannot execute Pest test files via raw PHPUnit.
+        $this->app->singleton(MutationGateResolver::class, static function (): MutationGateResolver {
+            return new MutationGateResolver(
+                usesPest: InstalledVersions::isInstalled('pestphp/pest'),
+            );
+        });
+
         // ProcessCommandExecutor implements both CommandExecutor + AsyncCommandExecutor.
         // Bind both contracts to the same singleton so consumers depend on the narrow
         // interface that matches their need (sync-only vs async-capable).

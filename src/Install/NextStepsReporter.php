@@ -11,8 +11,23 @@ final class NextStepsReporter
     /**
      * @return list<array{gate: string, action: string, command: string}>
      */
-    public function nextSteps(Preset $preset): array
+    public function nextSteps(Preset $preset, bool $usesPest = false): array
     {
+        // Pest projects drive mutation testing through Pest's native runner —
+        // Infection directly cannot execute Pest test files (it runs raw
+        // PHPUnit, which aborts on Pest's `test()` helper).
+        $mutationStep = $usesPest
+            ? [
+                'gate' => 'Mutation (Pest)',
+                'action' => 'Generate a baseline before enabling in CI.',
+                'command' => './vendor/bin/pest --mutate',
+            ]
+            : [
+                'gate' => 'Infection',
+                'action' => 'Generate a baseline before enabling in CI.',
+                'command' => './vendor/bin/infection --initial-tests-only',
+            ];
+
         $default = [
             [
                 'gate' => 'Test Runner',
@@ -29,11 +44,7 @@ final class NextStepsReporter
                 'action' => 'Verify layers in deptrac.yaml match your architecture.',
                 'command' => './vendor/bin/deptrac analyse',
             ],
-            [
-                'gate' => 'Infection',
-                'action' => 'Generate a baseline before enabling in CI.',
-                'command' => './vendor/bin/infection --initial-tests-only',
-            ],
+            $mutationStep,
             [
                 'gate' => 'CaptainHook',
                 'action' => 'Hooks auto-activated by composer install. Test with an empty commit.',

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Henryavila\Codeguard\Commands;
 
 use Henryavila\Codeguard\Gates\GateRunner;
+use Henryavila\Codeguard\Gates\MutationGateResolver;
 use Henryavila\Codeguard\Telemetry\EventName;
 use Henryavila\Codeguard\Telemetry\EventStatus;
 use Henryavila\Codeguard\Telemetry\Recorder;
@@ -23,8 +24,12 @@ final class CodeguardCheckCommand extends Command
 
     private const ALLOWED_CONTEXTS = ['pre-commit', 'pre-push', 'ci', 'manual'];
 
-    public function handle(CodeguardConfig $config, GateRunner $runner, Recorder $recorder): int
-    {
+    public function handle(
+        CodeguardConfig $config,
+        GateRunner $runner,
+        Recorder $recorder,
+        MutationGateResolver $mutationResolver,
+    ): int {
         $context = $this->resolveContext();
         $failFast = ! (bool) $this->option('all');
         $filter = $this->normalizeGateFilter();
@@ -40,7 +45,10 @@ final class CodeguardCheckCommand extends Command
             ],
         );
 
-        $gates = $this->selectGates($config, $filter);
+        $gates = array_map(
+            static fn (GateConfig $gate): GateConfig => $mutationResolver->resolve($gate),
+            $this->selectGates($config, $filter),
+        );
         if ($gates === []) {
             $this->components->warn('No matching gates to run.');
             $this->emitCommandEnd($recorder, self::SUCCESS, $startHrtime);
