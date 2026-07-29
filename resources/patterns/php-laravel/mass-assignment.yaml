@@ -8,16 +8,24 @@ classification: mvp
 detection:
   signals:
     - type: file
-      value: "app/**/*.php"
+      value: "app/Http/Controllers/**/*.php"
+    - type: file
+      value: "app/Livewire/**/*.php"
+    - type: file
+      value: "app/Filament/**/*.php"
+    - type: file
+      value: "app/Nova/**/*.php"
     - type: directory
       value: app/Http/Controllers
   confidence: high
 
 verification:
   rules:
+    - Prefer findings at the write site (create/update/fill with request data), not at model $fillable alone
+    - In Filament/Nova apps, form schema / Resource fields are the write boundary — do NOT flag absence of issues solely because a model has $fillable
+    - Do NOT require selecting Model files for $guarded = [] in v1; if unguard appears in a selected controller/Livewire/Filament file, flag that line
     - never pass unfiltered request data to create()/update()/fill() (e.g. Model::create($request->all()))
     - write only validated, explicitly-listed attributes — FormRequest::validated() or a typed DTO, never $request->all()
-    - a model that accepts writes must define an explicit $fillable allowlist (an empty $guarded = [] re-opens every column)
     - a privileged column (is_admin, role, user_id, account_id) must never be settable from request input
 
 examples:
@@ -42,12 +50,6 @@ examples:
         $request->user()->update($request->all());   // same flaw on update
 
         return redirect()->route('orders.index');
-    }
-
-    // Model that re-opens every attribute
-    class Order extends Model
-    {
-        protected $guarded = [];                      // nothing is protected
     }
 
 related_patterns:

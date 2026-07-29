@@ -3,7 +3,7 @@ description: Functions and methods should have explicit type declarations
 category: php
 layer: php
 severity: warning
-classification: mvp
+classification: hygiene
 
 detection:
   signals:

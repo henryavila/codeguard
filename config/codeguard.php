@@ -204,6 +204,37 @@ return [
             // '/path/to/shared/patterns',
         ],
         'baseline_path' => base_path('.codeguard/baseline.json'),
+
+        /*
+        | Pattern focus for codeguard:analyze (overridable via --focus).
+        | - "full"       All enabled presets (hygiene + G3).
+        | - "contractor" G3 contractor-gate only: R4 security/data + architecture
+        |                + service-layer. Default critique floor becomes 4.
+        */
+        'focus' => env('CODEGUARD_ANALYZE_FOCUS', 'full'),
+
+        /*
+        | Drop findings whose critique verified_score is below this (0–10).
+        | Uncritiqued findings (no verified_score) are always kept.
+        | null = use focus default (full → 1 / drop only 0; contractor → 4).
+        | CLI: --min-critique-score=
+        */
+        'min_critique_score' => env('CODEGUARD_MIN_CRITIQUE_SCORE'),
+
+        /*
+        | Optional override of the built-in contractor key set. Empty = package default
+        | (mass-assignment, raw-sql-injection, missing-authorization, N+1, transaction,
+        | unbounded-query, layer-dependency-direction, bounded-contexts,
+        | no-circular-dependencies, service-layer).
+        */
+        'contractor_keys' => [],
+
+        /*
+        | When focus=full, hygiene patterns (type-declarations, dry, …) are
+        | excluded by default. Set true or pass --include-hygiene to restore
+        | the full inventory (types, small-functions, few-arguments, …).
+        */
+        'include_hygiene' => env('CODEGUARD_INCLUDE_HYGIENE', false),
     ],
 
     /*

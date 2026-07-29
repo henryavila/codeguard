@@ -3,7 +3,7 @@ description: All PHP files should declare strict_types=1
 category: php
 layer: php
 severity: warning
-classification: mvp
+classification: hygiene
 
 detection:
   signals:

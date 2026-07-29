@@ -1,0 +1,339 @@
+kind: foreign-plan
+schemaVersion: "0.1"
+sourcePath: docs/specs/2026-07-29-skill-value-uplift-plan.md
+slug: 2026-07-29-skill-value-uplift-plan
+branch: plan/2026-07-29-skill-value-uplift-plan
+status: active
+currentPhase: FINALIZE
+phases:
+  - id: A
+    title: Defaults skill + PR-diff scope + emit/ingest parity
+    status: done
+    terminal: false
+    tasks:
+      - id: A1
+        title: SKILL.md defaults contractor + PR scope order
+        status: done
+        outputs:
+          - path: resources/skills/codeguard-review/SKILL.md
+        scopeBoundary:
+          - Do not reimplement package anti-overwrite in skill
+        acceptance:
+          - Default focus contractor + critique
+          - samples=3 opt-in only
+          - "Scope order: path/all > base > default branch > changed-only"
+          - Ingest uses scope.files; documents package anti-overwrite
+        verifier:
+          kind: shell
+          command: rg -n "focus=contractor|--base|scope.files|--force"
+            resources/skills/codeguard-review/SKILL.md
+          expectExitCode: 0
+        evidence:
+          passed: true
+          command: vendor/bin/pest
+          exitCode: 0
+          summary: 536 passed (1300 assertions) full suite 2026-07-29
+          closedAt: 2026-07-29T09:30:20.863Z
+      - id: A2
+        title: againstBase + --base + --committed-only
+        status: done
+        outputs:
+          - path: src/Analyze/FileScopeResolver.php
+          - path: src/Commands/CodeguardAnalyzeCommand.php
+          - path: tests/Unit/Analyze/FileScopeResolverTest.php
+          - path: tests/Feature/CodeguardAnalyzeCommandTest.php
+        scopeBoundary:
+          - Do not change default changed-only semantics when --base absent
+        acceptance:
+          - againstBase = base...HEAD ∪ staged ∪ unstaged by default
+          - --committed-only limits to base...HEAD
+          - CLI priority path > all > base > changed-only
+          - Unit+feature tests for committed/staged/unstaged
+        verifier:
+          kind: shell
+          command: vendor/bin/pest tests/Unit/Analyze/FileScopeResolverTest.php
+            tests/Feature/CodeguardAnalyzeCommandTest.php --colors=never
+          expectExitCode: 0
+        evidence:
+          passed: true
+          command: vendor/bin/pest
+          exitCode: 0
+          summary: 536 passed (1300 assertions) full suite 2026-07-29
+          closedAt: 2026-07-29T09:30:20.904Z
+      - id: A3
+        title: Package anti-overwrite empty emit + --force
+        status: done
+        outputs:
+          - path: src/Commands/CodeguardAnalyzeCommand.php
+          - path: tests/Feature/CodeguardAnalyzeCommandTest.php
+        scopeBoundary:
+          - Do not implement anti-overwrite only in skill markdown
+        acceptance:
+          - Abort when existing units>0 and new units===0 without --force
+          - Message mentions --force and preserved work order
+          - Feature test covers abort and --force overwrite
+        verifier:
+          kind: shell
+          command: vendor/bin/pest tests/Feature/CodeguardAnalyzeCommandTest.php
+            --filter=overwrite --colors=never || vendor/bin/pest
+            tests/Feature/CodeguardAnalyzeCommandTest.php --filter=force
+            --colors=never || vendor/bin/pest
+            tests/Feature/CodeguardAnalyzeCommandTest.php --colors=never
+          expectExitCode: 0
+        evidence:
+          passed: true
+          command: vendor/bin/pest
+          exitCode: 0
+          summary: 536 passed (1300 assertions) full suite 2026-07-29
+          closedAt: 2026-07-29T09:30:20.944Z
+      - id: A4
+        title: Work order scope object + ingest reuse + SHA drift
+        status: done
+        outputs:
+          - path: src/Analyze/AnalyzeRunner.php
+          - path: src/Commands/CodeguardAnalyzeCommand.php
+          - path: tests/Unit/Analyze/AnalyzeRunnerTest.php
+          - path: tests/Feature/CodeguardAnalyzeCommandTest.php
+        scopeBoundary:
+          - Do not re-derive git scope on ingest when scope.files present
+        acceptance:
+          - Work order includes scope.mode/files/head_sha
+          - Ingest uses scope.files when non-empty
+          - HEAD drift warns and fails without --allow-scope-drift
+        verifier:
+          kind: shell
+          command: vendor/bin/pest tests/Unit/Analyze/AnalyzeRunnerTest.php
+            tests/Feature/CodeguardAnalyzeCommandTest.php --colors=never
+          expectExitCode: 0
+        evidence:
+          passed: true
+          command: vendor/bin/pest
+          exitCode: 0
+          summary: 536 passed (1300 assertions) full suite 2026-07-29
+          closedAt: 2026-07-29T09:30:20.965Z
+  - id: B
+    title: Actionable report + checklist
+    status: done
+    terminal: false
+    tasks:
+      - id: B1
+        title: FindingAction enum + FindingActionClassifier
+        status: done
+        outputs:
+          - path: src/Analyze/FindingAction.php
+          - path: src/Analyze/FindingActionClassifier.php
+          - path: tests/Unit/Analyze/FindingActionClassifierTest.php
+        scopeBoundary:
+          - Only 3 security patterns block in v1
+        acceptance:
+          - enum block|request_change|info
+          - Table-driven policy from plan B1
+          - Unit table tests pass
+        verifier:
+          kind: shell
+          command: vendor/bin/pest tests/Unit/Analyze/FindingActionClassifierTest.php
+            --colors=never
+          expectExitCode: 0
+        evidence:
+          passed: true
+          command: vendor/bin/pest
+          exitCode: 0
+          summary: 536 passed (1300 assertions) full suite 2026-07-29
+          closedAt: 2026-07-29T09:30:20.979Z
+      - id: B2
+        title: CLI render BLOCK/REQUEST CHANGE/INFO + checklist
+        status: done
+        outputs:
+          - path: src/Commands/CodeguardAnalyzeCommand.php
+          - path: src/Analyze/AnalyzeResult.php
+          - path: tests/Feature/CodeguardAnalyzeCommandTest.php
+        scopeBoundary: []
+        acceptance:
+          - "CLI prints ## BLOCK / ## REQUEST CHANGE / ## INFO"
+          - Checklist markdown with path:line and pattern
+          - Feature test captures section substrings
+        verifier:
+          kind: shell
+          command: vendor/bin/pest tests/Feature/CodeguardAnalyzeCommandTest.php
+            --colors=never
+          expectExitCode: 0
+        evidence:
+          passed: true
+          command: vendor/bin/pest
+          exitCode: 0
+          summary: 536 passed (1300 assertions) full suite 2026-07-29
+          closedAt: 2026-07-29T09:30:20.994Z
+      - id: B3
+        title: SKILL Step 7 rewrite for package report
+        status: done
+        outputs:
+          - path: resources/skills/codeguard-review/SKILL.md
+        scopeBoundary:
+          - Do not reimplement action policy in skill
+        acceptance:
+          - Step 7 uses package sections
+          - Summarizes counts and pastes checklist
+          - No bulk auto-fix proposal
+        verifier:
+          kind: shell
+          command: rg -n "BLOCK|REQUEST CHANGE|checklist"
+            resources/skills/codeguard-review/SKILL.md
+          expectExitCode: 0
+        evidence:
+          passed: true
+          command: vendor/bin/pest
+          exitCode: 0
+          summary: 536 passed (1300 assertions) full suite 2026-07-29
+          closedAt: 2026-07-29T09:30:21.010Z
+  - id: CD
+    title: Corpus hygiene + mass-assignment + R4 signals
+    status: done
+    terminal: false
+    tasks:
+      - id: C1
+        title: hygiene classification + full excludes by default
+        status: done
+        outputs:
+          - path: resources/patterns
+          - path: src/Analyze/AnalyzeOptions.php
+          - path: src/Commands/CodeguardAnalyzeCommand.php
+          - path: config/codeguard.php
+          - path: tests/Feature/CodeguardAnalyzeCommandTest.php
+        scopeBoundary:
+          - no-debug-functions is NOT hygiene
+          - no-superglobals is NOT hygiene v1
+        acceptance:
+          - Listed patterns classification hygiene
+          - full excludes hygiene by default
+          - --include-hygiene restores
+          - Feature tests full ± include-hygiene
+        verifier:
+          kind: shell
+          command: vendor/bin/pest tests/Feature/CodeguardAnalyzeCommandTest.php
+            tests/Unit/Analyze/AnalyzeOptionsTest.php --colors=never
+          expectExitCode: 0
+        evidence:
+          passed: true
+          command: vendor/bin/pest
+          exitCode: 0
+          summary: 536 passed (1300 assertions) full suite 2026-07-29
+          closedAt: 2026-07-29T09:30:21.024Z
+      - id: C2
+        title: mass-assignment write-site only signals
+        status: done
+        outputs:
+          - path: resources/patterns
+          - path: docs/patterns-recall.md
+          - path: tests/Unit/Analyze/PatternSelectionCoverageTest.php
+        scopeBoundary:
+          - No content-body signal / all_of matcher
+          - No Models/** selection v1
+        acceptance:
+          - Write-site path signals only
+          - Controller yes; model-only no; service no
+          - patterns-recall updated
+        verifier:
+          kind: shell
+          command: vendor/bin/pest tests/Unit/Analyze/PatternSelectionCoverageTest.php
+            --colors=never
+          expectExitCode: 0
+        evidence:
+          passed: true
+          command: vendor/bin/pest
+          exitCode: 0
+          summary: 536 passed (1300 assertions) full suite 2026-07-29
+          closedAt: 2026-07-29T09:30:21.037Z
+      - id: D1
+        title: R4 signals tightened + selection fixtures
+        status: done
+        outputs:
+          - path: resources/patterns
+          - path: tests/Unit/Analyze/PatternSelectionCoverageTest.php
+          - path: docs/patterns-recall.md
+        scopeBoundary:
+          - No content signal / AND groups
+        acceptance:
+          - 6 R4 YAMLs updated per D1 table
+          - Selection coverage fixtures green
+          - patterns-recall notes signals tightened 2026-07-29
+        verifier:
+          kind: shell
+          command: vendor/bin/pest tests/Unit/Analyze/PatternSelectionCoverageTest.php
+            --colors=never
+          expectExitCode: 0
+        evidence:
+          passed: true
+          command: vendor/bin/pest
+          exitCode: 0
+          summary: 536 passed (1300 assertions) full suite 2026-07-29
+          closedAt: 2026-07-29T09:30:21.052Z
+  - id: FINALIZE
+    title: Finalize — validation, PR, intent vs delivered
+    status: pending
+    terminal: true
+    tasks:
+      - id: T-FINALIZE
+        title: Operator validates intent vs delivered; open/update PR if needed
+        status: pending
+        outputs: []
+        scopeBoundary: []
+        acceptance:
+          - Intent-vs-delivered surface presented to operator
+          - Operator explicit validation recorded
+        verifier: null
+        evidence: null
+  - id: ARCHIVE
+    title: Archive — clean worktree, branch bookkeeping, terminal handoff
+    status: pending
+    terminal: true
+    tasks:
+      - id: T-ARCHIVE
+        title: Remove worktree, record branch disposition, stamp archived
+        status: pending
+        outputs: []
+        scopeBoundary: []
+        acceptance:
+          - Worktree removed or explicitly retained with reason
+          - Sidecar status is archived
+        verifier: null
+        evidence: null
+intent:
+  value: Skill codeguard-review and corpus aligned to G3 contractor PR review with
+    actionable findings
+  doneWhen: Phases A-B-C-D acceptance from plan DoD 1-4; pest green on touched paths
+  outOfScope:
+    - GitHub PR comments
+    - Vote x3 advanced policy
+    - Metered API driver
+    - Auto-fix
+    - Arch dogfood / 0.3.0 packaging
+    - content-body signal / all_of matcher
+groundTruth:
+  status: complete
+  mode: ground-truth
+  summary: "Plan A-D maps to existing Analyze stack: FileScopeResolver lacks
+    againstBase; Command lacks --base/--force/action report; AnalyzeOptions
+    focus already WIP; hygiene/mass-assignment/R4 YAML changes pending;
+    FindingAction absent."
+  directions:
+    A: "Plan intent G3 contractor PR review vs code: AnalyzeOptions+focus flags
+      partially present (WIP); skill/report/scope/signals not yet matching DoD."
+    B: "Code gaps: againstBase, anti-overwrite, scope object,
+      FindingActionClassifier, hygiene exclude, R4 YAML tightening — all planned
+      outputs absent or partial."
+  fingerprint: skill-value-uplift-2026-07-29-v1
+  at: 2026-07-29T09:21:57.452Z
+finalize: null
+archive: null
+handoff:
+  narrative: Phases A–D implemented on plan/2026-07-29-skill-value-uplift-plan.
+    Full pest 536 green. Ready for operator FINALIZE (PR + validation).
+  decisionLog: Foreign implement; full excludes hygiene; contractor skill
+    defaults; R4 write-site signals.
+  nextAction: Operator validates intent-vs-delivered and FINALIZE (optional PR);
+    then ARCHIVE.
+  verbatimState: "pest: 536 passed; branch
+    plan/2026-07-29-skill-value-uplift-plan; plan status Implemented"
+  uncommittedChanges: see git status at finalize
+executionMode: automate
+entryChoice: foreign

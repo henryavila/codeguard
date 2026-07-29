@@ -8,7 +8,15 @@ classification: mvp
 detection:
   signals:
     - type: file
-      value: "app/**/*.php"
+      value: "app/Services/**/*.php"
+    - type: file
+      value: "app/Http/**/*.php"
+    - type: file
+      value: "app/Jobs/**/*.php"
+    - type: file
+      value: "app/Actions/**/*.php"
+    - type: file
+      value: "app/Filament/**/*.php"
     - type: directory
       value: app/Http/Resources
   confidence: medium

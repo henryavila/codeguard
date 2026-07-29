@@ -142,7 +142,7 @@ php artisan codeguard:install --refresh-stubs       # update stubs (diff-aware)
 
 ### 🚧 Roadmapped post-0.2.0
 
-- `codeguard:analyze` — pattern engine (28 curated YAMLs) with LLM adjudicator for issues where AST can't reach
+- `codeguard:analyze` — pattern engine (context-emit + `/codeguard-review`): `--focus=contractor`, `--base=origin/main`, work-order `scope` parity, BLOCK/REQUEST CHANGE/INFO checklist; hygiene excluded from `full` unless `--include-hygiene`
 - `codeguard:prepare` — multi-database schema dump (MySQL, PostgreSQL, SQLite `:memory:`, SQL Server PDO fallback, Windows without `sqlite3` CLI)
 - AI rules generator — emit canonical `.claude/rules/*.md` from `config('codeguard.ai_rules.targets')`
 - Pest custom expectations beyond the two traits

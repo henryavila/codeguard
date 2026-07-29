@@ -10,6 +10,7 @@ use Symfony\Component\Finder\Finder;
 /**
  * Resolves which files `codeguard:analyze` reviews:
  *  - changedOnly() — git-changed + staged .php files (the default scope)
+ *  - againstBase() — diff vs a base ref ∪ staged ∪ unstaged (PR-style)
  *  - path()        — a single file or subtree
  *  - all()         — every .php file under the working directory
  *
@@ -44,6 +45,63 @@ final class FileScopeResolver
         );
 
         return $this->toExistingPhpFiles($files);
+    }
+
+    /**
+     * PR-style scope: files changed on the branch relative to $baseRef, plus
+     * dirty worktree by default (staged + unstaged). With $committedOnly, only
+     * commits on the branch (base...HEAD) — for CI reviewing a PR SHA.
+     *
+     * Union without --committed-only:
+     *   1) git diff --name-only --diff-filter=ACMR $baseRef...HEAD
+     *   2) git diff --name-only --diff-filter=ACMR --cached
+     *   3) git diff --name-only --diff-filter=ACMR
+     *
+     * @return list<string>
+     */
+    public function againstBase(string $baseRef, bool $committedOnly = false): array
+    {
+        $files = $this->gitFiles(['git', 'diff', '--name-only', '--diff-filter=ACMR', $baseRef.'...HEAD']);
+
+        if (! $committedOnly) {
+            $files = array_merge(
+                $files,
+                $this->gitFiles(['git', 'diff', '--name-only', '--diff-filter=ACMR', '--cached']),
+                $this->gitFiles(['git', 'diff', '--name-only', '--diff-filter=ACMR']),
+            );
+        }
+
+        return $this->toExistingPhpFiles($files);
+    }
+
+    /**
+     * Current HEAD commit SHA, or null when git fails (shallow/missing).
+     */
+    public function headSha(): ?string
+    {
+        return $this->revParse('HEAD');
+    }
+
+    /**
+     * Merge-base of $baseRef and HEAD, or null when git fails.
+     */
+    public function mergeBaseSha(string $baseRef): ?string
+    {
+        $buffer = '';
+        $exit = $this->executor->run(
+            ['git', 'merge-base', $baseRef, 'HEAD'],
+            function (string $chunk) use (&$buffer): void {
+                $buffer .= $chunk;
+            },
+        );
+
+        if ($exit !== 0) {
+            return null;
+        }
+
+        $sha = trim($buffer);
+
+        return $sha !== '' ? $sha : null;
     }
 
     /**
@@ -90,6 +148,25 @@ final class FileScopeResolver
         $lines = preg_split('/\R/', trim($buffer)) ?: [];
 
         return array_values(array_filter($lines, static fn (string $line): bool => $line !== ''));
+    }
+
+    private function revParse(string $ref): ?string
+    {
+        $buffer = '';
+        $exit = $this->executor->run(
+            ['git', 'rev-parse', $ref],
+            function (string $chunk) use (&$buffer): void {
+                $buffer .= $chunk;
+            },
+        );
+
+        if ($exit !== 0) {
+            return null;
+        }
+
+        $sha = trim($buffer);
+
+        return $sha !== '' ? $sha : null;
     }
 
     /**

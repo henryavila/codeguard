@@ -156,3 +156,83 @@ it('still scans an explicitly-requested vendor subtree (exclusion is for broad s
         fsrCleanup($base);
     }
 });
+
+it('againstBase unions base...HEAD with staged and unstaged by default', function (): void {
+    $base = fsrBase();
+
+    try {
+        fsrWrite($base, 'src/Committed.php');
+        fsrWrite($base, 'src/Staged.php');
+        fsrWrite($base, 'src/Unstaged.php');
+
+        $handler = function (array $command) use ($base): array {
+            $joined = implode(' ', $command);
+            if (str_contains($joined, '...HEAD') && str_contains($joined, 'origin/main')) {
+                return [0, "src/Committed.php\n"];
+            }
+            if (in_array('--cached', $command, true)) {
+                return [0, "src/Staged.php\n"];
+            }
+            if (in_array('--name-only', $command, true) && ! in_array('--cached', $command, true) && ! str_contains($joined, '...HEAD')) {
+                return [0, "src/Unstaged.php\n"];
+            }
+
+            return [0, ''];
+        };
+
+        $resolver = new FileScopeResolver(new FakeCommandExecutor($handler), $base);
+        $files = $resolver->againstBase('origin/main');
+
+        expect($files)->toHaveCount(3)
+            ->and($files)->toContain($base.DIRECTORY_SEPARATOR.'src/Committed.php')
+            ->and($files)->toContain($base.DIRECTORY_SEPARATOR.'src/Staged.php')
+            ->and($files)->toContain($base.DIRECTORY_SEPARATOR.'src/Unstaged.php');
+    } finally {
+        fsrCleanup($base);
+    }
+});
+
+it('againstBase with committedOnly returns only base...HEAD', function (): void {
+    $base = fsrBase();
+
+    try {
+        fsrWrite($base, 'src/Committed.php');
+        fsrWrite($base, 'src/Staged.php');
+
+        $handler = function (array $command): array {
+            $joined = implode(' ', $command);
+            if (str_contains($joined, '...HEAD')) {
+                return [0, "src/Committed.php\n"];
+            }
+
+            return [0, "src/Staged.php\n"];
+        };
+
+        $resolver = new FileScopeResolver(new FakeCommandExecutor($handler), $base);
+        $files = $resolver->againstBase('origin/main', committedOnly: true);
+
+        expect($files)->toHaveCount(1)
+            ->and($files[0])->toContain('Committed.php');
+    } finally {
+        fsrCleanup($base);
+    }
+});
+
+it('resolves headSha via git rev-parse', function (): void {
+    $base = fsrBase();
+
+    try {
+        $handler = function (array $command): array {
+            if (($command[1] ?? '') === 'rev-parse') {
+                return [0, "abc123def\n"];
+            }
+
+            return [0, ''];
+        };
+        $resolver = new FileScopeResolver(new FakeCommandExecutor($handler), $base);
+
+        expect($resolver->headSha())->toBe('abc123def');
+    } finally {
+        fsrCleanup($base);
+    }
+});

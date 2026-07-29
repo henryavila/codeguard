@@ -3,7 +3,7 @@ description: Functions should be short and focused on a single task
 category: clean-code
 layer: core
 severity: warning
-classification: mvp
+classification: hygiene
 
 detection:
   signals:
