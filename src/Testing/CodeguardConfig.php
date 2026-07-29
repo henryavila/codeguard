@@ -12,6 +12,7 @@ final readonly class CodeguardConfig
      * @param  list<string>  $protectedConfigs
      * @param  list<string>  $enabledPresets
      * @param  list<string>  $customPatternPaths
+     * @param  list<string>  $contractorPatternKeys  empty = use built-in AnalyzeOptions::CONTRACTOR_KEYS
      * @param  array<string, bool>  $aiRulesTargets
      */
     public function __construct(
@@ -26,6 +27,10 @@ final readonly class CodeguardConfig
         public array $customPatternPaths,
         public string $baselinePath,
         public array $aiRulesTargets,
+        public string $patternsFocus = 'full',
+        public ?int $minCritiqueScore = null,
+        public array $contractorPatternKeys = [],
+        public bool $includeHygiene = false,
     ) {}
 
     /**
@@ -71,6 +76,25 @@ final readonly class CodeguardConfig
         /** @var list<string> $customPatternPaths */
         $customPatternPaths = array_values((array) ($patternsRaw['custom_paths'] ?? []));
 
+        $focus = strtolower((string) ($patternsRaw['focus'] ?? 'full'));
+        if ($focus !== 'contractor') {
+            $focus = 'full';
+        }
+
+        $minCritiqueRaw = $patternsRaw['min_critique_score'] ?? null;
+        $minCritiqueScore = is_numeric($minCritiqueRaw) ? (int) $minCritiqueRaw : null;
+
+        /** @var list<string> $contractorKeys */
+        $contractorKeys = array_values(array_filter(
+            array_map(
+                static fn (mixed $key): string => is_scalar($key) ? (string) $key : '',
+                (array) ($patternsRaw['contractor_keys'] ?? []),
+            ),
+            static fn (string $key): bool => $key !== '',
+        ));
+
+        $includeHygiene = filter_var($patternsRaw['include_hygiene'] ?? false, FILTER_VALIDATE_BOOLEAN);
+
         return new self(
             mode: (string) ($config['mode'] ?? 'default'),
             preset: $preset,
@@ -83,6 +107,10 @@ final readonly class CodeguardConfig
             customPatternPaths: $customPatternPaths,
             baselinePath: (string) ($patternsRaw['baseline_path'] ?? ''),
             aiRulesTargets: $aiRulesTargets,
+            patternsFocus: $focus,
+            minCritiqueScore: $minCritiqueScore,
+            contractorPatternKeys: $contractorKeys,
+            includeHygiene: $includeHygiene,
         );
     }
 

@@ -61,6 +61,9 @@ function codeguardFixtureConfig(): array
             'enabled_presets' => ['core', 'php'],
             'custom_paths' => ['/tmp/patterns'],
             'baseline_path' => '/tmp/baseline.json',
+            'focus' => 'contractor',
+            'min_critique_score' => 4,
+            'contractor_keys' => ['raw-sql-injection'],
         ],
         'ai_rules' => [
             'targets' => [
@@ -77,7 +80,10 @@ it('hydrates top-level scalars and preset from array', function (): void {
     expect($config->mode)->toBe('ci')
         ->and($config->preset)->toBe(Preset::Full)
         ->and($config->reportDir)->toBe('/tmp/reports')
-        ->and($config->baselinePath)->toBe('/tmp/baseline.json');
+        ->and($config->baselinePath)->toBe('/tmp/baseline.json')
+        ->and($config->patternsFocus)->toBe('contractor')
+        ->and($config->minCritiqueScore)->toBe(4)
+        ->and($config->contractorPatternKeys)->toBe(['raw-sql-injection']);
 });
 
 it('falls back to Default preset when value is unknown', function (): void {

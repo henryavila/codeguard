@@ -3,7 +3,7 @@ description: Don't Repeat Yourself — duplicate logic (not structure) is a viol
 category: clean-code
 layer: core
 severity: warning
-classification: mvp
+classification: hygiene
 
 detection:
   signals:

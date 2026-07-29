@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Henryavila\Codeguard\Analyze\AnalysisUnit;
 use Henryavila\Codeguard\Analyze\AnalyzeBaseline;
+use Henryavila\Codeguard\Analyze\AnalyzeOptions;
 use Henryavila\Codeguard\Analyze\AnalyzeRunner;
 use Henryavila\Codeguard\Analyze\LlmClient;
 use Henryavila\Codeguard\Telemetry\ConfigGate;
@@ -421,6 +422,41 @@ it('emits a work order flagging the critique pass when requested', function (): 
     }
 });
 
+it('emits a contractor-focused work order with raised critique floor metadata', function (): void {
+    $file = analyzeFixtureFile();
+    $out = sys_get_temp_dir().DIRECTORY_SEPARATOR.'codeguard-workorder-'.uniqid().'.json';
+
+    try {
+        Artisan::call('codeguard:analyze', [
+            '--emit' => true,
+            '--focus' => 'contractor',
+            '--path' => $file,
+            '--out' => $out,
+        ]);
+
+        $decoded = json_decode((string) file_get_contents($out), true);
+        expect(is_array($decoded))->toBeTrue();
+
+        $keys = [];
+        foreach ($decoded['units'] ?? [] as $unit) {
+            foreach ($unit['patterns'] ?? [] as $pattern) {
+                $keys[] = $pattern['key'] ?? '';
+            }
+        }
+        $keys = array_values(array_unique($keys));
+
+        expect($decoded['min_critique_score'] ?? null)->toBe(4)
+            ->and($keys)->not->toContain('type-declarations')
+            ->and($keys)->not->toContain('dry');
+        // Fixture is a small class — contractor may attach service-layer / core arch only if signals match.
+        foreach ($keys as $key) {
+            expect(AnalyzeOptions::CONTRACTOR_KEYS)->toContain($key);
+        }
+    } finally {
+        analyzeCleanup($file, $out);
+    }
+});
+
 it('drops a critique-rejected finding on ingest and shows the verified score', function (): void {
     $telemetry = analyzeTelemetryPath();
     $file = analyzeFixtureFile();
@@ -484,5 +520,270 @@ it('accepts a finding into the baseline and suppresses it on the next run', func
             unlink($baselinePath);
         }
         analyzeCleanup($file, $telemetry);
+    }
+});
+
+it('emits a work order with scope.files and head metadata', function (): void {
+    $file = analyzeFixtureFile();
+    $out = sys_get_temp_dir().DIRECTORY_SEPARATOR.'codeguard-scope-'.uniqid().'.json';
+
+    try {
+        Artisan::call('codeguard:analyze', ['--emit' => true, '--path' => $file, '--out' => $out]);
+        $decoded = json_decode((string) file_get_contents($out), true);
+
+        expect($decoded['scope']['mode'] ?? null)->toBe('path')
+            ->and($decoded['scope']['files'] ?? null)->toContain($file);
+    } finally {
+        analyzeCleanup($file, $out);
+    }
+});
+
+it('aborts overwriting a non-empty work order with an empty emit unless --force', function (): void {
+    $file = analyzeFixtureFile();
+    $out = sys_get_temp_dir().DIRECTORY_SEPARATOR.'codeguard-overwrite-'.uniqid().'.json';
+    $emptyDir = sys_get_temp_dir().DIRECTORY_SEPARATOR.'codeguard-empty-'.uniqid();
+    mkdir($emptyDir, 0o755, true);
+
+    try {
+        Artisan::call('codeguard:analyze', ['--emit' => true, '--path' => $file, '--out' => $out]);
+        $before = (string) file_get_contents($out);
+        expect(json_decode($before, true)['units'] ?? [])->not->toBeEmpty();
+
+        $exit = Artisan::call('codeguard:analyze', [
+            '--emit' => true,
+            '--path' => $emptyDir,
+            '--out' => $out,
+        ]);
+        $output = Artisan::output();
+
+        expect($exit)->toBe(1)
+            ->and($output)->toContain('Refusing to overwrite')
+            ->and($output)->toContain('--force')
+            ->and((string) file_get_contents($out))->toBe($before);
+
+        $forced = Artisan::call('codeguard:analyze', [
+            '--emit' => true,
+            '--path' => $emptyDir,
+            '--out' => $out,
+            '--force' => true,
+        ]);
+        expect($forced)->toBe(0)
+            ->and(json_decode((string) file_get_contents($out), true)['units'] ?? null)->toBe([]);
+    } finally {
+        if (is_file($out)) {
+            unlink($out);
+        }
+        if (is_dir($emptyDir)) {
+            rmdir($emptyDir);
+        }
+        analyzeCleanup($file, $out);
+    }
+});
+
+it('prints BLOCK / REQUEST CHANGE / INFO sections and a checklist on ingest', function (): void {
+    $telemetry = analyzeTelemetryPath();
+    // File must live under app basePath so PatternMatcher relative globs match.
+    $rel = 'app/Http/Controllers/CodeguardTmpOrderController.php';
+    $file = base_path($rel);
+    $dir = dirname($file);
+    if (! is_dir($dir)) {
+        mkdir($dir, 0o755, true);
+    }
+    file_put_contents($file, "<?php\nnamespace App\\Http\\Controllers;\nuse App\\Services\\OrderService;\nclass CodeguardTmpOrderController { public function store(): void {} }\n");
+    $findingsPath = sys_get_temp_dir().DIRECTORY_SEPARATOR.'codeguard-action-'.uniqid().'.json';
+
+    file_put_contents($findingsPath, (string) json_encode([
+        [
+            'pattern_key' => 'mass-assignment',
+            'file' => $file,
+            'line' => 3,
+            'message' => 'uses request()->all()',
+            'severity' => 'critical',
+            'confidence' => 0.9,
+            'verified_score' => 8,
+        ],
+        [
+            'pattern_key' => 'service-layer',
+            'file' => $file,
+            'line' => 4,
+            'message' => 'controller does too much',
+            'severity' => 'warning',
+            'confidence' => 0.8,
+        ],
+    ]));
+
+    $fake = new FakeLlmClient(fn (AnalysisUnit $unit): array => []);
+    analyzeBind($telemetry, $fake);
+
+    try {
+        $exit = Artisan::call('codeguard:analyze', [
+            '--ingest' => $findingsPath,
+            '--path' => $file,
+            '--fail-on' => 'never',
+            '--context' => 'ci',
+        ]);
+        $output = Artisan::output();
+
+        expect($exit)->toBe(0)
+            ->and($output)->toContain('## BLOCK')
+            ->and($output)->toContain('## REQUEST CHANGE')
+            ->and($output)->toContain('## INFO')
+            ->and($output)->toContain('Checklist (markdown):')
+            ->and($output)->toContain('mass-assignment')
+            ->and($output)->toContain('block=')
+            ->and($output)->toContain('request_change=');
+    } finally {
+        if (is_file($findingsPath)) {
+            unlink($findingsPath);
+        }
+        if (is_file($file)) {
+            unlink($file);
+        }
+        // Best-effort cleanup of empty dirs created under testbench base.
+        foreach (['app/Http/Controllers', 'app/Http', 'app'] as $d) {
+            $p = base_path($d);
+            if (is_dir($p) && count(scandir($p) ?: []) === 2) {
+                @rmdir($p);
+            }
+        }
+        if (is_file($telemetry)) {
+            unlink($telemetry);
+        }
+    }
+});
+
+it('reuses scope.files from the request work order on ingest', function (): void {
+    $telemetry = analyzeTelemetryPath();
+    $file = analyzeFixtureFile();
+    $request = sys_get_temp_dir().DIRECTORY_SEPARATOR.'codeguard-req-'.uniqid().'.json';
+    $findingsPath = sys_get_temp_dir().DIRECTORY_SEPARATOR.'codeguard-ing-'.uniqid().'.json';
+
+    file_put_contents($request, (string) json_encode([
+        'focus' => 'full',
+        'min_critique_score' => 1,
+        'scope' => [
+            'mode' => 'path',
+            'head_sha' => null,
+            'files' => [$file],
+        ],
+        'units' => [],
+    ]));
+    file_put_contents($findingsPath, (string) json_encode([
+        ['pattern_key' => 'no-god-object', 'file' => $file, 'line' => 3, 'message' => 'god', 'severity' => 'critical', 'confidence' => 0.9],
+    ]));
+
+    $fake = new FakeLlmClient(fn (AnalysisUnit $unit): array => []);
+    analyzeBind($telemetry, $fake);
+
+    try {
+        // No --path: must load files from --request scope
+        $exit = Artisan::call('codeguard:analyze', [
+            '--ingest' => $findingsPath,
+            '--request' => $request,
+            '--context' => 'ci',
+        ]);
+
+        expect($exit)->toBe(1)
+            ->and(Artisan::output())->toContain('no-god-object');
+    } finally {
+        if (is_file($request)) {
+            unlink($request);
+        }
+        if (is_file($findingsPath)) {
+            unlink($findingsPath);
+        }
+        analyzeCleanup($file, $telemetry);
+    }
+});
+
+it('fails ingest on head_sha drift without --allow-scope-drift', function (): void {
+    $telemetry = analyzeTelemetryPath();
+    $file = analyzeFixtureFile();
+    $request = sys_get_temp_dir().DIRECTORY_SEPARATOR.'codeguard-drift-'.uniqid().'.json';
+    $findingsPath = sys_get_temp_dir().DIRECTORY_SEPARATOR.'codeguard-ing-'.uniqid().'.json';
+
+    file_put_contents($request, (string) json_encode([
+        'scope' => [
+            'mode' => 'path',
+            'head_sha' => 'deadbeef00000000000000000000000000000000',
+            'files' => [$file],
+        ],
+    ]));
+    file_put_contents($findingsPath, '[]');
+
+    $fake = new FakeLlmClient(fn (AnalysisUnit $unit): array => []);
+    analyzeBind($telemetry, $fake);
+
+    try {
+        $exit = Artisan::call('codeguard:analyze', [
+            '--ingest' => $findingsPath,
+            '--request' => $request,
+            '--context' => 'ci',
+        ]);
+        $output = Artisan::output();
+
+        // Real git HEAD differs from deadbeef → refuse (when rev-parse works in this repo).
+        if (str_contains($output, 'Scope drift') || str_contains($output, 'drifted HEAD')) {
+            expect($exit)->toBe(1)
+                ->and($output)->toContain('--allow-scope-drift');
+        } else {
+            // If headSha() returned null (no git), drift check is skipped.
+            expect($exit)->toBeIn([0, 1]);
+        }
+    } finally {
+        if (is_file($request)) {
+            unlink($request);
+        }
+        if (is_file($findingsPath)) {
+            unlink($findingsPath);
+        }
+        analyzeCleanup($file, $telemetry);
+    }
+});
+
+it('excludes hygiene patterns from full emit unless --include-hygiene', function (): void {
+    $file = analyzeFixtureFile();
+    $out = sys_get_temp_dir().DIRECTORY_SEPARATOR.'codeguard-hyg-'.uniqid().'.json';
+
+    try {
+        Artisan::call('codeguard:analyze', [
+            '--emit' => true,
+            '--focus' => 'full',
+            '--path' => $file,
+            '--out' => $out,
+        ]);
+        $decoded = json_decode((string) file_get_contents($out), true);
+        $keys = [];
+        foreach ($decoded['units'] ?? [] as $unit) {
+            foreach ($unit['patterns'] ?? [] as $pattern) {
+                $keys[] = $pattern['key'] ?? '';
+            }
+        }
+        $keys = array_values(array_unique($keys));
+
+        expect($keys)->not->toContain('type-declarations')
+            ->and($keys)->not->toContain('strict-typing')
+            ->and($keys)->not->toContain('dry');
+
+        Artisan::call('codeguard:analyze', [
+            '--emit' => true,
+            '--focus' => 'full',
+            '--include-hygiene' => true,
+            '--path' => $file,
+            '--out' => $out,
+        ]);
+        $decoded2 = json_decode((string) file_get_contents($out), true);
+        $keys2 = [];
+        foreach ($decoded2['units'] ?? [] as $unit) {
+            foreach ($unit['patterns'] ?? [] as $pattern) {
+                $keys2[] = $pattern['key'] ?? '';
+            }
+        }
+        $keys2 = array_values(array_unique($keys2));
+
+        expect($keys2)->toContain('type-declarations')
+            ->and($keys2)->toContain('strict-typing');
+    } finally {
+        analyzeCleanup($file, $out);
     }
 });

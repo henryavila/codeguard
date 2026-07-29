@@ -8,9 +8,13 @@ classification: mvp
 detection:
   signals:
     - type: file
-      value: "app/**/*.php"
-    - type: directory
-      value: app/Actions
+      value: "app/Services/**/*.php"
+    - type: file
+      value: "app/Actions/**/*.php"
+    - type: file
+      value: "app/Http/Controllers/**/*.php"
+    - type: file
+      value: "app/Jobs/**/*.php"
   confidence: medium
 
 verification:

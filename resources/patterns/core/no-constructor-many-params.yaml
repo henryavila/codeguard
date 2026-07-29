@@ -3,7 +3,7 @@ description: Constructors should not have too many parameters — signals a miss
 category: clean-code
 layer: core
 severity: suggestion
-classification: mvp
+classification: hygiene
 
 detection:
   signals:

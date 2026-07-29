@@ -11,6 +11,12 @@ detection:
       value: app/Http/Controllers
     - type: file
       value: "app/Http/Controllers/**/*.php"
+    - type: file
+      value: "app/Filament/**/*.php"
+    - type: file
+      value: "app/Livewire/**/*.php"
+    - type: file
+      value: "app/Nova/**/*.php"
   confidence: high
 
 verification:

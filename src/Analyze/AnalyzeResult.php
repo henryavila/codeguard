@@ -52,4 +52,26 @@ final readonly class AnalyzeResult
     {
         return count($this->matches);
     }
+
+    /**
+     * Group findings by PR action for layered CLI reporting.
+     *
+     * @return array{block: list<PatternMatch>, request_change: list<PatternMatch>, info: list<PatternMatch>}
+     */
+    public function matchesByAction(?FindingActionClassifier $classifier = null): array
+    {
+        $classifier ??= new FindingActionClassifier;
+        $grouped = [
+            FindingAction::Block->value => [],
+            FindingAction::RequestChange->value => [],
+            FindingAction::Info->value => [],
+        ];
+
+        foreach ($this->matches as $match) {
+            $action = $classifier->classify($match);
+            $grouped[$action->value][] = $match;
+        }
+
+        return $grouped;
+    }
 }

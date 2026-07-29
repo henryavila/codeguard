@@ -3,7 +3,7 @@ description: Functions should have few parameters to remain understandable
 category: clean-code
 layer: core
 severity: suggestion
-classification: mvp
+classification: hygiene
 
 detection:
   signals:

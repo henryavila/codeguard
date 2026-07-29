@@ -48,6 +48,19 @@ function pscCleanup(string $base): void
     rmdir($base);
 }
 
+/**
+ * @return list<string>
+ */
+function pscKeysFor(string $base, string $relative): array
+{
+    $patterns = (new YamlPatternLoader(new Filesystem, pscPatternsPath()))
+        ->forPresets(['core', 'php', 'php-laravel']);
+    $file = $base.DIRECTORY_SEPARATOR.$relative;
+    $units = (new PatternMatcher($base))->match([$file], $patterns);
+
+    return $units[0]->patternKeys() ?? [];
+}
+
 it('attaches the right patterns to the right files from the real corpus', function (): void {
     $base = sys_get_temp_dir().DIRECTORY_SEPARATOR.'codeguard-psc-'.uniqid();
     pscWrite($base, 'app/Http/Controllers/OrderController.php', "<?php\nnamespace App\\Http\\Controllers;\nuse App\\Services\\OrderService;\nclass OrderController { public function store(): void {} }\n");
@@ -90,16 +103,12 @@ it('attaches the right patterns to the right files from the real corpus', functi
     }
 });
 
-it('attaches the high-impact contractor-dev patterns to a controller (R4 corpus)', function (): void {
+it('attaches high-impact R4 patterns to a controller write site', function (): void {
     $base = sys_get_temp_dir().DIRECTORY_SEPARATOR.'codeguard-psc-r4-'.uniqid();
     pscWrite($base, 'app/Http/Controllers/OrderController.php', "<?php\nnamespace App\\Http\\Controllers;\nclass OrderController { public function store(): void {} }\n");
 
     try {
-        $patterns = (new YamlPatternLoader(new Filesystem, pscPatternsPath()))
-            ->forPresets(['core', 'php', 'php-laravel']);
-
-        $units = (new PatternMatcher($base))->match([$base.'/app/Http/Controllers/OrderController.php'], $patterns);
-        $keys = $units[0]->patternKeys() ?? [];
+        $keys = pscKeysFor($base, 'app/Http/Controllers/OrderController.php');
 
         expect($keys)->toContain(
             'mass-assignment',
@@ -109,6 +118,55 @@ it('attaches the high-impact contractor-dev patterns to a controller (R4 corpus)
             'unbounded-query',
             'missing-database-transaction',
         );
+    } finally {
+        pscCleanup($base);
+    }
+});
+
+it('attaches R4 anchors under app/Services (Arch-style paths)', function (): void {
+    $base = sys_get_temp_dir().DIRECTORY_SEPARATOR.'codeguard-psc-svc-'.uniqid();
+    pscWrite($base, 'app/Services/ElectronicFillingService.php', "<?php\nnamespace App\\Services;\nclass ElectronicFillingService { public function run(): void { DB::select(\"select {\$x}\"); } }\n");
+
+    try {
+        $keys = pscKeysFor($base, 'app/Services/ElectronicFillingService.php');
+
+        expect($keys)->toContain('raw-sql-injection')
+            ->and($keys)->toContain('eloquent-n-plus-one')
+            ->and($keys)->toContain('missing-database-transaction')
+            ->and($keys)->toContain('unbounded-query')
+            ->and($keys)->not->toContain('mass-assignment');
+    } finally {
+        pscCleanup($base);
+    }
+});
+
+it('does not select mass-assignment on model-only or service-only files', function (): void {
+    $base = sys_get_temp_dir().DIRECTORY_SEPARATOR.'codeguard-psc-ma-'.uniqid();
+    pscWrite($base, 'app/Models/Order.php', "<?php\nnamespace App\\Models;\nclass Order { protected \$fillable = ['*']; protected \$guarded = []; }\n");
+    pscWrite($base, 'app/Services/OrderService.php', "<?php\nnamespace App\\Services;\nclass OrderService { public function create(array \$data): void {} }\n");
+    pscWrite($base, 'app/Http/Controllers/OrderController.php', "<?php\nnamespace App\\Http\\Controllers;\nclass OrderController { public function store(): void { Order::create(request()->all()); } }\n");
+    pscWrite($base, 'app/DTO/OrderData.php', "<?php\nnamespace App\\DTO;\nclass OrderData {}\n");
+
+    try {
+        expect(pscKeysFor($base, 'app/Models/Order.php'))->not->toContain('mass-assignment')
+            ->and(pscKeysFor($base, 'app/Services/OrderService.php'))->not->toContain('mass-assignment')
+            ->and(pscKeysFor($base, 'app/Http/Controllers/OrderController.php'))->toContain('mass-assignment')
+            ->and(pscKeysFor($base, 'app/DTO/OrderData.php'))->not->toContain('raw-sql-injection')
+            ->and(pscKeysFor($base, 'app/DTO/OrderData.php'))->not->toContain('mass-assignment');
+    } finally {
+        pscCleanup($base);
+    }
+});
+
+it('selects missing-authorization on Filament and Livewire write sites', function (): void {
+    $base = sys_get_temp_dir().DIRECTORY_SEPARATOR.'codeguard-psc-auth-'.uniqid();
+    pscWrite($base, 'app/Filament/Resources/OrderResource.php', "<?php\nnamespace App\\Filament\\Resources;\nclass OrderResource {}\n");
+    pscWrite($base, 'app/Livewire/OrderForm.php', "<?php\nnamespace App\\Livewire;\nclass OrderForm {}\n");
+
+    try {
+        expect(pscKeysFor($base, 'app/Filament/Resources/OrderResource.php'))->toContain('missing-authorization')
+            ->and(pscKeysFor($base, 'app/Livewire/OrderForm.php'))->toContain('missing-authorization')
+            ->and(pscKeysFor($base, 'app/Filament/Resources/OrderResource.php'))->toContain('mass-assignment');
     } finally {
         pscCleanup($base);
     }

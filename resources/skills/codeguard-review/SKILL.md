@@ -13,95 +13,121 @@ description: Run CodeGuard's pattern-based review — emit a work order, fan out
 ## Overview
 
 `codeguard:analyze` reviews code against the curated pattern corpus for smells AST
-tools (PHPStan/Deptrac) cannot reach — "god object", "logic in blade",
-"service-layer discipline". The LLM judgement runs **inside this Claude Code
-session** (your subscription), so there is **no external/metered API**.
+tools (PHPStan/Deptrac) cannot reach — SQL injection write sites, missing auth,
+N+1, layer leaks. The LLM judgement runs **inside this Claude Code session**
+(your subscription), so there is **no external/metered API**.
 
 Division of labour:
 - **The package (deterministic, in PHP)** scopes files, matches patterns, emits a
-  work order, and later validates + gates the findings through its trust boundary.
+  work order (with a `scope` object), and later validates + gates findings through
+  its trust boundary — including anti-overwrite on empty emit and action taxonomy
+  (BLOCK / REQUEST CHANGE / INFO).
 - **You (this skill, via subagents)** do the actual reviewing — one subagent per
   batch of files — and hand the findings back.
 
-The package's `PatternMatch` trust boundary re-validates everything you return, so
-a hallucinated pattern key, a wrong file, or an out-of-range severity is dropped.
+Default product posture: **contractor PR review** of the **relevant diff**, not a
+full-corpus inventory of a clean tree.
 
 ## Prerequisites
 
 - The project depends on `henryavila/codeguard` (`composer show henryavila/codeguard`).
-- It is a git repository (for the default `--changed-only` scope).
+- It is a git repository (for `--base` / default changed-only scope).
 
 ## Instructions
 
 ### Step 1 — Choose the scope
 
-Default to changed + staged files. Honor the user's request if they name a path or
-ask for a full scan:
+**Resolution order (honor the first that applies):**
+
+1. User named `--path=…` or asked for a full scan (`--all`) → honor that.
+2. User/skill can set `--base=…` (PR base, e.g. `origin/main`) → package uses
+   `againstBase` = `base...HEAD` ∪ staged ∪ unstaged (unless `--committed-only`).
+3. Detectable default branch → prefer `--base=origin/<default>` (e.g. `origin/main`).
+4. Fallback: `--changed-only` (git dirty + staged vs HEAD).
+5. If 0 files/units: **do not** treat “Working tree clean” as a successful review.
+   Offer `--path`, a base branch, `--all`, or `--include-hygiene` as appropriate.
 
 | User intent | Scope flag |
 |---|---|
-| (default) review my current work | `--changed-only` |
+| (default) review this PR / current branch | `--base=origin/main` (or detected default) |
+| dirty local work only | `--changed-only` |
 | review `app/Services` | `--path=app/Services` |
 | review a single file | `--path=app/Foo.php` |
-| review the whole project | `--all` |
+| inventory whole project | `--all` (+ optional `--include-hygiene`) |
+| CI / committed PR SHA only | `--base=origin/main --committed-only` |
 
-Use the SAME scope flag in Step 2 and Step 6 — the package re-derives the file set
-on ingest, so they must match.
+**Ingest must not re-guess scope.** The work order carries `scope.files` (+ SHAs).
+Always pass the **same** `--out` request path; ingest reuses `scope.files` from
+`.codeguard/analyze-request.json` (or `--request=`). Do **not** re-pass divergent
+scope flags that would re-derive git scope.
 
 ### Step 2 — Emit the work order
 
-```bash
-php artisan codeguard:analyze --emit --out=.codeguard/analyze-request.json <scope-flag>
-```
+**Defaults when the user does not specify focus:**
 
-For a higher-confidence review, request **voting** with `--samples=3` — run the
-review 3 independent times and keep only what the passes agree on (Step 4). This
-trades ~3× the subagent tokens for a finding's confidence becoming a *calibrated
-vote-share* instead of the model's self-reported (and easily inflated) number:
+- `--focus=contractor` — G3 security/data R4 + architecture + `service-layer`
+- `--critique` — re-score pass; package drops soft scores below contractor floor (4)
+- `samples=1` by default; use `--samples=3` only when the user asks for a hard gate / voting
 
 ```bash
-php artisan codeguard:analyze --emit --samples=3 --out=.codeguard/analyze-request.json <scope-flag>
+php artisan codeguard:analyze --emit --focus=contractor --critique \
+  --out=.codeguard/analyze-request.json <scope-flag>
 ```
 
-Emit calls no LLM. It writes JSON:
+**Hard gate / voting** (opt-in):
+
+```bash
+php artisan codeguard:analyze --emit --focus=contractor --critique --samples=3 \
+  --out=.codeguard/analyze-request.json <scope-flag>
+```
+
+**Full inventory** (explicit):
+
+```bash
+php artisan codeguard:analyze --emit --focus=full --include-hygiene \
+  --out=.codeguard/analyze-request.json --all
+```
+
+Note: `--focus=full` **excludes hygiene** (types, dry, small-functions, …) unless
+`--include-hygiene` is set. Contractor already excludes hygiene via its key allowlist.
+
+Emit calls no LLM. It writes JSON including:
 
 ```json
 {
-  "system_prompt": "You are a senior code reviewer ...",
-  "finding_schema": { "type": "array", "items": { "...": "..." } },
+  "focus": "contractor",
+  "min_critique_score": 4,
+  "scope": {
+    "mode": "base",
+    "base_ref": "origin/main",
+    "committed_only": false,
+    "head_sha": "abc…",
+    "merge_base_sha": "def…",
+    "files": ["/abs/app/Services/Foo.php"]
+  },
   "samples": 1,
-  "units": [
-    {
-      "file": "/abs/path/app/Services/OrderService.php",
-      "patterns": [
-        {
-          "key": "service-layer",
-          "description": "Controllers delegate business logic to Services",
-          "severity": "critical",
-          "verification_rules": ["services must not return HTTP responses", "..."],
-          "examples": { "correct": "...", "violation": "..." }
-        }
-      ]
-    }
-  ]
+  "critique": true,
+  "units": [ { "file": "…", "patterns": [ … ] } ]
 }
 ```
 
-Read the file. If `units` is empty, tell the user nothing matched the scope and
-stop. Note the `samples` value — it tells you how many review passes to run in
-Step 4 (1 = single pass, the default).
+**Empty emit protection (package):** if `--out` already has `units.length > 0` and
+the new work order has 0 units, the package **aborts** without writing (unless
+`--force`). The skill does not reimplement that check — report the package error
+and offer scope fixes (`--path`, `--base`, `--all`) or `--force` only when intentional.
+
+If `units` is empty and write succeeded, tell the user nothing matched and stop.
+
+Contractor + tightened R4 path signals → smaller units → cheaper subagent batches.
 
 ### Step 3 — Batch the units
 
-Group `units` into **batches of 5 files** (default). For a large diff, a bigger
-batch trades parallelism for fewer subagent tokens; for a tiny diff, one batch is
-fine. Never split a single unit across batches — a file and its patterns stay
-together.
+Group `units` into **batches of 5 files** (default). Never split a single unit
+across batches — a file and its patterns stay together.
 
 ### Step 4 — Fan out one subagent per batch
 
-For each batch, dispatch a subagent (Task/Agent tool, or Workflow `parallel` for
-deterministic fan-out). Give each subagent:
+For each batch, dispatch a subagent. Give each:
 
 - The `system_prompt` verbatim from the work order.
 - Its batch of units (each unit's `file` + `patterns`).
@@ -117,143 +143,74 @@ deterministic fan-out). Give each subagent:
   > exact path you were given, `severity` is that pattern's severity, and
   > `confidence` is 0.0–1.0. Return `[]` when the batch is clean.
 
-Subagents are independent — they cannot see each other's files. That isolation is
-intended (one file's review never bleeds into another's).
-
-**Voting (`samples` > 1):** run this whole batched fan-out `samples` times. Each
-pass is a *fresh, independent* set of subagents over the same units — do NOT show
-one pass the previous pass's findings (independence is what makes the vote
-meaningful). Collect each pass's merged findings as a separate array; you will
-hand all of them back in Step 5. The package keeps only findings that ≥2/3 of the
-passes agree on, and sets each survivor's confidence to its vote-share.
+**Voting (`samples` > 1):** run this whole batched fan-out `samples` times with
+fresh independent subagents. Collect each pass's merged findings separately.
 
 ### Step 4b — Architectural review (only when `architecture.patterns` is non-empty)
 
-Three patterns judge *relationships between files* — dependency direction, module
-boundaries, dependency cycles — which a per-file pass cannot see. The work order
-carries them under `architecture.patterns`, plus a `graph` the package built from
-the files' real `use` statements:
-
-```json
-"graph": {
-  "nodes":  [ { "fqcn": "App\\Services\\OrderService", "file": "app/Services/OrderService.php" } ],
-  "edges":  [ { "from": "App\\Services\\OrderService", "to": "App\\Repositories\\OrderRepository" } ],
-  "cycles": [ [ "App\\Orders\\OrderService", "App\\Shipping\\ShippingService" ] ]
-}
-```
-
-Dispatch **one** subagent for the whole graph (not per file). Give it the
-`system_prompt`, the `graph`, and `architecture.patterns`, with this instruction:
-
-  > Judge the dependency `graph` against these architectural patterns. `edges` are
-  > real first-party `use` dependencies (`from` → `to`); `cycles` are dependency
-  > cycles already detected for you — treat each as a likely
-  > `no-circular-dependencies` violation and confirm it. READ a node's `file`
-  > before reporting it. Return a finding ONLY for a real violation, each:
-  > `{ "pattern_key", "file", "line", "message", "severity", "confidence",
-  > "related_file" }`, where `file` is the offending node's path (exactly as in
-  > the graph) and `related_file` is the FQCN at the other end of the bad
-  > dependency. Return `[]` when the architecture is clean.
-
-Add this subagent's findings to the same merged array as the per-file ones (and,
-when voting, to each pass's array). The package attributes them to the cited file
-through the same trust boundary — even a file that matched no per-file pattern.
+Dispatch **one** subagent for the whole graph with `graph` + `architecture.patterns`.
+Findings may include `related_file`. Add them to the merged array (per pass when voting).
 
 ### Step 5 — Merge findings
 
-**Single pass (`samples: 1`).** Concatenate every subagent's findings into one
-array and write it:
-
-```bash
-# write the merged array to .codeguard/analyze-findings.json
-```
+**Single pass:** write `.codeguard/analyze-findings.json`:
 
 ```json
-{ "findings": [ { "pattern_key": "service-layer", "file": "/abs/.../OrderService.php", "line": 42, "message": "...", "severity": "critical", "confidence": 0.9 } ] }
+{ "findings": [ { "pattern_key": "…", "file": "…", "line": 42, "message": "…", "severity": "critical", "confidence": 0.9 } ] }
 ```
 
-A bare top-level array is also accepted.
+**Voting:** write a `samples` envelope with one array per pass (do not merge yourself).
 
-**Voting (`samples` > 1).** Write one merged array *per pass* under a `samples`
-envelope — the package does the voting, so keep the passes separate (do not merge
-or dedupe them yourself):
+### Step 5b — Critique pass (when `critique: true`)
 
-```json
-{
-  "samples": [
-    [ { "pattern_key": "service-layer", "file": "/abs/.../OrderService.php", "line": 42, "message": "...", "severity": "critical", "confidence": 0.9 } ],
-    [ { "pattern_key": "service-layer", "file": "/abs/.../OrderService.php", "line": 42, "message": "...", "severity": "critical", "confidence": 0.8 } ],
-    [ ]
-  ]
-}
-```
-
-The reported `confidence` inside each pass is ignored — the package overwrites it
-with the calibrated vote-share (here 2/3 ≈ 0.67).
-
-### Step 5b — Critique pass (only when the work order has `critique: true`)
-
-A critique pass cuts false positives by making a *fresh* subagent re-judge each
-finding instead of trusting the pass that produced it. For every finding you are
-about to submit, dispatch a subagent that:
-
-- READS the cited `file` around the cited `line`.
-- Re-judges the finding against its pattern's rubric, with this instruction:
-
-  > Score how real and on-target this finding is, 0–10. **0 means it is wrong,
-  > a false positive, or not actually a violation of this pattern.** 10 means it
-  > is a clear, correct violation at that line. Return only the integer.
-
-Attach the integer to the finding as `verified_score`. A finding the critique
-scored **0 is dropped by the package**; any positive score is kept and shown as
-`[score N/10]`. Leave `verified_score` off a finding you did not critique.
-
-```json
-{ "pattern_key": "service-layer", "file": "/abs/.../OrderService.php", "line": 42, "message": "...", "severity": "critical", "confidence": 0.9, "verified_score": 8 }
-```
-
-If you are *also* voting (Step 4), critique each pass's findings before writing
-that pass's array into the `samples` envelope — the package votes first, then
-drops any survivor whose `verified_score` is 0.
+For every finding, a fresh subagent scores 0–10 into `verified_score`. Package drops
+scores below `min_critique_score` (contractor default **4**); uncritiqued findings stay.
 
 ### Step 6 — Ingest, validate, and gate
 
+**Reuse the same work order scope** — prefer request JSON, do not re-derive git:
+
 ```bash
-php artisan codeguard:analyze --ingest=.codeguard/analyze-findings.json --fail-on=critical <same-scope-flag>
+php artisan codeguard:analyze \
+  --ingest=.codeguard/analyze-findings.json \
+  --request=.codeguard/analyze-request.json \
+  --fail-on=critical
 ```
 
-The package re-scopes + re-matches, runs every finding through the trust boundary
-(dropping anything that references an unknown pattern, the wrong file, or an
-invalid severity/confidence), prints the surviving findings grouped by severity
-(`✗` critical / `⚠` warning / `→` suggestion), emits `analyze.ended` telemetry, and
-exits non-zero when any finding meets `--fail-on`.
+The package:
+- Uses `scope.files` from the request when present (still-exists filter only).
+- Warns / fails if `HEAD` ≠ `scope.head_sha` unless `--allow-scope-drift`.
+- Prefers work-order `focus` / `min_critique_score` when CLI did not set them.
+- Prints findings by **action section** + a markdown checklist (not only severity).
 
-### Step 7 — Report
+CLI focus/min-critique flags override only when the user passes them explicitly.
 
-Summarize for the user: how many files reviewed, how many findings survived
-validation (and how many raw findings were dropped, if notable), and the exit
-status. Offer to open the flagged files at the cited lines.
+### Step 7 — Report (PR decision, not a flat inventory)
+
+After ingest, use the **package sections** (do not reimplement action policy):
+
+1. Summarize **block / request_change / info** counts from the CLI footer.
+2. Paste the **Checklist (markdown)** block from the package output.
+3. Offer to open the first **BLOCK** finding at its path:line.
+4. For re-review after fixes: re-run with the **same work order scope** (same
+   `--request` / paths / `--base`) — do not invent a new empty emit over a good one.
+5. **Do not** propose bulk auto-fix.
+
+Decision framing:
+- **BLOCK** — do not merge until fixed (critical security: SQL injection, missing
+  auth, mass-assignment at write site).
+- **REQUEST CHANGE** — should be addressed (N+1, transactions, unbounded queries,
+  layer/service leaks).
+- **INFO** — hygiene/other survivors.
 
 ## Notes
 
-- **Subscription, not API.** Nothing here calls a metered endpoint. The review is
-  your Claude Code session doing the judging.
-- **Not an autonomous CI gate.** This runs when invoked. For unattended CI, the
-  AST gates (`composer codeguard:check` → Pint/PHPStan/Deptrac) remain the
-  autonomous enforcement; `analyze` is the deeper assisted review.
-- **`--fail-on`** accepts `critical` (default), `warning`, `suggestion`, or `never`
-  (report-only).
-- **`--samples=k`** (R1 voting) raises precision by agreement, not by trusting a
-  single pass. A finding survives only if ≥2/3 of the `k` passes report it
-  (`pattern_key` + `file` + `line`); its confidence becomes the vote-share. Use it
-  when a false positive would be expensive (e.g. gating a contractor's PR); skip it
-  (default `1`) for a quick local pass.
-- **`--critique`** (R2) adds a second-opinion re-scoring pass (Step 5b): a fresh
-  subagent re-judges each finding 0–10 and the package drops the 0s. Cheaper than
-  voting (one extra pass, not `k`) and composes with it. Reach for it when you want
-  a self-check without the cost of a full re-review.
-- **Architectural patterns** (R3, Step 4b) reach cross-file smells — wrong
-  dependency direction, module-boundary leaks, dependency cycles — using the
-  namespace `graph` the package builds from real `use` edges. The graph is only as
-  complete as the scope: under `--changed-only` it sees just the changed files, so
-  run `--all` (or `--path` over a module) for a trustworthy architectural pass.
+- **Subscription, not API.** Nothing here calls a metered endpoint.
+- **Not an autonomous CI gate.** AST gates remain autonomous; analyze is assisted review.
+- **`--fail-on`** — `critical` (default), `warning`, `suggestion`, or `never`.
+- **`--samples=k`** — R1 voting; opt-in for hard contractor gates.
+- **`--critique`** — R2 re-scoring; default for skill contractor runs.
+- **`--force`** — only when intentionally replacing a non-empty work order with empty.
+- **`--allow-scope-drift`** — only when HEAD moved and you still want the recorded file list.
+- **Architectural patterns (R3)** need a wide enough scope (`--all` / module path) for a trustworthy graph.
+- **Trust boundary & voting stay in the package** — this skill never reimplements them.

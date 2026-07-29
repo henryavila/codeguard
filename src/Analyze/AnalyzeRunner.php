@@ -37,12 +37,19 @@ final class AnalyzeRunner
      * @param  list<string>  $files  Absolute paths (already scoped by the command).
      * @param  list<string>  $presets
      */
-    public function run(array $files, array $presets, ?Severity $failOn, string $context): AnalyzeResult
-    {
+    public function run(
+        array $files,
+        array $presets,
+        ?Severity $failOn,
+        string $context,
+        ?AnalyzeOptions $options = null,
+    ): AnalyzeResult {
+        $options ??= AnalyzeOptions::full();
         $start = hrtime(true);
 
-        $units = $this->units($files, $presets);
-        $graphKeys = $this->graphLevelKeys($this->patterns->forPresets($presets));
+        $patterns = $this->resolvePatterns($presets, $options);
+        $units = $this->matcher->match($files, $patterns);
+        $graphKeys = $this->graphLevelKeys($patterns);
         $adjudicated = $this->llm->isConfigured();
         $matches = [];
         $checks = 0;
@@ -66,7 +73,7 @@ final class AnalyzeRunner
             }
         }
 
-        return $this->finish($matches, $checks, $start, $failOn, $adjudicated);
+        return $this->finish($matches, $checks, $start, $failOn, $adjudicated, $options);
     }
 
     /**
@@ -77,11 +84,19 @@ final class AnalyzeRunner
      * @param  list<string>  $presets
      * @param  int  $samples  How many independent review passes the skill should run (R1 voting).
      * @param  bool  $critique  Whether the skill should run a critique re-scoring pass (R2).
-     * @return array{system_prompt: string, finding_schema: array<string, mixed>, samples: int, critique: bool, graph: array<string, mixed>, architecture: array{patterns: list<array<string, mixed>>}, units: list<array<string, mixed>>}
+     * @param  array<string, mixed>|null  $scope  Resolved file scope metadata (mode, files, SHAs).
+     * @return array{system_prompt: string, finding_schema: array<string, mixed>, samples: int, critique: bool, focus: string, min_critique_score: int, scope: array<string, mixed>, graph: array<string, mixed>, architecture: array{patterns: list<array<string, mixed>>}, units: list<array<string, mixed>>}
      */
-    public function buildWorkOrder(array $files, array $presets, int $samples = 1, bool $critique = false): array
-    {
-        $patterns = $this->patterns->forPresets($presets);
+    public function buildWorkOrder(
+        array $files,
+        array $presets,
+        int $samples = 1,
+        bool $critique = false,
+        ?AnalyzeOptions $options = null,
+        ?array $scope = null,
+    ): array {
+        $options ??= AnalyzeOptions::full();
+        $patterns = $this->resolvePatterns($presets, $options);
 
         $units = array_map(
             static fn (AnalysisUnit $unit): array => [
@@ -99,11 +114,29 @@ final class AnalyzeRunner
             $this->matcher->graphLevel($patterns),
         );
 
+        $resolvedScope = $scope ?? [
+            'mode' => 'path',
+            'base_ref' => null,
+            'committed_only' => false,
+            'path' => null,
+            'head_sha' => null,
+            'merge_base_sha' => null,
+            'files' => array_values($files),
+        ];
+        if (! isset($resolvedScope['files']) || ! is_array($resolvedScope['files'])) {
+            $resolvedScope['files'] = array_values($files);
+        }
+
         return [
             'system_prompt' => $this->systemPrompt(),
             'finding_schema' => FindingSchema::jsonSchema(),
             'samples' => max(1, $samples),
             'critique' => $critique,
+            'focus' => $options->onlyPatternKeys === null
+                ? AnalyzeOptions::FOCUS_FULL
+                : AnalyzeOptions::FOCUS_CONTRACTOR,
+            'min_critique_score' => $options->minCritiqueScore,
+            'scope' => $resolvedScope,
             'graph' => (new NamespaceGraph)->build($files, $this->matcher->workingDirectory()),
             'architecture' => ['patterns' => $architecturePatterns],
             'units' => $units,
@@ -118,17 +151,23 @@ final class AnalyzeRunner
      * @param  list<string>  $presets
      * @param  list<array<string, mixed>>  $rawFindings
      */
-    public function ingest(array $files, array $presets, array $rawFindings, ?Severity $failOn): AnalyzeResult
-    {
+    public function ingest(
+        array $files,
+        array $presets,
+        array $rawFindings,
+        ?Severity $failOn,
+        ?AnalyzeOptions $options = null,
+    ): AnalyzeResult {
+        $options ??= AnalyzeOptions::full();
         $start = hrtime(true);
 
-        $patterns = $this->patterns->forPresets($presets);
+        $patterns = $this->resolvePatterns($presets, $options);
         $perFileUnits = $this->matcher->match($files, $patterns);
         $checks = $this->checkCount($perFileUnits);
         $units = $this->withArchitecturalUnits($files, $patterns, $perFileUnits);
         $matches = $this->validate($units, $rawFindings, $this->graphLevelKeys($patterns));
 
-        return $this->finish($matches, $checks, $start, $failOn, adjudicated: true);
+        return $this->finish($matches, $checks, $start, $failOn, adjudicated: true, options: $options);
     }
 
     /**
@@ -141,11 +180,18 @@ final class AnalyzeRunner
      * @param  list<string>  $presets
      * @param  list<list<array<string, mixed>>>  $sampleSets  raw findings, one list per sample
      */
-    public function ingestSamples(array $files, array $presets, array $sampleSets, ?Severity $failOn, int $minVotes): AnalyzeResult
-    {
+    public function ingestSamples(
+        array $files,
+        array $presets,
+        array $sampleSets,
+        ?Severity $failOn,
+        int $minVotes,
+        ?AnalyzeOptions $options = null,
+    ): AnalyzeResult {
+        $options ??= AnalyzeOptions::full();
         $start = hrtime(true);
 
-        $patterns = $this->patterns->forPresets($presets);
+        $patterns = $this->resolvePatterns($presets, $options);
         $perFileUnits = $this->matcher->match($files, $patterns);
         $checks = $this->checkCount($perFileUnits);
         $units = $this->withArchitecturalUnits($files, $patterns, $perFileUnits);
@@ -158,7 +204,7 @@ final class AnalyzeRunner
 
         $matches = (new FindingVoter)->tally($validatedSamples, $minVotes);
 
-        return $this->finish($matches, $checks, $start, $failOn, adjudicated: true);
+        return $this->finish($matches, $checks, $start, $failOn, adjudicated: true, options: $options);
     }
 
     /**
@@ -248,29 +294,47 @@ final class AnalyzeRunner
     }
 
     /**
-     * R2 critique drop: a finding the critique pass scored 0 is rejected. A null
-     * score means uncritiqued (kept); any positive score is kept. Applied
-     * uniformly to every path (synchronous, ingest, voted ingest).
+     * R2 critique floor: drop findings whose verified_score is present and below
+     * {@see AnalyzeOptions::$minCritiqueScore}. Null (uncritiqued) always keeps.
+     * Default floor 1 = historical "drop only score 0". Contractor floor 4 also
+     * drops soft scores 1–3 from field runs.
      *
      * @param  list<PatternMatch>  $matches
      * @return list<PatternMatch>
      */
-    private function surviveCritique(array $matches): array
+    private function surviveCritique(array $matches, AnalyzeOptions $options): array
     {
         return array_values(array_filter(
             $matches,
-            static fn (PatternMatch $match): bool => $match->verifiedScore !== 0,
+            static fn (PatternMatch $match): bool => $options->critiqueSurvives($match->verifiedScore),
         ));
     }
 
     /**
-     * @param  list<string>  $files
      * @param  list<string>  $presets
-     * @return list<AnalysisUnit>
+     * @return list<Pattern>
      */
-    private function units(array $files, array $presets): array
+    private function resolvePatterns(array $presets, AnalyzeOptions $options): array
     {
-        return $this->matcher->match($files, $this->patterns->forPresets($presets));
+        $patterns = $this->patterns->forPresets($presets);
+        $allow = $options->onlyPatternKeys;
+        if ($allow !== null) {
+            $set = array_fill_keys($allow, true);
+            $patterns = array_values(array_filter(
+                $patterns,
+                static fn (Pattern $pattern): bool => isset($set[$pattern->key]),
+            ));
+        }
+
+        if ($options->excludeClassifications !== []) {
+            $exclude = array_fill_keys($options->excludeClassifications, true);
+            $patterns = array_values(array_filter(
+                $patterns,
+                static fn (Pattern $pattern): bool => ! isset($exclude[$pattern->classification]),
+            ));
+        }
+
+        return $patterns;
     }
 
     /**
@@ -346,11 +410,18 @@ final class AnalyzeRunner
     /**
      * @param  list<PatternMatch>  $matches
      */
-    private function finish(array $matches, int $checks, float $start, ?Severity $failOn, bool $adjudicated): AnalyzeResult
-    {
+    private function finish(
+        array $matches,
+        int $checks,
+        float $start,
+        ?Severity $failOn,
+        bool $adjudicated,
+        ?AnalyzeOptions $options = null,
+    ): AnalyzeResult {
+        $options ??= AnalyzeOptions::full();
         $fresh = [];
         $suppressed = 0;
-        foreach ($this->surviveCritique($matches) as $match) {
+        foreach ($this->surviveCritique($matches, $options) as $match) {
             if ($this->baseline->isAccepted($match)) {
                 $suppressed++;
 
