@@ -1,6 +1,7 @@
 # Plan: Skill value uplift (itens 1–4)
 
-**Status:** Implemented · **Date:** 2026-07-29  
+**Status:** Implemented & merged (PR #3 → main `6f7fc18`) · **Date:** 2026-07-29  
+**Foreign plan:** FINALIZE + ARCHIVE — sidecar `docs/specs/2026-07-29-skill-value-uplift-plan.implement.yaml`  
 **Origin:** Field run Arch (2026-07-27) + audit de findings + ranking de ROI G3  
 **Codex review:** `.atomic-skills/reviews/20260729-0549-skill-value-uplift-plan-codex.md` — **5 findings applied below** (F-001…F-005)  
 **Goal:** Alinhar a skill `codeguard-review` e o corpus ao ideal G3 — **review de PR de contractor com findings acionáveis**, não inventário de monólito.

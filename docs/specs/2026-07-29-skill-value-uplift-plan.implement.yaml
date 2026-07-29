@@ -3,8 +3,8 @@ schemaVersion: "0.1"
 sourcePath: docs/specs/2026-07-29-skill-value-uplift-plan.md
 slug: 2026-07-29-skill-value-uplift-plan
 branch: plan/2026-07-29-skill-value-uplift-plan
-status: active
-currentPhase: FINALIZE
+status: archived
+currentPhase: ARCHIVE
 phases:
   - id: A
     title: Defaults skill + PR-diff scope + emit/ingest parity
@@ -269,34 +269,46 @@ phases:
           closedAt: 2026-07-29T09:30:21.052Z
   - id: FINALIZE
     title: Finalize — validation, PR, intent vs delivered
-    status: pending
+    status: done
     terminal: true
     tasks:
       - id: T-FINALIZE
         title: Operator validates intent vs delivered; open/update PR if needed
-        status: pending
+        status: done
         outputs: []
         scopeBoundary: []
         acceptance:
           - Intent-vs-delivered surface presented to operator
           - Operator explicit validation recorded
         verifier: null
-        evidence: null
+        evidence:
+          passed: true
+          kind: operator-validation
+          userValidatedAt: 2026-07-29T11:34:57.015Z
   - id: ARCHIVE
     title: Archive — clean worktree, branch bookkeeping, terminal handoff
-    status: pending
+    status: done
     terminal: true
     tasks:
       - id: T-ARCHIVE
         title: Remove worktree, record branch disposition, stamp archived
-        status: pending
+        status: done
         outputs: []
         scopeBoundary: []
         acceptance:
           - Worktree removed or explicitly retained with reason
           - Sidecar status is archived
         verifier: null
-        evidence: null
+        evidence:
+          passed: true
+          kind: archive
+          archivedAt: 2026-07-29T11:34:57.015Z
+          worktreeRemoved: false
+          worktreePath: null
+          branchDisposition: merged-to-main-via-PR-3-remote-branch-deleted
+          note: "Merged PR #3 (6f7fc18). No isolated worktree was created; work ran on
+            plan branch then main. Remote plan branch deleted by gh pr merge
+            --delete-branch."
 intent:
   value: Skill codeguard-review and corpus aligned to G3 contractor PR review with
     actionable findings
@@ -323,17 +335,49 @@ groundTruth:
       outputs absent or partial."
   fingerprint: skill-value-uplift-2026-07-29-v1
   at: 2026-07-29T09:21:57.452Z
-finalize: null
-archive: null
+finalize:
+  userValidatedAt: 2026-07-29T11:34:57.015Z
+  intentVsDelivered:
+    - intent: Skill defaults contractor + critique; PR/base-aware scope
+      status: matched
+      evidence: resources/skills/codeguard-review/SKILL.md + CodeguardAnalyzeCommand
+        --base
+    - intent: Package anti-overwrite empty emit + --force
+      status: matched
+      evidence: handleEmit mayWriteWorkOrder + feature test
+    - intent: Work order scope + ingest parity + SHA drift
+      status: matched
+      evidence: buildWorkOrder scope + resolveIngestFiles
+    - intent: CLI BLOCK / REQUEST CHANGE / INFO + checklist
+      status: matched
+      evidence: FindingActionClassifier + renderFindings
+    - intent: full excludes hygiene; --include-hygiene opt-in
+      status: matched
+      evidence: AnalyzeOptions.full + YAML classification hygiene
+    - intent: mass-assignment write-site only; R4 signals tightened
+      status: matched
+      evidence: YAMLs + PatternSelectionCoverageTest
+    - intent: Pest suite green
+      status: matched
+      evidence: 536 passed / 1300 assertions
+  prUrl: https://github.com/henryavila/codeguard/pull/3
+  packagePresentedAt: 2026-07-29T11:34:57.015Z
+archive:
+  archivedAt: 2026-07-29T11:34:57.015Z
+  worktreeRemoved: false
+  worktreePath: null
+  branchDisposition: merged-to-main-via-PR-3-remote-branch-deleted
+  note: "Merged PR #3 (6f7fc18). No isolated worktree was created; work ran on
+    plan branch then main. Remote plan branch deleted by gh pr merge
+    --delete-branch."
 handoff:
-  narrative: Phases A–D implemented on plan/2026-07-29-skill-value-uplift-plan.
-    Full pest 536 green. Ready for operator FINALIZE (PR + validation).
-  decisionLog: Foreign implement; full excludes hygiene; contractor skill
-    defaults; R4 write-site signals.
-  nextAction: Operator validates intent-vs-delivered and FINALIZE (optional PR);
-    then ARCHIVE.
-  verbatimState: "pest: 536 passed; branch
-    plan/2026-07-29-skill-value-uplift-plan; plan status Implemented"
-  uncommittedChanges: see git status at finalize
+  narrative: "Foreign plan skill-value-uplift FINALIZE+ARCHIVE complete. PR #3
+    merged to main."
+  decisionLog: Operator requested PR+merge+finalize; intentVsDelivered all
+    matched; branch disposition merged.
+  nextAction: foreign plan archived — reopen requires explicit operator intent
+  verbatimState: PR https://github.com/henryavila/codeguard/pull/3 MERGED
+    merge=6f7fc18 suite=536-passed
+  uncommitted: clean after finalize commit
 executionMode: automate
 entryChoice: foreign
