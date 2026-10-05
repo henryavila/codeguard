@@ -6,7 +6,7 @@ namespace Henryavila\Codeguard\Install;
 
 use Illuminate\Filesystem\Filesystem;
 use SebastianBergmann\Diff\Differ;
-use SebastianBergmann\Diff\Output\UnifiedDiffOutputBuilder;
+use SebastianBergmann\Diff\Output\DiffOutputBuilderInterface;
 
 final class StubDiffer
 {
@@ -36,10 +36,30 @@ final class StubDiffer
             basename($incomingStubPath),
         );
 
-        $builder = new UnifiedDiffOutputBuilder($header, true);
-        $differ = new Differ($builder);
+        $differ = new Differ($this->outputBuilder($header, $existingPath, $incomingStubPath));
 
         return $differ->diff($existing, $incoming);
+    }
+
+    private function outputBuilder(string $header, string $existingPath, string $incomingStubPath): DiffOutputBuilderInterface
+    {
+        $legacy = 'SebastianBergmann\\Diff\\Output\\UnifiedDiffOutputBuilder';
+        if (class_exists($legacy)) {
+            /** @var DiffOutputBuilderInterface */
+            return new $legacy($header, true);
+        }
+
+        $strict = 'SebastianBergmann\\Diff\\Output\\StrictUnifiedDiffOutputBuilder';
+        if (class_exists($strict)) {
+            /** @var DiffOutputBuilderInterface */
+            return new $strict([
+                'fromFile' => basename($existingPath).' (existing)',
+                'toFile' => basename($incomingStubPath).' (stub)',
+                'header' => $header,
+            ]);
+        }
+
+        throw new \RuntimeException('sebastian/diff has no unified output builder.');
     }
 
     /**
