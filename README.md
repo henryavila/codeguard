@@ -4,7 +4,7 @@
 
 Consolidated install for Pint, PHPStan, Deptrac, Infection, and CaptainHook — with AI review where AST can't reach, multi-database schema dump, and honest best-effort Claude hooks.
 
-**Status**: `0.2.0` is the first Packagist release. Pre-1.0 means the public API may shift; integrations should pin to a specific minor version (`^0.2`). Installs and runs on Laravel 11/12. Patterns engine, schema dump, and AI rules generator are roadmapped for later 0.x releases.
+**Status**: `0.2.0` is the first Packagist release. Pre-1.0 means the public API may shift; integrations should pin to a specific minor version (`^0.2`). Installs and runs on Laravel 11/12/13 and Pest 3/4/5. Patterns engine ships on `main`; schema dump and AI rules generator are roadmapped for later 0.x releases.
 
 ---
 
@@ -169,8 +169,8 @@ php artisan codeguard:install --refresh-stubs       # update stubs (diff-aware)
 ## Stack Requirements
 
 - PHP **8.5+**
-- Laravel **11** or **12**
-- Pest **3** or **4** (dev only)
+- Laravel **11**, **12**, or **13**
+- Pest **3**, **4**, or **5** (dev only)
 - Composer **2.x**
 
 Optional:

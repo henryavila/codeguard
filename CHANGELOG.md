@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Pre-1.0 means the public API may shift; pin to a specific minor (`^0.2`).
 
+## Unreleased
+
+### Added
+
+- Laravel **13** and Pest **5** on the supported constraint range (`illuminate/* ^13`, `pestphp/pest ^5`, `orchestra/testbench ^11`). Laravel 11/12 and Pest 3/4 remain valid.
+
 ## [0.2.0] — 2026-05-04
 
 First Packagist release. Complete rewrite from the legacy Node/TypeScript
