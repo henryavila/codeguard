@@ -27,7 +27,7 @@ function makeDetector(string $basePath): EnvironmentDetector
 
 it('detects pestphp/pest under require-dev in composer.json', function (): void {
     file_put_contents($this->tempDir.'/composer.json', json_encode([
-        'require-dev' => ['pestphp/pest' => '^3.0'],
+        'require-dev' => ['pestphp/pest' => '^5.0'],
     ]));
 
     expect(makeDetector($this->tempDir)->detectPestUsage())->toBeTrue();
