@@ -33,7 +33,7 @@
         "symfony/process": "^7.0|^8.0",
         "symfony/yaml": "^7.0|^8.0",
         "symfony/finder": "^7.0|^8.0",
-        "sebastian/diff": "^5.1|^6.0|^7.0",
+        "sebastian/diff": "^5.1|^6.0|^7.0|^8.0|^9.0",
         "phpstan/phpstan": "^1.11|^2.0",
         "larastan/larastan": "^2.11|^3.0",
         "phpstan/phpstan-phpunit": "^1.4|^2.0",
