@@ -13,6 +13,7 @@ Pre-1.0 means the public API may shift; pin to a specific minor (`^0.2`).
 
 - Laravel **13** and Pest **5** on the supported constraint range (`illuminate/* ^13`, `pestphp/pest ^5`, `orchestra/testbench ^11`). Laravel 11/12 and Pest 3/4 remain valid.
 - `sebastian/diff` also allows `^8` and `^9` so the package installs next to Pest 5.
+- `StubDiffer` works with both `UnifiedDiffOutputBuilder` (diff 5–7) and `StrictUnifiedDiffOutputBuilder` (diff 9 / Pest 5).
 
 ## [0.2.0] — 2026-05-04
 
